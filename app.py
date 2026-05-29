@@ -54,7 +54,34 @@ login_manager.login_message_category = 'warning'
 
 @login_manager.user_loader
 def load_user(uid):
-    return User.query.get(int(uid))
+    try:
+        return User.query.get(int(uid))
+    except:
+        return None
+
+# ─── Verificação de banco inicializado ────────────────────────────────────────
+
+def is_db_initialized():
+    """Verifica se o banco de dados foi inicializado"""
+    try:
+        with app.app_context():
+            # Tenta contar usuários - se conseguir, o banco está pronto
+            User.query.count()
+            return True
+    except:
+        return False
+
+@app.before_request
+def check_db_init():
+    """Redireciona para /init se o banco não estiver inicializado"""
+    # Rotas que não precisam de banco de dados
+    exempt_routes = ['init', 'static']
+
+    if request.endpoint in exempt_routes:
+        return
+
+    if not is_db_initialized():
+        return redirect(url_for('init_database'))
 
 # ─── Inicialização do banco ───────────────────────────────────────────────────
 # Comentado para permitir inicialização via endpoint
