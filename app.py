@@ -41,6 +41,7 @@ from flask_login import (LoginManager, login_user, logout_user,
                          login_required, current_user)
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+import io
 from io import BytesIO
 
 from models import Colaborador, Ferias
@@ -2058,6 +2059,259 @@ def migrate_data():
             'status': 'error',
             'message': f'❌ Erro na migração: {str(e)}'
         }), 500
+
+# ─── Módulo: Relatórios de Comissionamento ─────────────────────────────────
+import uuid
+import zipfile
+from werkzeug.utils import secure_filename
+
+try:
+    import pandas as pd
+    from relatorios_excel_reader import (
+        load_workbook as rel_load_workbook,
+        extract_coordinators as rel_extract_coordinators,
+        filter_by_coordinator as rel_filter_by_coordinator,
+        get_commission_columns_suggestions as rel_get_suggestions,
+        column_letter_to_index as rel_col_letter_to_index,
+        _index_to_column_letter as rel_index_to_col_letter
+    )
+    from relatorios_excel_report import create_final_report as rel_create_report, create_consolidated_report as rel_create_consolidated
+    _RELATORIOS_OK = True
+except ImportError as _e:
+    _RELATORIOS_OK = False
+    print(f"[AVISO] Módulo de relatórios não disponível: {_e}")
+
+_rel_cache = {}  # {session_id: dataframes_dict}
+RELATORIOS_UPLOAD = '/tmp/rel_uploads'
+RELATORIOS_OUTPUT = '/tmp/rel_output'
+
+
+def _rel_allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in {'xlsx', 'xls'}
+
+
+def _rel_get_samples(df, col_index, max_samples=3):
+    if df is None or col_index >= df.shape[1]:
+        return []
+    samples = []
+    for row_idx in range(2, min(df.shape[0], 300)):
+        if len(samples) >= max_samples:
+            break
+        val = df.iloc[row_idx, col_index]
+        if pd.notna(val) and val is not False and val != 0:
+            try:
+                samples.append(f"{float(val):,.2f}")
+            except (TypeError, ValueError):
+                samples.append(str(val))
+    return samples
+
+
+def _rel_get_dataframes(session_id):
+    """Tenta obter dataframes do cache ou recarregar do arquivo em /tmp."""
+    if session_id in _rel_cache:
+        return _rel_cache[session_id]
+    import glob
+    files = glob.glob(os.path.join(RELATORIOS_UPLOAD, f"{session_id}_*"))
+    if files:
+        try:
+            dataframes, _ = rel_load_workbook(files[0])
+            _rel_cache[session_id] = dataframes
+            return dataframes
+        except Exception:
+            pass
+    return None
+
+
+@app.route('/relatorios/comissionamento')
+@login_required
+@can_manage_required
+def relatorios_comissionamento():
+    return render_template('relatorios/index.html', modulo_ok=_RELATORIOS_OK)
+
+
+@app.route('/relatorios/upload', methods=['POST'])
+@login_required
+@can_manage_required
+def relatorios_upload():
+    if not _RELATORIOS_OK:
+        return jsonify({'error': 'Módulo de relatórios não disponível neste ambiente.'}), 503
+
+    if 'file' not in request.files:
+        return jsonify({'error': 'Nenhum arquivo enviado'}), 400
+
+    file = request.files['file']
+    if not file.filename or not _rel_allowed_file(file.filename):
+        return jsonify({'error': 'Formato inválido. Use arquivos .xlsx'}), 400
+
+    old_id = session.get('rel_session_id')
+    if old_id and old_id in _rel_cache:
+        del _rel_cache[old_id]
+
+    session_id = str(uuid.uuid4())
+    os.makedirs(RELATORIOS_UPLOAD, exist_ok=True)
+    safe_name = secure_filename(file.filename)
+    filepath = os.path.join(RELATORIOS_UPLOAD, f"{session_id}_{safe_name}")
+    file.save(filepath)
+
+    try:
+        dataframes, period = rel_load_workbook(filepath)
+        coordinators = rel_extract_coordinators(dataframes)
+        suggestions = rel_get_suggestions(dataframes)
+
+        _rel_cache[session_id] = dataframes
+        session['rel_session_id'] = session_id
+        session['rel_period'] = period
+
+        sugg_out = {}
+        for sname, s in suggestions.items():
+            header_val = s['header']
+            header_str = str(header_val) if pd.notna(header_val) else ''
+            if header_str in ('nan', 'None'):
+                header_str = ''
+            sugg_out[sname] = {
+                'col_letter': s['col_letter'],
+                'col_index': int(s['col_index']),
+                'header': header_str,
+                'non_zero_count': int(s['non_zero_count']),
+                'total_rows': int(s['total_rows']),
+                'samples': _rel_get_samples(dataframes.get(sname), s['col_index'])
+            }
+
+        return jsonify({'filename': safe_name, 'period': period,
+                        'coordinators': coordinators, 'suggestions': sugg_out})
+
+    except Exception as e:
+        if os.path.exists(filepath):
+            os.remove(filepath)
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/relatorios/validate-column', methods=['POST'])
+@login_required
+@can_manage_required
+def relatorios_validate_column():
+    if not _RELATORIOS_OK:
+        return jsonify({'error': 'Módulo não disponível'}), 503
+
+    session_id = session.get('rel_session_id')
+    dataframes = _rel_get_dataframes(session_id) if session_id else None
+    if dataframes is None:
+        return jsonify({'error': 'Sessão expirada. Faça o upload novamente.'}), 400
+
+    data = request.json
+    sheet_name = data.get('sheet_name', '')
+    col_input = str(data.get('col_input', '')).strip().upper()
+
+    if not col_input:
+        return jsonify({'error': 'Informe uma coluna'}), 400
+
+    try:
+        if col_input.isdigit():
+            col_index = int(col_input)
+            col_letter = rel_index_to_col_letter(col_index)
+        else:
+            col_letter = col_input
+            col_index = rel_col_letter_to_index(col_letter)
+
+        df = dataframes.get(sheet_name)
+        if df is None:
+            return jsonify({'error': f'Aba "{sheet_name}" não encontrada'}), 400
+
+        if col_index >= df.shape[1]:
+            max_letter = rel_index_to_col_letter(df.shape[1] - 1)
+            return jsonify({'error': f'Coluna {col_letter} não existe. Máxima: {max_letter}.'}), 400
+
+        header = str(df.iloc[0, col_index]) if df.shape[0] > 0 else ''
+        if header in ('nan', 'None', ''):
+            header = '(sem cabeçalho)'
+
+        non_zero = sum(1 for val in df.iloc[2:, col_index]
+                       if pd.notna(val) and val is not False and val != 0) if df.shape[0] > 2 else 0
+        total_rows = max(0, df.shape[0] - 2)
+
+        return jsonify({'col_letter': col_letter, 'col_index': col_index, 'header': header,
+                        'non_zero_count': non_zero, 'total_rows': total_rows,
+                        'samples': _rel_get_samples(df, col_index)})
+    except Exception as e:
+        return jsonify({'error': f'Entrada inválida: {e}'}), 400
+
+
+@app.route('/relatorios/generate', methods=['POST'])
+@login_required
+@can_manage_required
+def relatorios_generate():
+    if not _RELATORIOS_OK:
+        return jsonify({'error': 'Módulo não disponível'}), 503
+
+    session_id = session.get('rel_session_id')
+    dataframes = _rel_get_dataframes(session_id) if session_id else None
+    if dataframes is None:
+        return jsonify({'error': 'Sessão expirada. Faça o upload novamente.'}), 400
+
+    data = request.json
+    comm_raw = data.get('commission_columns', {})
+    selected_coords = data.get('coordinators', [])
+
+    if not selected_coords:
+        return jsonify({'error': 'Selecione pelo menos um coordenador'}), 400
+
+    commission_columns = {k: int(v['col_index']) for k, v in comm_raw.items()}
+    period = session.get('rel_period', 'Relatorio')
+    include_consolidated = data.get('include_consolidated', False)
+
+    os.makedirs(RELATORIOS_OUTPUT, exist_ok=True)
+    results, errors, all_filtered = [], [], {}
+
+    for coord in selected_coords:
+        try:
+            filtered = rel_filter_by_coordinator(dataframes, coord)
+            all_filtered[coord] = filtered
+            success, result = rel_create_report(filtered, coord, period, RELATORIOS_OUTPUT, commission_columns)
+            if success:
+                results.append({'coordinator': coord, 'filename': result})
+            else:
+                errors.append({'coordinator': coord, 'error': result})
+        except Exception as e:
+            errors.append({'coordinator': coord, 'error': str(e)})
+
+    consolidated = None
+    if include_consolidated and all_filtered:
+        try:
+            ok, res = rel_create_consolidated(all_filtered, period, RELATORIOS_OUTPUT, commission_columns)
+            consolidated = res if ok else None
+        except Exception:
+            consolidated = None
+
+    return jsonify({'success_count': len(results), 'error_count': len(errors),
+                    'results': results, 'errors': errors, 'consolidated': consolidated})
+
+
+@app.route('/relatorios/download/<path:filename>')
+@login_required
+@can_manage_required
+def relatorios_download(filename):
+    filepath = os.path.join(RELATORIOS_OUTPUT, filename)
+    if not os.path.exists(filepath):
+        return 'Arquivo não encontrado', 404
+    return send_file(filepath, as_attachment=True, download_name=filename)
+
+
+@app.route('/relatorios/download-all', methods=['POST'])
+@login_required
+@can_manage_required
+def relatorios_download_all():
+    data = request.json
+    filenames = data.get('filenames', [])
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+        for fname in filenames:
+            fpath = os.path.join(RELATORIOS_OUTPUT, fname)
+            if os.path.exists(fpath):
+                zf.write(fpath, fname)
+    buf.seek(0)
+    return send_file(buf, as_attachment=True, download_name='relatorios.zip',
+                     mimetype='application/zip')
+
 
 # ─── Entry point ──────────────────────────────────────────────────────────────
 

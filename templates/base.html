@@ -200,13 +200,20 @@
   </a>
   {% endif %}
 
-  {% if current_user.is_authenticated and current_user.is_gestor %}
+  {% if current_user.is_authenticated and current_user.can_manage %}
   <div class="nav-section">Comissionamento</div>
   <a href="/comissionamentos" class="nav-link {% if request.path == '/comissionamentos' or request.path.startswith('/comissionamento') %}active{% endif %}">
     <i class="bi bi-briefcase"></i><span>Comissionamentos</span>
   </a>
   <a href="/novo-comissionamento" class="nav-link {% if request.path == '/novo-comissionamento' %}active{% endif %}">
     <i class="bi bi-plus-circle"></i><span>Novo</span>
+  </a>
+  {% endif %}
+
+  {% if current_user.is_authenticated and current_user.can_manage %}
+  <div class="nav-section">Relatórios</div>
+  <a href="/relatorios/comissionamento" class="nav-link {% if request.path.startswith('/relatorios') %}active{% endif %}">
+    <i class="bi bi-file-earmark-bar-graph"></i><span>Relatórios Comissão</span>
   </a>
   {% endif %}
 

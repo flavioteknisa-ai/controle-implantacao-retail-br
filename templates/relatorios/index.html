@@ -1,0 +1,607 @@
+{% extends "base.html" %}
+{% block title %}Relatórios de Comissionamento{% endblock %}
+
+{% block extra_css %}
+<style>
+  :root { --blue: #366092; --blue-light: #D9E1F2; --blue-dark: #2d5280; }
+
+  /* Steps bar */
+  .steps-bar { background: #fff; border-bottom: 1px solid #dee2e6; display: flex; border-radius: .5rem .5rem 0 0; margin-bottom: 0; }
+  .step-tab { flex: 1; text-align: center; padding: .75rem .5rem; font-size: .8rem; color: #6c757d; border-bottom: 3px solid transparent; user-select: none; }
+  .step-tab .num { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: #dee2e6; color: #495057; font-size: .7rem; font-weight: 700; margin-right: .3rem; }
+  .step-tab.active { color: var(--blue); border-bottom-color: var(--blue); font-weight: 600; }
+  .step-tab.active .num { background: var(--blue); color: #fff; }
+  .step-tab.done { color: #198754; border-bottom-color: #198754; }
+  .step-tab.done .num { background: #198754; color: #fff; }
+
+  /* Main card */
+  .card-step { background: #fff; border-radius: 0 0 .5rem .5rem; box-shadow: 0 1px 6px rgba(0,0,0,.07); padding: 1.75rem; margin-bottom: 1.25rem; max-width: 860px; }
+  .card-step h4 { font-weight: 700; color: #212529; margin-bottom: .25rem; }
+  .card-step .subtitle { color: #6c757d; font-size: .9rem; margin-bottom: 1.25rem; }
+
+  /* Upload zone */
+  .upload-zone { border: 2px dashed #adb5bd; border-radius: .5rem; padding: 2.5rem 1rem; text-align: center; cursor: pointer; transition: all .2s; }
+  .upload-zone:hover, .upload-zone.drag-over { border-color: var(--blue); background: var(--blue-light); }
+  .upload-zone .icon { font-size: 2.75rem; color: #adb5bd; transition: color .2s; }
+  .upload-zone:hover .icon, .upload-zone.drag-over .icon { color: var(--blue); }
+  .upload-zone h5 { margin: .75rem 0 .25rem; font-size: 1rem; }
+
+  /* Sheet cards */
+  .sheet-card { border: 1px solid #dee2e6; border-radius: .5rem; margin-bottom: 1rem; overflow: hidden; }
+  .sheet-card-header { background: var(--blue); color: #fff; padding: .6rem 1rem; font-weight: 600; font-size: .9rem; display: flex; align-items: center; gap: .5rem; }
+  .sheet-card-body { padding: 1rem; }
+  .suggestion-pill { display: inline-flex; align-items: center; gap: .4rem; background: var(--blue-light); border: 1px solid var(--blue); border-radius: .375rem; padding: .375rem .75rem; font-size: .825rem; margin-bottom: .875rem; }
+  .no-suggestion-pill { display: inline-flex; align-items: center; gap: .4rem; background: #fff3cd; border: 1px solid #ffc107; border-radius: .375rem; padding: .375rem .75rem; font-size: .825rem; margin-bottom: .875rem; }
+  .col-verified { background: #d1e7dd; border: 1px solid #a3cfbb; border-radius: .375rem; padding: .75rem 1rem; margin-top: .625rem; }
+  .col-error { background: #f8d7da; border: 1px solid #f1aeb5; border-radius: .375rem; padding: .625rem .875rem; margin-top: .625rem; font-size: .875rem; }
+
+  /* Coordinator chips */
+  .coord-chip { border: 1px solid #dee2e6; border-radius: .375rem; padding: .35rem .75rem; cursor: pointer; font-size: .85rem; user-select: none; transition: all .15s; white-space: nowrap; }
+  .coord-chip:hover { border-color: var(--blue); background: var(--blue-light); }
+  .coord-chip.selected { background: var(--blue); border-color: var(--blue); color: #fff; }
+  #coord-grid { display: flex; flex-wrap: wrap; gap: .4rem; max-height: 360px; overflow-y: auto; padding: .5rem; border: 1px solid #dee2e6; border-radius: .375rem; }
+
+  /* Results */
+  .result-row { border: 1px solid #dee2e6; border-radius: .375rem; padding: .75rem 1rem; margin-bottom: .4rem; display: flex; justify-content: space-between; align-items: center; }
+  .result-row.error { border-color: #f1aeb5; background: #fff5f5; }
+  .summary-box { text-align: center; border-radius: .5rem; padding: 1rem; }
+  .summary-box .big-num { font-size: 2rem; font-weight: 700; line-height: 1; }
+
+  /* Buttons override for --blue */
+  .btn-primary { background: var(--blue) !important; border-color: var(--blue) !important; }
+  .btn-primary:hover { background: var(--blue-dark) !important; border-color: var(--blue-dark) !important; }
+  .btn-outline-primary { color: var(--blue) !important; border-color: var(--blue) !important; }
+  .btn-outline-primary:hover { background: var(--blue) !important; color: #fff !important; }
+
+  /* Progress */
+  .progress { height: 5px; }
+
+  /* Loading */
+  .loading-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: 9999; }
+  .loading-box { background: #fff; border-radius: .5rem; padding: 1.75rem 2.5rem; text-align: center; min-width: 220px; }
+  .loading-box p { color: #495057; margin: .75rem 0 0; font-size: .9rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header fade-in">
+  <h2><i class="bi bi-file-earmark-spreadsheet me-2"></i>Relatórios de Comissionamento</h2>
+  <p>Gere relatórios individuais ou consolidados a partir da planilha de comissionamento</p>
+</div>
+
+{% if not modulo_ok %}
+<div class="alert alert-warning">
+  <i class="bi bi-exclamation-triangle me-2"></i>
+  O módulo de relatórios não está disponível neste ambiente (pandas não instalado).
+  Adicione <code>pandas&gt;=2.2.0</code> ao requirements.txt e faça redeploy.
+</div>
+{% else %}
+
+<div style="max-width:860px;">
+
+<!-- Steps indicator -->
+<div class="steps-bar">
+  <div class="step-tab active" id="tab-1"><span class="num">1</span>Upload</div>
+  <div class="step-tab" id="tab-2"><span class="num">2</span>Colunas</div>
+  <div class="step-tab" id="tab-3"><span class="num">3</span>Coordenadores</div>
+  <div class="step-tab" id="tab-4"><span class="num">4</span>Resultado</div>
+</div>
+
+  <!-- ══════════════════════════════════════════════════════════
+       STEP 1 — Upload
+  ══════════════════════════════════════════════════════════ -->
+  <div id="sec-1" class="card-step">
+    <h4><i class="bi bi-upload me-2 text-primary"></i>Selecionar Planilha</h4>
+    <p class="subtitle">Envie o arquivo XLSX de Base de Projetos — Comissionamento</p>
+
+    <div class="upload-zone" id="upload-zone">
+      <div class="icon"><i class="bi bi-cloud-upload"></i></div>
+      <h5>Arraste o arquivo aqui</h5>
+      <p class="text-muted mb-0" style="font-size:.875rem">ou <strong>clique para selecionar</strong> — .xlsx</p>
+      <input type="file" id="file-input" accept=".xlsx,.xls" style="display:none">
+    </div>
+
+    <div id="upload-info" style="display:none" class="alert alert-success d-flex align-items-center gap-2 mt-3 mb-0">
+      <i class="bi bi-check-circle-fill fs-5"></i>
+      <div id="upload-info-text"></div>
+    </div>
+    <div id="upload-error" style="display:none" class="alert alert-danger mt-3 mb-0"></div>
+
+    <div class="mt-3 text-end">
+      <button class="btn btn-primary px-4" id="btn-1" disabled onclick="goToStep(2)">
+        Próximo <i class="bi bi-arrow-right ms-1"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════
+       STEP 2 — Column Configuration
+  ══════════════════════════════════════════════════════════ -->
+  <div id="sec-2" class="card-step" style="display:none">
+    <h4><i class="bi bi-table me-2 text-primary"></i>Colunas de Comissão do Mês</h4>
+    <p class="subtitle">O sistema detectou automaticamente as sugestões abaixo. Verifique e ajuste se necessário.</p>
+
+    <div id="sheets-config"></div>
+
+    <div class="d-flex justify-content-between mt-3">
+      <button class="btn btn-outline-secondary" onclick="goToStep(1)">
+        <i class="bi bi-arrow-left me-1"></i>Voltar
+      </button>
+      <button class="btn btn-primary px-4" id="btn-2" disabled onclick="goToStep(3)">
+        Próximo <i class="bi bi-arrow-right ms-1"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════
+       STEP 3 — Coordinator Selection
+  ══════════════════════════════════════════════════════════ -->
+  <div id="sec-3" class="card-step" style="display:none">
+    <h4><i class="bi bi-people me-2 text-primary"></i>Selecionar Coordenadores</h4>
+    <p class="subtitle">Clique nos nomes para selecionar. Um relatório separado será gerado para cada selecionado.</p>
+
+    <div class="d-flex gap-2 mb-2 flex-wrap align-items-center">
+      <input type="text" id="search-input" class="form-control form-control-sm"
+             placeholder="Filtrar lista..." oninput="filterCoords()" style="max-width:200px">
+      <button class="btn btn-sm btn-outline-secondary" onclick="selectAllCoords()">Selecionar todos</button>
+      <button class="btn btn-sm btn-outline-secondary" onclick="clearCoords()">Limpar</button>
+    </div>
+
+    <div id="coord-count" class="text-muted mb-2" style="font-size:.8rem"></div>
+    <div id="coord-grid"></div>
+
+    <div class="d-flex justify-content-between mt-3 align-items-center flex-wrap gap-2">
+      <button class="btn btn-outline-secondary" onclick="goToStep(2)">
+        <i class="bi bi-arrow-left me-1"></i>Voltar
+      </button>
+      <div class="d-flex align-items-center gap-3 flex-wrap">
+        <div class="form-check mb-0">
+          <input class="form-check-input" type="checkbox" id="chk-consolidated">
+          <label class="form-check-label small" for="chk-consolidated">
+            Incluir relatório consolidado
+          </label>
+        </div>
+        <button class="btn btn-primary px-4" id="btn-3" disabled onclick="generate()">
+          <i class="bi bi-play-fill me-1"></i>Gerar Relatórios
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════
+       STEP 4 — Results
+  ══════════════════════════════════════════════════════════ -->
+  <div id="sec-4" class="card-step" style="display:none">
+    <h4><i class="bi bi-check2-circle me-2 text-success"></i>Relatórios Gerados</h4>
+
+    <div class="row g-3 mb-4 mt-1">
+      <div class="col-6">
+        <div class="summary-box bg-success bg-opacity-10 border border-success">
+          <div class="big-num text-success" id="cnt-ok">0</div>
+          <div class="text-success small mt-1">Gerados com sucesso</div>
+        </div>
+      </div>
+      <div class="col-6">
+        <div class="summary-box bg-danger bg-opacity-10 border border-danger">
+          <div class="big-num text-danger" id="cnt-err">0</div>
+          <div class="text-danger small mt-1">Com erro</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="results-consolidated" style="display:none" class="mb-3">
+      <h6 class="mb-2" style="color:var(--blue)">
+        <i class="bi bi-file-earmark-bar-graph me-2"></i>Relatório Consolidado
+      </h6>
+      <div class="result-row" style="border-color:var(--blue);background:#f0f4fb">
+        <div>
+          <i class="bi bi-file-earmark-excel me-2" style="color:var(--blue)"></i>
+          <strong id="consolidated-name"></strong>
+          <div class="text-muted small">Totais acumulados de todos os coordenadores selecionados</div>
+        </div>
+        <a id="consolidated-link" href="#" class="btn btn-sm btn-outline-primary">
+          <i class="bi bi-download me-1"></i>Baixar
+        </a>
+      </div>
+    </div>
+    <div id="results-ok"></div>
+    <div id="results-err"></div>
+
+    <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2">
+      <button class="btn btn-outline-secondary" onclick="goToStep(3)">
+        <i class="bi bi-arrow-left me-1"></i>Voltar
+      </button>
+      <div class="d-flex gap-2">
+        <button class="btn btn-outline-primary" id="btn-zip" onclick="downloadZip()" style="display:none">
+          <i class="bi bi-file-zip me-1"></i>Baixar Todos (ZIP)
+        </button>
+        <button class="btn btn-primary" onclick="resetApp()">
+          <i class="bi bi-arrow-repeat me-1"></i>Novo Relatório
+        </button>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /container -->
+
+<!-- Loading overlay -->
+<div class="loading-overlay" id="loading" style="display:none">
+  <div class="loading-box">
+    <div class="spinner-border text-primary" style="width:2rem;height:2rem" role="status"></div>
+    <p id="loading-msg">Processando...</p>
+  </div>
+</div>
+
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// ──────────────────────────────────────────────────────────────
+// STATE
+// ──────────────────────────────────────────────────────────────
+const S = {
+  uploadData: null,
+  colConfig: { Tradicionais: null, Rollout: null, Treinamento: null },
+  selected: new Set(),
+  genResults: [],
+  consolidatedFile: null
+};
+const SHEETS = ['Tradicionais', 'Rollout', 'Treinamento'];
+
+// ──────────────────────────────────────────────────────────────
+// NAVIGATION
+// ──────────────────────────────────────────────────────────────
+function goToStep(n) {
+  [1,2,3,4].forEach(i => {
+    document.getElementById(`sec-${i}`).style.display = i === n ? '' : 'none';
+    const t = document.getElementById(`tab-${i}`);
+    t.className = 'step-tab' + (i < n ? ' done' : i === n ? ' active' : '');
+  });
+  if (n === 2) buildColConfig();
+  if (n === 3) buildCoordGrid();
+}
+
+// ──────────────────────────────────────────────────────────────
+// STEP 1 — UPLOAD
+// ──────────────────────────────────────────────────────────────
+const zone = document.getElementById('upload-zone');
+const fi   = document.getElementById('file-input');
+
+if (zone) {
+  zone.onclick = () => fi.click();
+  zone.ondragover = e => { e.preventDefault(); zone.classList.add('drag-over'); };
+  zone.ondragleave = () => zone.classList.remove('drag-over');
+  zone.ondrop = e => { e.preventDefault(); zone.classList.remove('drag-over'); if (e.dataTransfer.files[0]) doUpload(e.dataTransfer.files[0]); };
+  fi.onchange = e => { if (e.target.files[0]) doUpload(e.target.files[0]); };
+}
+
+async function doUpload(file) {
+  if (!/\.(xlsx|xls)$/i.test(file.name)) {
+    showAlert('upload-error', 'Formato inválido. Use arquivos .xlsx');
+    return;
+  }
+  showLoading('Carregando e analisando planilha...');
+  const fd = new FormData();
+  fd.append('file', file);
+  try {
+    const r = await fetch('/relatorios/upload', { method: 'POST', body: fd });
+    const d = await r.json();
+    if (d.error) { showAlert('upload-error', d.error); return; }
+    S.uploadData = d;
+    document.getElementById('upload-info').style.display = '';
+    document.getElementById('upload-info-text').innerHTML =
+      `<strong>${d.filename}</strong> — Período: <strong>${d.period}</strong> — <strong>${d.coordinators.length}</strong> coordenadores`;
+    document.getElementById('upload-error').style.display = 'none';
+    document.getElementById('btn-1').disabled = false;
+  } catch (e) {
+    showAlert('upload-error', 'Erro de conexão: ' + e.message);
+  } finally {
+    hideLoading();
+  }
+}
+
+// ──────────────────────────────────────────────────────────────
+// STEP 2 — COLUMN CONFIGURATION
+// ──────────────────────────────────────────────────────────────
+function buildColConfig() {
+  const cont = document.getElementById('sheets-config');
+  cont.innerHTML = '';
+  const sugg = S.uploadData?.suggestions || {};
+
+  SHEETS.forEach(name => {
+    const s = sugg[name];
+    const prefill = s ? s.col_letter : '';
+
+    const card = document.createElement('div');
+    card.className = 'sheet-card';
+    card.innerHTML = `
+      <div class="sheet-card-header">
+        <i class="bi bi-table"></i> Aba: ${name}
+      </div>
+      <div class="sheet-card-body">
+        ${s ? `
+        <div class="suggestion-pill">
+          <i class="bi bi-lightbulb-fill text-warning"></i>
+          <strong>Sugestão detectada:</strong>
+          Coluna <strong>${s.col_letter}</strong>
+          &nbsp;·&nbsp; Header: "${s.header || ''}"
+          &nbsp;·&nbsp; ${s.non_zero_count}/${s.total_rows} linhas com dados
+          ${s.samples?.length ? `&nbsp;·&nbsp; Ex: ${s.samples.join(', ')}` : ''}
+        </div>` : `
+        <div class="no-suggestion-pill">
+          <i class="bi bi-exclamation-triangle-fill"></i>
+          Nenhuma coluna de comissão detectada automaticamente. Informe manualmente.
+        </div>`}
+
+        <div class="d-flex align-items-center gap-2">
+          <label class="fw-semibold text-nowrap mb-0" style="font-size:.875rem">Coluna comissão do mês:</label>
+          <input id="inp-${name}" type="text" class="form-control form-control-sm"
+                 value="${prefill}" placeholder="Ex: KZ ou 311"
+                 style="max-width:110px;text-transform:uppercase;font-weight:600"
+                 oninput="this.value=this.value.toUpperCase(); clearVerified('${name}')"
+                 onkeydown="if(event.key==='Enter') verifyCol('${name}')">
+          <button class="btn btn-sm btn-outline-primary" onclick="verifyCol('${name}')">
+            <i class="bi bi-search me-1"></i>Verificar
+          </button>
+        </div>
+
+        <div id="vres-${name}"></div>
+      </div>
+    `;
+    cont.appendChild(card);
+
+    // Auto-accept suggestion
+    if (s) {
+      S.colConfig[name] = s;
+      renderVerified(name, s);
+    }
+  });
+
+  checkStep2();
+}
+
+function clearVerified(name) {
+  S.colConfig[name] = null;
+  document.getElementById(`vres-${name}`).innerHTML = '';
+  checkStep2();
+}
+
+async function verifyCol(name) {
+  const val = document.getElementById(`inp-${name}`).value.trim();
+  if (!val) {
+    document.getElementById(`vres-${name}`).innerHTML =
+      `<div class="col-error"><i class="bi bi-x-circle me-2"></i>Informe uma coluna.</div>`;
+    return;
+  }
+  showLoading(`Verificando coluna ${val}…`);
+  try {
+    const r = await fetch('/relatorios/validate-column', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sheet_name: name, col_input: val })
+    });
+    const d = await r.json();
+    if (d.error) {
+      document.getElementById(`vres-${name}`).innerHTML =
+        `<div class="col-error"><i class="bi bi-x-circle me-2"></i>${d.error}</div>`;
+      S.colConfig[name] = null;
+    } else {
+      S.colConfig[name] = d;
+      renderVerified(name, d);
+    }
+    checkStep2();
+  } catch (e) {
+    document.getElementById(`vres-${name}`).innerHTML =
+      `<div class="col-error"><i class="bi bi-x-circle me-2"></i>Erro: ${e.message}</div>`;
+  } finally {
+    hideLoading();
+  }
+}
+
+function renderVerified(name, d) {
+  const pct  = d.total_rows > 0 ? Math.round(d.non_zero_count / d.total_rows * 100) : 0;
+  const cls  = pct > 50 ? 'bg-success' : pct > 10 ? 'bg-warning' : 'bg-danger';
+  const samp = d.samples?.length ? `<span class="text-muted">Exemplos: ${d.samples.join(', ')}</span>` : '';
+  document.getElementById(`vres-${name}`).innerHTML = `
+    <div class="col-verified mt-2">
+      <div class="d-flex justify-content-between align-items-start gap-3">
+        <div>
+          <strong><i class="bi bi-check-circle-fill text-success me-1"></i>
+          Coluna ${d.col_letter} (índice ${d.col_index})</strong>
+          <div class="text-muted small">Header: <em>"${d.header}"</em></div>
+          ${samp ? `<div class="small mt-1">${samp}</div>` : ''}
+        </div>
+        <div class="text-end text-nowrap">
+          <div class="small text-muted">${d.non_zero_count} / ${d.total_rows} linhas</div>
+          <div class="progress mt-1" style="width:72px">
+            <div class="progress-bar ${cls}" style="width:${pct}%"></div>
+          </div>
+          <div class="small text-muted">${pct}% preenchido</div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function checkStep2() {
+  const allOk = SHEETS.every(s => S.colConfig[s] !== null);
+  document.getElementById('btn-2').disabled = !allOk;
+}
+
+// ──────────────────────────────────────────────────────────────
+// STEP 3 — COORDINATOR SELECTION
+// ──────────────────────────────────────────────────────────────
+function buildCoordGrid() {
+  const grid = document.getElementById('coord-grid');
+  grid.innerHTML = '';
+  S.uploadData.coordinators.forEach(name => {
+    const el = document.createElement('div');
+    el.className = 'coord-chip' + (S.selected.has(name) ? ' selected' : '');
+    el.dataset.name = name;
+    el.textContent = name;
+    el.onclick = () => {
+      S.selected.has(name) ? S.selected.delete(name) : S.selected.add(name);
+      el.classList.toggle('selected', S.selected.has(name));
+      updateCoordCount();
+    };
+    grid.appendChild(el);
+  });
+  updateCoordCount();
+}
+
+function filterCoords() {
+  const q = document.getElementById('search-input').value.toLowerCase();
+  document.querySelectorAll('.coord-chip').forEach(el => {
+    el.style.display = el.dataset.name.toLowerCase().includes(q) ? '' : 'none';
+  });
+}
+
+function selectAllCoords() {
+  document.querySelectorAll('.coord-chip').forEach(el => {
+    if (el.style.display !== 'none') { S.selected.add(el.dataset.name); el.classList.add('selected'); }
+  });
+  updateCoordCount();
+}
+
+function clearCoords() {
+  S.selected.clear();
+  document.querySelectorAll('.coord-chip').forEach(el => el.classList.remove('selected'));
+  updateCoordCount();
+}
+
+function updateCoordCount() {
+  const total = S.uploadData.coordinators.length;
+  document.getElementById('coord-count').textContent =
+    `${S.selected.size} de ${total} coordenadores selecionados`;
+  document.getElementById('btn-3').disabled = S.selected.size === 0;
+}
+
+// ──────────────────────────────────────────────────────────────
+// STEP 4 — GENERATE & RESULTS
+// ──────────────────────────────────────────────────────────────
+async function generate() {
+  const includeConsolidated = document.getElementById('chk-consolidated').checked;
+  showLoading(`Gerando ${S.selected.size} relatório(s)…`);
+  const commCols = {};
+  SHEETS.forEach(s => { if (S.colConfig[s]) commCols[s] = S.colConfig[s]; });
+
+  try {
+    const r = await fetch('/relatorios/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        commission_columns: commCols,
+        coordinators: [...S.selected],
+        include_consolidated: includeConsolidated
+      })
+    });
+    const d = await r.json();
+    S.genResults = d.results || [];
+    S.consolidatedFile = d.consolidated || null;
+    renderResults(d);
+    goToStep(4);
+  } catch (e) {
+    alert('Erro ao gerar relatórios: ' + e.message);
+  } finally {
+    hideLoading();
+  }
+}
+
+function renderResults(d) {
+  document.getElementById('cnt-ok').textContent  = d.success_count;
+  document.getElementById('cnt-err').textContent = d.error_count;
+
+  // Relatório consolidado
+  const consEl = document.getElementById('results-consolidated');
+  if (d.consolidated) {
+    document.getElementById('consolidated-name').textContent = d.consolidated;
+    document.getElementById('consolidated-link').href = '/relatorios/download/' + encodeURIComponent(d.consolidated);
+    consEl.style.display = '';
+  } else {
+    consEl.style.display = 'none';
+  }
+
+  const okEl = document.getElementById('results-ok');
+  okEl.innerHTML = d.results?.length
+    ? '<h6 class="text-success mb-2"><i class="bi bi-check-circle me-2"></i>Gerados com sucesso</h6>' : '';
+  (d.results || []).forEach(r => {
+    okEl.innerHTML += `
+      <div class="result-row">
+        <div>
+          <i class="bi bi-file-earmark-excel text-success me-2"></i>
+          <strong>${r.coordinator}</strong>
+          <div class="text-muted small">${r.filename}</div>
+        </div>
+        <a href="/relatorios/download/${encodeURIComponent(r.filename)}" class="btn btn-sm btn-outline-success">
+          <i class="bi bi-download me-1"></i>Baixar
+        </a>
+      </div>`;
+  });
+
+  const errEl = document.getElementById('results-err');
+  errEl.innerHTML = d.errors?.length
+    ? '<h6 class="text-danger mb-2 mt-3"><i class="bi bi-x-circle me-2"></i>Erros</h6>' : '';
+  (d.errors || []).forEach(e => {
+    errEl.innerHTML += `
+      <div class="result-row error">
+        <div><i class="bi bi-person text-danger me-2"></i><strong>${e.coordinator}</strong></div>
+        <span class="text-danger small">${e.error}</span>
+      </div>`;
+  });
+
+  const hasMultiple = d.success_count > 1 || (d.success_count >= 1 && d.consolidated);
+  document.getElementById('btn-zip').style.display = hasMultiple ? '' : 'none';
+}
+
+async function downloadZip() {
+  showLoading('Preparando ZIP…');
+  try {
+    const r = await fetch('/relatorios/download-all', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        filenames: [
+          ...S.genResults.map(r => r.filename),
+          ...(S.consolidatedFile ? [S.consolidatedFile] : [])
+        ]
+      })
+    });
+    const blob = await r.blob();
+    const url  = URL.createObjectURL(blob);
+    Object.assign(document.createElement('a'), { href: url, download: 'relatorios.zip' }).click();
+    URL.revokeObjectURL(url);
+  } catch (e) {
+    alert('Erro: ' + e.message);
+  } finally {
+    hideLoading();
+  }
+}
+
+function resetApp() {
+  S.uploadData = null;
+  S.colConfig  = { Tradicionais: null, Rollout: null, Treinamento: null };
+  S.selected.clear();
+  S.genResults = [];
+  S.consolidatedFile = null;
+  document.getElementById('upload-info').style.display  = 'none';
+  document.getElementById('upload-error').style.display = 'none';
+  document.getElementById('btn-1').disabled = true;
+  document.getElementById('file-input').value = '';
+  goToStep(1);
+}
+
+// ──────────────────────────────────────────────────────────────
+// UTILITIES
+// ──────────────────────────────────────────────────────────────
+function showLoading(msg) {
+  document.getElementById('loading-msg').textContent = msg;
+  document.getElementById('loading').style.display = 'flex';
+}
+function hideLoading() { document.getElementById('loading').style.display = 'none'; }
+function showAlert(id, msg) {
+  const el = document.getElementById(id);
+  el.innerHTML = `<i class="bi bi-exclamation-triangle me-2"></i>${msg}`;
+  el.style.display = '';
+}
+</script>
+{% endblock %}
