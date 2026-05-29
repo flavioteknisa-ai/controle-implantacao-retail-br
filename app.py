@@ -104,27 +104,6 @@ def load_user(uid):
 
 # ─── Verificação de banco inicializado ────────────────────────────────────────
 
-def is_db_initialized():
-    """Verifica se o banco de dados foi inicializado"""
-    try:
-        # Não criar novo app_context - já estamos dentro de um request context
-        User.query.count()
-        return True
-    except Exception:
-        return False
-
-@app.before_request
-def check_db_init():
-    """Redireciona para /init se o banco não estiver inicializado"""
-    # Rotas que não precisam de banco de dados
-    exempt_routes = ['init_database', 'static']
-
-    if request.endpoint in exempt_routes:
-        return
-
-    if not is_db_initialized():
-        return redirect(url_for('init_database'))
-
 # ─── Inicialização do banco ───────────────────────────────────────────────────
 # Comentado para permitir inicialização via endpoint
 # with app.app_context():
@@ -147,6 +126,16 @@ def gestor_required(f):
     def decorated(*args, **kwargs):
         if not current_user.is_authenticated or not current_user.is_gestor:
             flash('Acesso restrito ao gestor.', 'danger')
+            return redirect(url_for('index'))
+        return f(*args, **kwargs)
+    return decorated
+
+def can_manage_required(f):
+    """Permite acesso a gestor, master e coordenador."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not current_user.is_authenticated or not current_user.can_manage:
+            flash('Acesso restrito. Solicite ao gestor.', 'danger')
             return redirect(url_for('index'))
         return f(*args, **kwargs)
     return decorated
@@ -870,20 +859,34 @@ def nova_ferias():
     colaboradores_raw, ferias_plan, ferias_real = carregar_tudo()
     colaboradores = [c for c in colaboradores_raw if parse_cargo_uf(c.time)[0] != 'estagiario']
 
-    modo_solicitacao = not current_user.is_gestor
+    modo_solicitacao = not (current_user.is_gestor or current_user.is_coordenador)
     if modo_solicitacao:
+        # Colaborador normal: só pode solicitar para si mesmo
         if not current_user.colaborador_id:
             flash('Seu usuário não está vinculado a um colaborador. Fale com o gestor.', 'warning')
             return redirect(url_for('index'))
         sel_colab    = current_user.colaborador_id
         colaboradores = [c for c in colaboradores if c.id == sel_colab]
+    elif current_user.is_coordenador:
+        # Coordenador: pode selecionar apenas consultores (não coordenadores/gerentes)
+        colaboradores = [c for c in colaboradores if parse_cargo_uf(c.time)[0] == 'consultor']
+        sel_colab = request.args.get('colab', type=int)
     else:
+        # Gestor/Master: acesso total
         sel_colab = request.args.get('colab', type=int)
 
     if request.method == 'POST':
         if modo_solicitacao:
             colab_id   = current_user.colaborador_id
             status_sel = 'Solicitado'
+        elif current_user.is_coordenador:
+            colab_id   = int(request.form.get('colaborador_id', 0))
+            status_sel = 'Solicitado'
+            # Segurança: validar que é realmente um consultor
+            colab_check = next((c for c in colaboradores_raw if c.id == colab_id), None)
+            if colab_check and parse_cargo_uf(colab_check.time or '')[0] != 'consultor':
+                flash('Coordenadores só podem solicitar férias para consultores.', 'danger')
+                return redirect(url_for('nova_ferias'))
         else:
             colab_id   = int(request.form.get('colaborador_id', 0))
             status_sel = request.form.get('status', 'Planejado')
@@ -955,12 +958,15 @@ def nova_ferias():
 
         if modo_solicitacao:
             flash('Solicitação enviada! O gestor irá analisar em breve.', 'success')
+        elif current_user.is_coordenador:
+            flash(f'Férias de {colab.nome} solicitadas com sucesso!', 'success')
         else:
             flash(f'Férias de {colab.nome} registradas com sucesso!', 'success')
         return redirect(url_for('index'))
 
     return render_template('nova_ferias.html', colaboradores=colaboradores,
-                           sel_colab=sel_colab, modo_solicitacao=modo_solicitacao)
+                           sel_colab=sel_colab, modo_solicitacao=modo_solicitacao,
+                           is_coordenador=current_user.is_coordenador)
 
 # ─── Rota: Aprovar / Rejeitar solicitações ────────────────────────────────────
 
@@ -1078,7 +1084,7 @@ def listar_comissionamentos():
 
 @app.route('/novo-comissionamento', methods=['GET', 'POST'])
 @login_required
-@gestor_required
+@can_manage_required
 def novo_comissionamento():
     """Cria novo comissionamento manual"""
     colaboradores = ColaboradorDB.query.filter_by(ativo=True).order_by(ColaboradorDB.nome).all()
@@ -1128,7 +1134,7 @@ def novo_comissionamento():
 
 @app.route('/editar-comissionamento/<int:cid>', methods=['GET', 'POST'])
 @login_required
-@gestor_required
+@can_manage_required
 def editar_comissionamento(cid):
     """Edita comissionamento manual"""
     comissao_db = ComissionamentoDB.query.get_or_404(cid)
@@ -1173,7 +1179,7 @@ def editar_comissionamento(cid):
 
 @app.route('/deletar-comissionamento/<int:cid>', methods=['POST'])
 @login_required
-@gestor_required
+@can_manage_required
 def deletar_comissionamento(cid):
     """Deleta comissionamento manual"""
     comissao_db = ComissionamentoDB.query.get_or_404(cid)
@@ -1186,7 +1192,7 @@ def deletar_comissionamento(cid):
 
 @app.route('/comissionamentos/exportar-excel')
 @login_required
-@gestor_required
+@can_manage_required
 def exportar_comissionamentos_excel():
     """Exporta comissionamentos agrupados por colaborador para Excel"""
     comissions = ComissionamentoDB.query.all()
@@ -1395,7 +1401,7 @@ def dashboard_projetos():
 
 @app.route('/novo-projeto', methods=['GET', 'POST'])
 @login_required
-@gestor_required
+@can_manage_required
 def novo_projeto():
     """Cria novo projeto ERP"""
     colaboradores = obter_coordenadores()
@@ -1488,7 +1494,7 @@ def detalhe_projeto(pid):
 
 @app.route('/editar-projeto/<int:pid>', methods=['GET', 'POST'])
 @login_required
-@gestor_required
+@can_manage_required
 def editar_projeto(pid):
     """Edita um projeto ERP"""
     p_db = ERPProjetoDB.query.get_or_404(pid)
@@ -1572,7 +1578,7 @@ def editar_projeto(pid):
 
 @app.route('/projeto/<int:pid>/concluir', methods=['POST'])
 @login_required
-@gestor_required
+@can_manage_required
 def concluir_projeto(pid):
     """Marca projeto como finalizado"""
     p_db = ERPProjetoDB.query.get_or_404(pid)
@@ -1589,7 +1595,7 @@ def concluir_projeto(pid):
 
 @app.route('/projeto/<int:pid>/reativar', methods=['POST'])
 @login_required
-@gestor_required
+@can_manage_required
 def reativar_projeto(pid):
     """Volta projeto de Finalizado para Em andamento"""
     p_db = ERPProjetoDB.query.get_or_404(pid)
@@ -1605,7 +1611,7 @@ def reativar_projeto(pid):
 
 @app.route('/projeto/<int:pid>/modulo', methods=['POST'])
 @login_required
-@gestor_required
+@can_manage_required
 def adicionar_modulo(pid):
     """Adiciona módulo a um projeto"""
     p_db = ERPProjetoDB.query.get_or_404(pid)
@@ -1641,7 +1647,7 @@ def adicionar_modulo(pid):
 
 @app.route('/projeto/<int:pid>/unidade', methods=['POST'])
 @login_required
-@gestor_required
+@can_manage_required
 def adicionar_unidade(pid):
     """Adiciona unidade a um projeto"""
     p_db = ERPProjetoDB.query.get_or_404(pid)
@@ -1669,7 +1675,7 @@ def adicionar_unidade(pid):
 
 @app.route('/projeto/<int:mid>/editar-modulo/<int:mid_id>', methods=['POST'])
 @login_required
-@gestor_required
+@can_manage_required
 def editar_modulo(mid, mid_id):
     """Edita um módulo"""
     modulo_db = ERPModuloDB.query.get_or_404(mid_id)
@@ -1695,7 +1701,7 @@ def editar_modulo(mid, mid_id):
 
 @app.route('/projeto/<int:pid>/editar-unidade/<int:uid>', methods=['POST'])
 @login_required
-@gestor_required
+@can_manage_required
 def editar_unidade(pid, uid):
     """Edita uma unidade"""
     unidade_db = ERPUnidadeDB.query.get_or_404(uid)
@@ -1710,7 +1716,7 @@ def editar_unidade(pid, uid):
 
 @app.route('/projeto/<int:pid>/atividade', methods=['POST'])
 @login_required
-@gestor_required
+@can_manage_required
 def adicionar_atividade(pid):
     """Adiciona atividade a um projeto"""
     p_db = ERPProjetoDB.query.get_or_404(pid)
@@ -1735,7 +1741,7 @@ def adicionar_atividade(pid):
 
 @app.route('/projeto/<int:pid>/deletar-atividade/<int:aid>', methods=['POST'])
 @login_required
-@gestor_required
+@can_manage_required
 def deletar_atividade(pid, aid):
     """Deleta uma atividade"""
     atividade_db = ERPAtividadeDB.query.get_or_404(aid)

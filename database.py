@@ -26,7 +26,16 @@ class User(UserMixin, db.Model):
 
     @property
     def is_gestor(self) -> bool:
-        return self.perfil == 'gestor'
+        return self.perfil in ('gestor', 'master')
+
+    @property
+    def is_coordenador(self) -> bool:
+        return self.perfil == 'coordenador'
+
+    @property
+    def can_manage(self) -> bool:
+        """Gestor, Master ou Coordenador — acesso de gerenciamento"""
+        return self.perfil in ('gestor', 'master', 'coordenador')
 
 
 class ColaboradorDB(db.Model):

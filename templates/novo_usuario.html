@@ -46,10 +46,16 @@
             <label class="form-label fw-semibold small">Perfil de acesso *</label>
             <select class="form-select" name="perfil" id="selPerfil" onchange="toggleColab()">
               <option value="colaborador" {% if not user or user.perfil == 'colaborador' %}selected{% endif %}>
-                Colaborador — pode solicitar férias
+                Colaborador — pode solicitar próprias férias
+              </option>
+              <option value="coordenador" {% if user and user.perfil == 'coordenador' %}selected{% endif %}>
+                Coordenador — edita projetos, comissionamento e solicita férias de consultores
+              </option>
+              <option value="master" {% if user and user.perfil == 'master' %}selected{% endif %}>
+                Master — mesmo acesso do Gestor (acesso total)
               </option>
               <option value="gestor" {% if user and user.perfil == 'gestor' %}selected{% endif %}>
-                Gestor — acesso total
+                Gestor — acesso total + gerencia usuários
               </option>
             </select>
           </div>
@@ -115,7 +121,9 @@
 <script>
 function toggleColab() {
   const perfil = document.getElementById('selPerfil').value;
-  document.getElementById('boxColab').style.display = perfil === 'colaborador' ? '' : 'none';
+  // Mostrar campo de colaborador para perfis que podem estar vinculados a um colaborador
+  const showColab = ['colaborador', 'coordenador'].includes(perfil);
+  document.getElementById('boxColab').style.display = showColab ? '' : 'none';
 }
 toggleColab();
 </script>
