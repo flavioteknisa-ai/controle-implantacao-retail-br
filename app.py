@@ -1,9 +1,20 @@
 # -*- coding: utf-8 -*-
 import os
 import sys
+import socket
 import calendar
 from datetime import datetime, timedelta, date
 from functools import wraps
+
+# ─── Forçar IPv4 para conexões PostgreSQL (Supabase no Vercel) ────────────────
+# O Vercel tenta IPv6 por padrão mas o Supabase bloqueia IPv6
+_original_getaddrinfo = socket.getaddrinfo
+
+def _force_ipv4(host, port, family=0, type=0, proto=0, flags=0):
+    return _original_getaddrinfo(host, port, socket.AF_INET, type, proto, flags)
+
+if os.environ.get('DATABASE_URL', '').startswith('postgresql'):
+    socket.getaddrinfo = _force_ipv4
 
 from dotenv import load_dotenv
 load_dotenv()
