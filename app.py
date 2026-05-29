@@ -11,20 +11,32 @@ def _supabase_pooler_url(url):
     """
     Converte conexão direta Supabase para Connection Pooler (IPv4, port 6543).
     Direct:  postgresql://postgres:pass@db.{ref}.supabase.co:5432/postgres
-    Pooler:  postgresql://postgres.{ref}:pass@aws-0-us-east-1.pooler.supabase.com:6543/postgres
+    Pooler:  postgresql://postgres.{ref}:pass@aws-1-us-west-1.pooler.supabase.com:6543/postgres
     """
     import re
+
+    # Já é URL de pooler? Retornar sem alteração
+    if 'pooler.supabase.com' in url:
+        return url
+
+    # Converter conexão direta para pooler
     m = re.match(
-        r'postgresql://postgres:(.+)@db\.([a-z]+)\.supabase\.co:5432/postgres(.*)',
+        r'postgresql://postgres:(.+)@db\.([a-z0-9]+)\.supabase\.co:5432/postgres(.*)',
         url
     )
     if m:
         password, ref, rest = m.groups()
+        # Mapeamento de project ref -> host do pooler
+        POOLER_HOSTS = {
+            'runqejjjidgcszfpdicg': 'aws-1-us-west-1.pooler.supabase.com',
+            'bxzwvvxhmknmgilcyqub': 'aws-1-us-west-2.pooler.supabase.com',
+        }
+        pooler_host = POOLER_HOSTS.get(ref, 'aws-1-us-west-1.pooler.supabase.com')
         return (
             f'postgresql://postgres.{ref}:{password}'
-            f'@aws-0-us-east-1.pooler.supabase.com:6543/postgres{rest}'
+            f'@{pooler_host}:6543/postgres{rest}'
         )
-    return url  # Não é Supabase direct, retornar sem alteração
+    return url
 
 from dotenv import load_dotenv
 load_dotenv()
