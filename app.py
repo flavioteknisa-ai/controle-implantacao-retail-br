@@ -1888,6 +1888,17 @@ def migrate_data():
         summary = {}
 
         with app.app_context():
+            # Limpar tabelas existentes antes de migrar (evita duplicatas)
+            db.session.execute(db.text('DELETE FROM comissionamentos'))
+            db.session.execute(db.text('DELETE FROM erp_atividades_projeto'))
+            db.session.execute(db.text('DELETE FROM erp_unidades_projeto'))
+            db.session.execute(db.text('DELETE FROM erp_modulos_projeto'))
+            db.session.execute(db.text('DELETE FROM erp_projetos'))
+            db.session.execute(db.text('DELETE FROM ferias'))
+            db.session.execute(db.text('DELETE FROM users'))
+            db.session.execute(db.text('DELETE FROM colaboradores'))
+            db.session.commit()
+
             # Migrar colaboradores
             if 'colaboradores' in data:
                 for row in data['colaboradores']:
