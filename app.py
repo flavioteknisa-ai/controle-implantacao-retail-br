@@ -34,16 +34,23 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, 'data')
 os.makedirs(DATA_DIR, exist_ok=True)
 
-db_url = os.environ.get(
-    'DATABASE_URL',
-    f'sqlite:///{os.path.join(DATA_DIR, "ferias_data.db")}'
-)
+# Determinar qual banco usar
+# No Vercel, usar SQLite por padrão para evitar problemas de conexão
+is_vercel = os.environ.get('VERCEL') == '1'
+use_supabase = os.environ.get('USE_SUPABASE', '').lower() == 'true'
 
-# Se DATABASE_URL está vazio ou é None, usar SQLite como fallback
-if not db_url or db_url.strip() == '':
+if is_vercel and not use_supabase:
+    # Em Vercel sem USE_SUPABASE=true, usar SQLite
     db_url = f'sqlite:///{os.path.join(DATA_DIR, "ferias_data.db")}'
+else:
+    # Localmente ou com USE_SUPABASE=true, usar variável de ambiente
+    db_url = os.environ.get(
+        'DATABASE_URL',
+        f'sqlite:///{os.path.join(DATA_DIR, "ferias_data.db")}'
+    )
 
-if db_url.startswith('postgres://'):          # Railway usa postgres://, SQLAlchemy precisa postgresql://
+# Converter postgres:// para postgresql:// se necessário
+if db_url.startswith('postgres://'):
     db_url = db_url.replace('postgres://', 'postgresql://', 1)
 
 app.config['SQLALCHEMY_DATABASE_URI']        = db_url
