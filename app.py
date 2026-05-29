@@ -9,33 +9,26 @@ from functools import wraps
 # ─── Converter Supabase direct URL para pooler URL (IPv4, melhor para serverless) ──
 def _supabase_pooler_url(url):
     """
-    Converte conexão direta Supabase para Connection Pooler (IPv4, port 6543).
-    Direct:  postgresql://postgres:pass@db.{ref}.supabase.co:5432/postgres
-    Pooler:  postgresql://postgres.{ref}:pass@aws-1-us-west-1.pooler.supabase.com:6543/postgres
+    Converte qualquer URL Supabase (direta ou pooler antigo) para o pooler correto.
+    Pooler correto: aws-1-us-west-2 com projeto bxzwvvxhmknmgilcyqub
     """
     import re
 
-    # Já é URL de pooler? Retornar sem alteração
-    if 'pooler.supabase.com' in url:
+    # Extrair senha de qualquer URL Supabase
+    m = re.match(r'postgresql://[^:]+:(.+?)@', url)
+    if not m:
         return url
 
-    # Converter conexão direta para pooler
-    m = re.match(
-        r'postgresql://postgres:(.+)@db\.([a-z0-9]+)\.supabase\.co:5432/postgres(.*)',
-        url
-    )
-    if m:
-        password, ref, rest = m.groups()
-        # Mapeamento de project ref -> host do pooler
-        POOLER_HOSTS = {
-            'runqejjjidgcszfpdicg': 'aws-1-us-west-1.pooler.supabase.com',
-            'bxzwvvxhmknmgilcyqub': 'aws-1-us-west-2.pooler.supabase.com',
-        }
-        pooler_host = POOLER_HOSTS.get(ref, 'aws-1-us-west-1.pooler.supabase.com')
+    password = m.group(1)
+
+    # Sempre usar o pooler correto (bxzwvvxhmknmgilcyqub / aws-1-us-west-2)
+    # independente do URL original configurado
+    if 'supabase.co' in url or 'supabase.com' in url:
         return (
-            f'postgresql://postgres.{ref}:{password}'
-            f'@{pooler_host}:6543/postgres{rest}'
+            f'postgresql://postgres.bxzwvvxhmknmgilcyqub:{password}'
+            f'@aws-1-us-west-2.pooler.supabase.com:6543/postgres?sslmode=require'
         )
+
     return url
 
 from dotenv import load_dotenv
