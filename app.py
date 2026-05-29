@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
+import sys
 import calendar
 from datetime import datetime, timedelta, date
 from functools import wraps
@@ -37,6 +38,11 @@ db_url = os.environ.get(
     'DATABASE_URL',
     f'sqlite:///{os.path.join(DATA_DIR, "ferias_data.db")}'
 )
+
+# Se DATABASE_URL está vazio ou é None, usar SQLite como fallback
+if not db_url or db_url.strip() == '':
+    db_url = f'sqlite:///{os.path.join(DATA_DIR, "ferias_data.db")}'
+
 if db_url.startswith('postgres://'):          # Railway usa postgres://, SQLAlchemy precisa postgresql://
     db_url = db_url.replace('postgres://', 'postgresql://', 1)
 
@@ -1788,10 +1794,45 @@ def init_database():
                 }), 200
 
     except Exception as e:
-        return jsonify({
-            'status': 'error',
-            'message': f'❌ Erro ao inicializar: {str(e)}'
-        }), 500
+        # Se falhar com Supabase, tentar com SQLite como fallback
+        try:
+            print(f"⚠️ Supabase falhou, usando SQLite como fallback: {str(e)}", file=sys.stderr)
+
+            # Mudar para SQLite
+            app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{os.path.join(DATA_DIR, "ferias_data.db")}'
+
+            with app.app_context():
+                # Criar todas as tabelas no SQLite
+                db.create_all()
+
+                # Criar usuário admin se não existir
+                admin = User.query.filter_by(username='admin').first()
+                if not admin:
+                    admin = User(
+                        username='admin',
+                        nome='Administrador',
+                        perfil='gestor',
+                        ativo=True
+                    )
+                    admin.set_senha('admin123')
+                    db.session.add(admin)
+                    db.session.commit()
+
+                return jsonify({
+                    'status': 'success_sqlite',
+                    'message': '✅ Banco inicializado com SQLite (fallback)!',
+                    'warning': 'Usando SQLite localmente. Para usar Supabase, configure DATABASE_URL.',
+                    'credentials': {
+                        'username': 'admin',
+                        'password': 'admin123'
+                    }
+                }), 200
+        except Exception as fallback_error:
+            return jsonify({
+                'status': 'error',
+                'message': f'❌ Erro: {str(fallback_error)}',
+                'original_error': str(e)
+            }), 500
 
 # ─── Entry point ──────────────────────────────────────────────────────────────
 
