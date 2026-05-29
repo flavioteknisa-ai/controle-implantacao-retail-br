@@ -89,7 +89,7 @@ class Projeto:
                  status: str = 'Em andamento', valor_mensalidades: float = 0,
                  responsavel: Optional[str] = None, descricao: str = '',
                  numero_unidades: int = 1, potencial_cliente: str = 'Médio',
-                 tipo_projeto: str = 'Novo'):
+                 tipo_projeto: str = 'Novo', ponto_atencao: bool = False):
         self.id = id
         self.nome = nome
         self.data_aceite = data_aceite if isinstance(data_aceite, date) else datetime.strptime(str(data_aceite), "%Y-%m-%d").date()
@@ -97,13 +97,14 @@ class Projeto:
             self.data_conclusao = None
         else:
             self.data_conclusao = data_conclusao if isinstance(data_conclusao, date) else datetime.strptime(str(data_conclusao), "%Y-%m-%d").date()
-        self.status = status  # 'Em andamento', 'Finalizado', 'Cancelado'
+        self.status = status  # 'Em andamento', 'Paralisado', 'Finalizado', 'Cancelado'
         self.valor_mensalidades = valor_mensalidades
         self.responsavel = responsavel
         self.descricao = descricao
         self.numero_unidades = numero_unidades
         self.potencial_cliente = potencial_cliente  # 'Pequeno', 'Médio', 'Grande', 'Estratégico'
         self.tipo_projeto = tipo_projeto  # 'Base', 'Novo'
+        self.ponto_atencao = ponto_atencao
         self.modulos: List[Modulo] = []
         self.unidades: List[Unidade] = []
         self.atividades: List[Atividade] = []
@@ -129,11 +130,27 @@ class Projeto:
 
     def esta_atrasado(self) -> bool:
         """Verifica se o projeto está atrasado"""
-        if self.status == 'Finalizado':
+        if self.status in ('Finalizado', 'Cancelado', 'Paralisado'):
             return False
         if self.data_conclusao is None:
             return False
         return self.dias_restantes() < 0
+
+    @property
+    def dias_em_execucao(self) -> int:
+        """Dias desde a data de aceite até hoje."""
+        ini = self.data_aceite if isinstance(self.data_aceite, date) else date.today()
+        return max(0, (date.today() - ini).days)
+
+    @property
+    def meses_em_execucao(self) -> float:
+        """Meses desde a data de aceite."""
+        return round(self.dias_em_execucao / 30.4, 1)
+
+    @property
+    def alerta_longa_execucao(self) -> bool:
+        """True se projeto ativo há mais de 8 meses (240 dias)."""
+        return self.status in ('Em andamento', 'Paralisado') and self.dias_em_execucao > 240
 
     def percentual_geral(self) -> float:
         """Calcula percentual geral de conclusão do projeto"""

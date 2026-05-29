@@ -83,6 +83,7 @@ class ERPProjetoDB(db.Model):
     numero_unidades     = db.Column(db.Integer, default=1)
     potencial_cliente   = db.Column(db.String(50), default='Médio')
     tipo_projeto        = db.Column(db.String(50), default='Novo')
+    ponto_atencao       = db.Column(db.Boolean, default=False)
     criado_em           = db.Column(db.DateTime, default=datetime.now)
     atualizado_em       = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
 
@@ -152,3 +153,19 @@ class ComissionamentoDB(db.Model):
 
     # Relacionamento com colaborador
     consultor               = db.relationship('ColaboradorDB', backref='comissionamentos')
+
+
+# ─────────────────────────────────────────────────────────────────
+# TABELA: Matriz de Permissões por Perfil
+# ─────────────────────────────────────────────────────────────────
+
+class PermissaoPerfil(db.Model):
+    __tablename__ = 'permissoes_perfil'
+
+    id      = db.Column(db.Integer, primary_key=True)
+    perfil  = db.Column(db.String(20), nullable=False)   # colaborador | coordenador
+    codigo  = db.Column(db.String(100), nullable=False)  # código da permissão
+
+    __table_args__ = (
+        db.UniqueConstraint('perfil', 'codigo', name='uq_permissao_perfil_codigo'),
+    )

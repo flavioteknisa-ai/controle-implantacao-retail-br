@@ -177,7 +177,7 @@
   <a href="/projetos" class="nav-link {% if request.path == '/projetos' or request.path.startswith('/projeto') %}active{% endif %}">
     <i class="bi bi-building"></i><span>Projetos</span>
   </a>
-  {% if current_user.is_authenticated and current_user.is_gestor %}
+  {% if current_user.is_authenticated and tem_perm('criar_projeto') %}
   <a href="/novo-projeto" class="nav-link {% if request.path == '/novo-projeto' %}active{% endif %}">
     <i class="bi bi-plus-circle"></i><span>Novo Projeto</span>
   </a>
@@ -225,6 +225,9 @@
   <a href="/usuarios" class="nav-link {% if request.path == '/usuarios' %}active{% endif %}">
     <i class="bi bi-shield-lock-fill"></i><span>Usuários</span>
   </a>
+  <a href="/permissoes" class="nav-link {% if request.path == '/permissoes' %}active{% endif %}">
+    <i class="bi bi-toggles"></i><span>Permissões</span>
+  </a>
   {% endif %}
 
   <div class="sidebar-footer" style="padding:12px 16px;">
@@ -239,7 +242,10 @@
           {{ current_user.nome }}
         </div>
         <div style="font-size:.62rem;opacity:.6;">
-          {% if current_user.is_gestor %}Gestor{% else %}Colaborador{% endif %}
+          {% if current_user.perfil == 'gestor' %}Gestor
+          {% elif current_user.perfil == 'master' %}Master
+          {% elif current_user.perfil == 'coordenador' %}Coordenador
+          {% else %}Colaborador{% endif %}
         </div>
       </div>
     </div>

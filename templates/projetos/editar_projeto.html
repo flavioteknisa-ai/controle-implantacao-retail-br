@@ -48,8 +48,9 @@
                 <label for="status" class="form-label">Status <span class="text-danger">*</span></label>
                 <select class="form-control" id="status" name="status" required>
                   <option value="Em andamento" {% if p_db.status == 'Em andamento' %}selected{% endif %}>Em andamento</option>
-                  <option value="Finalizado" {% if p_db.status == 'Finalizado' %}selected{% endif %}>Finalizado</option>
-                  <option value="Cancelado" {% if p_db.status == 'Cancelado' %}selected{% endif %}>Cancelado</option>
+                  <option value="Paralisado"   {% if p_db.status == 'Paralisado'   %}selected{% endif %}>⏸ Paralisado</option>
+                  <option value="Finalizado"   {% if p_db.status == 'Finalizado'   %}selected{% endif %}>Finalizado</option>
+                  <option value="Cancelado"    {% if p_db.status == 'Cancelado'    %}selected{% endif %}>Cancelado</option>
                 </select>
               </div>
             </div>
@@ -126,6 +127,23 @@
             <textarea class="form-control" id="descricao" name="descricao" rows="4"
                       placeholder="Detalhes adicionais sobre o projeto...">{{ p_db.descricao or '' }}</textarea>
             <small class="form-text text-muted">Informações complementares</small>
+          </div>
+
+          <!-- Ponto de Atenção -->
+          <div class="mb-4 p-3 rounded" style="background:#fff8e1;border:1px solid #ffe082;">
+            <div class="form-check form-switch d-flex align-items-center gap-2">
+              <input class="form-check-input" type="checkbox" id="pontoAtencao"
+                     name="ponto_atencao" value="1"
+                     {% if p_db.ponto_atencao %}checked{% endif %}
+                     style="width:2.2em;height:1.2em;">
+              <label class="form-check-label fw-semibold" for="pontoAtencao">
+                <i class="bi bi-exclamation-triangle-fill text-warning me-1"></i>
+                Marcar como Ponto de Atenção
+              </label>
+            </div>
+            <div class="form-text ms-5">
+              Destaca o projeto com alerta visual na lista e detalhe.
+            </div>
           </div>
 
           <div class="d-flex gap-2">

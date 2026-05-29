@@ -36,7 +36,7 @@ load_dotenv()
 
 from dateutil.relativedelta import relativedelta
 from flask import (Flask, render_template, request, redirect,
-                   url_for, jsonify, flash, send_file)
+                   url_for, jsonify, flash, send_file, g)
 from flask_login import (LoginManager, login_user, logout_user,
                          login_required, current_user)
 from openpyxl import Workbook
@@ -45,7 +45,7 @@ import io
 from io import BytesIO
 
 from models import Colaborador, Ferias
-from database import db, User, ColaboradorDB, FeriasDB, ERPProjetoDB, ERPModuloDB, ERPUnidadeDB, ERPAtividadeDB, ComissionamentoDB
+from database import db, User, ColaboradorDB, FeriasDB, ERPProjetoDB, ERPModuloDB, ERPUnidadeDB, ERPAtividadeDB, ComissionamentoDB, PermissaoPerfil
 from validators import FeriasValidator
 from analytics import FeriasAnalytics
 from erp_models import Projeto, Modulo, Unidade, Atividade
@@ -141,6 +141,52 @@ def can_manage_required(f):
         return f(*args, **kwargs)
     return decorated
 
+
+# ─── Sistema de Permissões Granular ───────────────────────────────────────────
+
+def tem_permissao(codigo: str) -> bool:
+    """Verifica se o usuário atual tem uma permissão específica.
+    Gestor/Master sempre retornam True.
+    Outros perfis consultam a tabela DB (com fallback para defaults)."""
+    if not current_user.is_authenticated:
+        return False
+    if current_user.is_gestor:        # gestor ou master → acesso total
+        return True
+    perfil = current_user.perfil
+    cache_attr = f'_pc_{perfil}'      # cache por request via Flask g
+    if not hasattr(g, cache_attr):
+        try:
+            rows = PermissaoPerfil.query.filter_by(perfil=perfil).all()
+            if rows:
+                setattr(g, cache_attr, {r.codigo for r in rows})
+            else:
+                # tabela vazia → usar defaults codificados
+                setattr(g, cache_attr, set(PERMISSOES_DEFAULT.get(perfil, [])))
+        except Exception:
+            setattr(g, cache_attr, set(PERMISSOES_DEFAULT.get(perfil, [])))
+    return codigo in getattr(g, cache_attr)
+
+
+def permission_required(codigo: str):
+    """Decorator: exige permissão específica (verifica DB/defaults)."""
+    def decorator(f):
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            if not current_user.is_authenticated:
+                return redirect(url_for('login', next=request.url))
+            if not tem_permissao(codigo):
+                flash('Seu perfil não tem acesso a esta funcionalidade.', 'danger')
+                return redirect(url_for('index'))
+            return f(*args, **kwargs)
+        return decorated
+    return decorator
+
+
+@app.context_processor
+def inject_permissions():
+    """Injeta tem_perm em todos os templates."""
+    return {'tem_perm': tem_permissao}
+
 # ─── Constantes ───────────────────────────────────────────────────────────────
 
 CORES = [
@@ -152,6 +198,49 @@ CARGO_ORDEM = {'gerencia': 0, 'coordenador': 1, 'consultor': 2, 'estagiario': 3,
 CARGO_LABEL = {
     'gerencia': 'Gerência', 'coordenador': 'Coordenadores',
     'consultor': 'Consultores', 'estagiario': 'Estagiários', 'outro': 'Outros',
+}
+
+# ─── Catálogo de Permissões Configuráveis ─────────────────────────────────────
+# (secao, label descritivo)  — Master/Gestor sempre têm tudo, não aparecem aqui
+from collections import OrderedDict
+
+PERMISSOES_CATALOG = OrderedDict([
+    # ── Projetos ─────────────────────────────────────────────────
+    ('ver_projetos',             ('Projetos',        'Ver lista e detalhes de projetos')),
+    ('criar_projeto',            ('Projetos',        'Criar novos projetos')),
+    ('editar_projeto',           ('Projetos',        'Editar dados do projeto')),
+    ('finalizar_projeto',        ('Projetos',        'Finalizar / Paralisar / Reativar projeto')),
+    ('adicionar_modulo',         ('Projetos',        'Adicionar e editar módulos')),
+    ('adicionar_unidade',        ('Projetos',        'Adicionar e editar unidades')),
+    ('adicionar_atividade',      ('Projetos',        'Adicionar atividades e notas de reunião')),
+    # ── Férias ───────────────────────────────────────────────────
+    ('ver_timeline',             ('Férias',          'Ver timeline de férias')),
+    ('ver_colaboradores',        ('Férias',          'Ver lista de colaboradores e saldos')),
+    ('solicitar_ferias',         ('Férias',          'Solicitar próprias férias')),
+    ('registrar_ferias',         ('Férias',          'Registrar férias para outros colaboradores')),
+    ('aprovar_ferias',           ('Férias',          'Aprovar / rejeitar / cancelar férias')),
+    # ── Comissionamento ──────────────────────────────────────────
+    ('ver_comissionamentos',     ('Comissionamento', 'Ver registros de comissionamento')),
+    ('criar_comissionamento',    ('Comissionamento', 'Registrar novo comissionamento')),
+    ('editar_comissionamento',   ('Comissionamento', 'Editar e excluir comissionamentos')),
+    ('exportar_comissionamentos',('Comissionamento', 'Exportar relatório Excel')),
+    # ── Relatórios ───────────────────────────────────────────────
+    ('ver_relatorios',           ('Relatórios',      'Acessar módulo de relatórios de comissão')),
+])
+
+# Permissões padrão por perfil (usadas enquanto a tabela DB estiver vazia)
+PERMISSOES_DEFAULT: dict = {
+    'colaborador': frozenset({
+        'ver_projetos', 'ver_timeline', 'ver_colaboradores', 'solicitar_ferias',
+    }),
+    'coordenador': frozenset({
+        'ver_projetos', 'criar_projeto', 'editar_projeto',
+        'adicionar_modulo', 'adicionar_unidade', 'adicionar_atividade',
+        'ver_timeline', 'ver_colaboradores', 'solicitar_ferias', 'registrar_ferias',
+        'ver_comissionamentos', 'criar_comissionamento', 'exportar_comissionamentos',
+        'ver_relatorios',
+    }),
+    # gestor / master → is_gestor == True → sempre permitido (sem verificação no DB)
 }
 
 # ─── Helpers gerais ───────────────────────────────────────────────────────────
@@ -218,7 +307,8 @@ def db_to_projeto(p: ERPProjetoDB) -> Projeto:
         descricao=p.descricao or '',
         numero_unidades=p.numero_unidades or 1,
         potencial_cliente=p.potencial_cliente or 'Médio',
-        tipo_projeto=p.tipo_projeto or 'Novo'
+        tipo_projeto=p.tipo_projeto or 'Novo',
+        ponto_atencao=bool(p.ponto_atencao),
     )
 
     # Adiciona módulos
@@ -623,6 +713,7 @@ def index():
 
 @app.route('/timeline')
 @login_required
+@permission_required('ver_timeline')
 def timeline():
     colaboradores_raw, ferias_plan, ferias_real = carregar_tudo()
     colaboradores = sort_colaboradores(colaboradores_raw)
@@ -716,6 +807,7 @@ def timeline():
 
 @app.route('/colaboradores')
 @login_required
+@permission_required('ver_colaboradores')
 def listar_colaboradores():
     colaboradores_raw, ferias_plan, ferias_real = carregar_tudo()
     colaboradores = [c for c in sort_colaboradores(colaboradores_raw) if c.ativo]
@@ -1076,6 +1168,7 @@ def aprovar_conflito(fid):
 
 @app.route('/comissionamentos')
 @login_required
+@permission_required('ver_comissionamentos')
 def listar_comissionamentos():
     """Lista comissionamentos manuais"""
     comissions_db = ComissionamentoDB.query.order_by(ComissionamentoDB.data_comissao.desc()).all()
@@ -1085,7 +1178,7 @@ def listar_comissionamentos():
 
 @app.route('/novo-comissionamento', methods=['GET', 'POST'])
 @login_required
-@can_manage_required
+@permission_required('criar_comissionamento')
 def novo_comissionamento():
     """Cria novo comissionamento manual"""
     colaboradores = ColaboradorDB.query.filter_by(ativo=True).order_by(ColaboradorDB.nome).all()
@@ -1135,7 +1228,7 @@ def novo_comissionamento():
 
 @app.route('/editar-comissionamento/<int:cid>', methods=['GET', 'POST'])
 @login_required
-@can_manage_required
+@permission_required('editar_comissionamento')
 def editar_comissionamento(cid):
     """Edita comissionamento manual"""
     comissao_db = ComissionamentoDB.query.get_or_404(cid)
@@ -1180,7 +1273,7 @@ def editar_comissionamento(cid):
 
 @app.route('/deletar-comissionamento/<int:cid>', methods=['POST'])
 @login_required
-@can_manage_required
+@permission_required('editar_comissionamento')
 def deletar_comissionamento(cid):
     """Deleta comissionamento manual"""
     comissao_db = ComissionamentoDB.query.get_or_404(cid)
@@ -1193,7 +1286,7 @@ def deletar_comissionamento(cid):
 
 @app.route('/comissionamentos/exportar-excel')
 @login_required
-@can_manage_required
+@permission_required('exportar_comissionamentos')
 def exportar_comissionamentos_excel():
     """Exporta comissionamentos agrupados por colaborador para Excel"""
     comissions = ComissionamentoDB.query.all()
@@ -1314,18 +1407,29 @@ def exportar_comissionamentos_excel():
 
 @app.route('/projetos')
 @login_required
+@permission_required('ver_projetos')
 def listar_projetos():
     """Lista todos os projetos ERP"""
     projetos_db = ERPProjetoDB.query.order_by(ERPProjetoDB.criado_em.desc()).all()
-    projetos = [db_to_projeto(p) for p in projetos_db]
+    todos_projetos = [db_to_projeto(p) for p in projetos_db]
 
     # Filtros
     status_filtro = request.args.get('status', 'todos')
-    if status_filtro != 'todos':
-        projetos = [p for p in projetos if p.status == status_filtro]
+    if status_filtro == 'atencao':
+        projetos = [p for p in todos_projetos if p.ponto_atencao]
+    elif status_filtro == 'longa_execucao':
+        projetos = [p for p in todos_projetos if p.alerta_longa_execucao]
+    elif status_filtro != 'todos':
+        projetos = [p for p in todos_projetos if p.status == status_filtro]
+    else:
+        projetos = todos_projetos
 
-    analytics = ProjetoAnalytics(projetos)
+    analytics = ProjetoAnalytics(todos_projetos)
     resumo = analytics.resumo_geral()
+    # Contadores extras
+    resumo['paralisados']     = sum(1 for p in todos_projetos if p.status == 'Paralisado')
+    resumo['em_atencao']      = sum(1 for p in todos_projetos if p.ponto_atencao)
+    resumo['longa_execucao']  = sum(1 for p in todos_projetos if p.alerta_longa_execucao)
 
     return render_template('projetos/lista_projetos.html',
                           projetos=projetos,
@@ -1402,7 +1506,7 @@ def dashboard_projetos():
 
 @app.route('/novo-projeto', methods=['GET', 'POST'])
 @login_required
-@can_manage_required
+@permission_required('criar_projeto')
 def novo_projeto():
     """Cria novo projeto ERP"""
     colaboradores = obter_coordenadores()
@@ -1495,7 +1599,7 @@ def detalhe_projeto(pid):
 
 @app.route('/editar-projeto/<int:pid>', methods=['GET', 'POST'])
 @login_required
-@can_manage_required
+@permission_required('editar_projeto')
 def editar_projeto(pid):
     """Edita um projeto ERP"""
     p_db = ERPProjetoDB.query.get_or_404(pid)
@@ -1547,6 +1651,7 @@ def editar_projeto(pid):
 
         potencial_cliente = request.form.get('potencial_cliente', 'Médio')
         tipo_projeto = request.form.get('tipo_projeto', 'Novo')
+        ponto_atencao = bool(request.form.get('ponto_atencao'))
 
         # Validação
         valido, erro = ProjetoValidator.validar_projeto(nome, data_aceite, data_conclusao, valor)
@@ -1566,6 +1671,7 @@ def editar_projeto(pid):
         p_db.numero_unidades = numero_unidades
         p_db.potencial_cliente = potencial_cliente
         p_db.tipo_projeto = tipo_projeto
+        p_db.ponto_atencao = ponto_atencao
         db.session.commit()
 
         flash(f'Projeto "{nome}" atualizado!', 'success')
@@ -1579,7 +1685,7 @@ def editar_projeto(pid):
 
 @app.route('/projeto/<int:pid>/concluir', methods=['POST'])
 @login_required
-@can_manage_required
+@permission_required('finalizar_projeto')
 def concluir_projeto(pid):
     """Marca projeto como finalizado"""
     p_db = ERPProjetoDB.query.get_or_404(pid)
@@ -1596,13 +1702,13 @@ def concluir_projeto(pid):
 
 @app.route('/projeto/<int:pid>/reativar', methods=['POST'])
 @login_required
-@can_manage_required
+@permission_required('finalizar_projeto')
 def reativar_projeto(pid):
-    """Volta projeto de Finalizado para Em andamento"""
+    """Volta projeto de Finalizado/Paralisado para Em andamento"""
     p_db = ERPProjetoDB.query.get_or_404(pid)
 
-    if p_db.status != 'Finalizado':
-        flash('Apenas projetos finalizados podem ser reativados.', 'warning')
+    if p_db.status not in ('Finalizado', 'Paralisado'):
+        flash('Apenas projetos finalizados ou paralisados podem ser reativados.', 'warning')
     else:
         p_db.status = 'Em andamento'
         db.session.commit()
@@ -1610,9 +1716,38 @@ def reativar_projeto(pid):
 
     return redirect(url_for('detalhe_projeto', pid=pid))
 
+
+@app.route('/projeto/<int:pid>/paralisar', methods=['POST'])
+@login_required
+@permission_required('finalizar_projeto')
+def paralisar_projeto(pid):
+    """Marca projeto como Paralisado"""
+    p_db = ERPProjetoDB.query.get_or_404(pid)
+    if p_db.status == 'Em andamento':
+        p_db.status = 'Paralisado'
+        db.session.commit()
+        flash(f'Projeto "{p_db.nome_projeto}" marcado como Paralisado.', 'warning')
+    else:
+        flash('Apenas projetos em andamento podem ser paralisados.', 'warning')
+    return redirect(url_for('detalhe_projeto', pid=pid))
+
+
+@app.route('/projeto/<int:pid>/toggle-atencao', methods=['POST'])
+@login_required
+@permission_required('editar_projeto')
+def toggle_atencao_projeto(pid):
+    """Alterna o flag ponto_atencao de um projeto."""
+    p_db = ERPProjetoDB.query.get_or_404(pid)
+    p_db.ponto_atencao = not bool(p_db.ponto_atencao)
+    db.session.commit()
+    estado = 'ativado' if p_db.ponto_atencao else 'removido'
+    flash(f'Ponto de atenção {estado} em "{p_db.nome_projeto}".', 'warning' if p_db.ponto_atencao else 'success')
+    return redirect(url_for('detalhe_projeto', pid=pid))
+
+
 @app.route('/projeto/<int:pid>/modulo', methods=['POST'])
 @login_required
-@can_manage_required
+@permission_required('adicionar_modulo')
 def adicionar_modulo(pid):
     """Adiciona módulo a um projeto"""
     p_db = ERPProjetoDB.query.get_or_404(pid)
@@ -1648,7 +1783,7 @@ def adicionar_modulo(pid):
 
 @app.route('/projeto/<int:pid>/unidade', methods=['POST'])
 @login_required
-@can_manage_required
+@permission_required('adicionar_unidade')
 def adicionar_unidade(pid):
     """Adiciona unidade a um projeto"""
     p_db = ERPProjetoDB.query.get_or_404(pid)
@@ -1702,7 +1837,7 @@ def editar_modulo(mid, mid_id):
 
 @app.route('/projeto/<int:pid>/editar-unidade/<int:uid>', methods=['POST'])
 @login_required
-@can_manage_required
+@permission_required('adicionar_unidade')
 def editar_unidade(pid, uid):
     """Edita uma unidade"""
     unidade_db = ERPUnidadeDB.query.get_or_404(uid)
@@ -1717,7 +1852,7 @@ def editar_unidade(pid, uid):
 
 @app.route('/projeto/<int:pid>/atividade', methods=['POST'])
 @login_required
-@can_manage_required
+@permission_required('adicionar_atividade')
 def adicionar_atividade(pid):
     """Adiciona atividade a um projeto"""
     p_db = ERPProjetoDB.query.get_or_404(pid)
@@ -1742,7 +1877,7 @@ def adicionar_atividade(pid):
 
 @app.route('/projeto/<int:pid>/deletar-atividade/<int:aid>', methods=['POST'])
 @login_required
-@can_manage_required
+@permission_required('adicionar_atividade')
 def deletar_atividade(pid, aid):
     """Deleta uma atividade"""
     atividade_db = ERPAtividadeDB.query.get_or_404(aid)
@@ -1804,8 +1939,18 @@ def init_database():
     """
     try:
         with app.app_context():
-            # Criar todas as tabelas
+            # Criar todas as tabelas (novas + existentes sem alteração)
             db.create_all()
+
+            # Migração de colunas novas em tabelas existentes
+            for stmt in [
+                'ALTER TABLE erp_projetos ADD COLUMN ponto_atencao BOOLEAN DEFAULT FALSE',
+            ]:
+                try:
+                    db.session.execute(db.text(stmt))
+                    db.session.commit()
+                except Exception:
+                    db.session.rollback()  # coluna já existe → ignorar
 
             # Verificar se usuário admin existe
             admin = User.query.filter_by(username='admin').first()
@@ -2124,14 +2269,14 @@ def _rel_get_dataframes(session_id):
 
 @app.route('/relatorios/comissionamento')
 @login_required
-@can_manage_required
+@permission_required('ver_relatorios')
 def relatorios_comissionamento():
     return render_template('relatorios/index.html', modulo_ok=_RELATORIOS_OK)
 
 
 @app.route('/relatorios/upload', methods=['POST'])
 @login_required
-@can_manage_required
+@permission_required('ver_relatorios')
 def relatorios_upload():
     if not _RELATORIOS_OK:
         return jsonify({'error': 'Módulo de relatórios não disponível neste ambiente.'}), 503
@@ -2188,7 +2333,7 @@ def relatorios_upload():
 
 @app.route('/relatorios/validate-column', methods=['POST'])
 @login_required
-@can_manage_required
+@permission_required('ver_relatorios')
 def relatorios_validate_column():
     if not _RELATORIOS_OK:
         return jsonify({'error': 'Módulo não disponível'}), 503
@@ -2238,7 +2383,7 @@ def relatorios_validate_column():
 
 @app.route('/relatorios/generate', methods=['POST'])
 @login_required
-@can_manage_required
+@permission_required('ver_relatorios')
 def relatorios_generate():
     if not _RELATORIOS_OK:
         return jsonify({'error': 'Módulo não disponível'}), 503
@@ -2288,7 +2433,7 @@ def relatorios_generate():
 
 @app.route('/relatorios/download/<path:filename>')
 @login_required
-@can_manage_required
+@permission_required('ver_relatorios')
 def relatorios_download(filename):
     filepath = os.path.join(RELATORIOS_OUTPUT, filename)
     if not os.path.exists(filepath):
@@ -2298,7 +2443,7 @@ def relatorios_download(filename):
 
 @app.route('/relatorios/download-all', methods=['POST'])
 @login_required
-@can_manage_required
+@permission_required('ver_relatorios')
 def relatorios_download_all():
     data = request.json
     filenames = data.get('filenames', [])
@@ -2311,6 +2456,67 @@ def relatorios_download_all():
     buf.seek(0)
     return send_file(buf, as_attachment=True, download_name='relatorios.zip',
                      mimetype='application/zip')
+
+
+# ─── Matriz de Permissões ─────────────────────────────────────────────────────
+
+@app.route('/permissoes')
+@login_required
+@gestor_required
+def permissoes():
+    """Exibe a matriz de permissões por perfil."""
+    perms_db = {}
+    for perfil in ('colaborador', 'coordenador'):
+        try:
+            rows = PermissaoPerfil.query.filter_by(perfil=perfil).all()
+            if rows:
+                perms_db[perfil] = {r.codigo for r in rows}
+            else:
+                perms_db[perfil] = set(PERMISSOES_DEFAULT.get(perfil, []))
+        except Exception:
+            perms_db[perfil] = set(PERMISSOES_DEFAULT.get(perfil, []))
+    return render_template('permissoes.html', catalogo=PERMISSOES_CATALOG, perms_db=perms_db)
+
+
+@app.route('/permissoes/salvar', methods=['POST'])
+@login_required
+@gestor_required
+def salvar_permissoes():
+    """Salva a matriz de permissões no banco de dados."""
+    try:
+        PermissaoPerfil.query.filter(
+            PermissaoPerfil.perfil.in_(['colaborador', 'coordenador'])
+        ).delete(synchronize_session=False)
+        for perfil in ('colaborador', 'coordenador'):
+            for codigo in PERMISSOES_CATALOG.keys():
+                if request.form.get(f'perm_{perfil}_{codigo}'):
+                    db.session.add(PermissaoPerfil(perfil=perfil, codigo=codigo))
+        db.session.commit()
+        flash('Permissões atualizadas com sucesso!', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Erro ao salvar permissões: {e}', 'danger')
+    return redirect(url_for('permissoes'))
+
+
+@app.route('/permissoes/resetar', methods=['POST'])
+@login_required
+@gestor_required
+def resetar_permissoes():
+    """Restaura permissões para os valores padrão."""
+    try:
+        PermissaoPerfil.query.filter(
+            PermissaoPerfil.perfil.in_(['colaborador', 'coordenador'])
+        ).delete(synchronize_session=False)
+        for perfil, codigos in PERMISSOES_DEFAULT.items():
+            for codigo in codigos:
+                db.session.add(PermissaoPerfil(perfil=perfil, codigo=codigo))
+        db.session.commit()
+        flash('Permissões restauradas para os valores padrão!', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Erro: {e}', 'danger')
+    return redirect(url_for('permissoes'))
 
 
 # ─── Entry point ──────────────────────────────────────────────────────────────
