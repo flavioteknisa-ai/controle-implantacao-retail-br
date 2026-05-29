@@ -75,7 +75,7 @@ def is_db_initialized():
 def check_db_init():
     """Redireciona para /init se o banco não estiver inicializado"""
     # Rotas que não precisam de banco de dados
-    exempt_routes = ['init', 'static']
+    exempt_routes = ['init_database', 'static']
 
     if request.endpoint in exempt_routes:
         return
