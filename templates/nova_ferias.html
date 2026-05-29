@@ -1,0 +1,298 @@
+{% extends "base.html" %}
+{% block title %}Registrar Férias · Férias Retail{% endblock %}
+
+{% block extra_css %}
+<style>
+  .saldo-display { background:#f0f4ff; border:1px solid #c5cae9; border-radius:10px; padding:14px 18px; }
+  .btn-dias {
+    min-width:72px; font-weight:700; font-size:.85rem;
+    border-radius:8px; transition:all .15s;
+  }
+  .btn-dias.ativo {
+    background:#1a237e; color:#fff; border-color:#1a237e;
+    box-shadow:0 2px 8px rgba(26,35,126,.3);
+  }
+  .resultado-datas {
+    background:linear-gradient(135deg,#e8f5e9,#f1f8e9);
+    border:1px solid #a5d6a7; border-radius:12px;
+    padding:16px 18px;
+  }
+  .ret-label { font-size:.7rem; font-weight:600; color:#666; text-transform:uppercase; letter-spacing:.5px; }
+  .ret-value { font-size:1rem; font-weight:700; color:#1b5e20; margin-top:2px; }
+  .ret-retorno { color:#1565c0; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header fade-in">
+  {% if modo_solicitacao %}
+  <h2><i class="bi bi-calendar-plus-fill me-2"></i>Solicitar Férias</h2>
+  <p>Envie uma solicitação de férias para aprovação do gestor</p>
+  {% else %}
+  <h2><i class="bi bi-calendar-plus-fill me-2"></i>Registrar Férias</h2>
+  <p>Agende um período de férias para um colaborador</p>
+  {% endif %}
+</div>
+
+<div class="row justify-content-center">
+  <div class="col-lg-5 col-md-8">
+    <div class="card fade-in">
+      <div class="card-header dark"><i class="bi bi-calendar-event me-2"></i>Dados do Período</div>
+      <div class="card-body">
+
+        {% if erro %}
+        <div class="alert alert-danger d-flex gap-2 align-items-center">
+          <i class="bi bi-exclamation-triangle-fill"></i>{{ erro }}
+        </div>
+        {% endif %}
+
+        <form method="POST" id="frmFerias" onsubmit="return validarForm()">
+
+          <!-- Colaborador -->
+          <div class="mb-3">
+            {% if modo_solicitacao %}
+            <label class="form-label fw-semibold small">Colaborador</label>
+            {% for c in colaboradores %}
+            <div class="d-flex align-items-center gap-2 p-2 rounded"
+                 style="background:#f0f4ff;border:1px solid #c5cae9;">
+              <div class="avatar" style="background:#3949ab;width:30px;height:30px;font-size:.65rem;flex-shrink:0;">
+                {{ c.nome[:2].upper() }}
+              </div>
+              <div>
+                <div class="fw-semibold small">{{ c.nome }}</div>
+                <div class="text-muted" style="font-size:.7rem;">{{ c.time }}</div>
+              </div>
+            </div>
+            <input type="hidden" name="colaborador_id" value="{{ c.id }}">
+            {% endfor %}
+            {% else %}
+            <label class="form-label fw-semibold small">Colaborador *</label>
+            <select class="form-select" name="colaborador_id" id="selColab" required
+                    onchange="carregarSaldo(this.value)">
+              <option value="">— Selecione —</option>
+              {% for c in colaboradores %}
+              <option value="{{ c.id }}" {% if sel_colab == c.id %}selected{% endif %}>
+                {{ c.nome }} · {{ c.time }}
+              </option>
+              {% endfor %}
+            </select>
+            {% endif %}
+          </div>
+
+          <!-- Saldo -->
+          <div id="saldoBox" class="saldo-display mb-3" style="display:none;">
+            <div class="d-flex justify-content-between align-items-center">
+              <span class="small fw-semibold text-muted">Saldo disponível</span>
+              <span id="saldoValor" class="fw-bold fs-5 text-primary">— dias</span>
+            </div>
+            <div class="progress progress-thin mt-2">
+              <div id="saldoBar" class="progress-bar bg-success" style="width:0%"></div>
+            </div>
+          </div>
+
+          <!-- Data de Início -->
+          <div class="mb-3">
+            <label class="form-label fw-semibold small">Data de Início *</label>
+            <input type="date" class="form-control" name="data_inicio" id="dtIni"
+                   required oninput="recalcFim()" value="{{ form_ini or '' }}">
+          </div>
+
+          <!-- Seletor de dias -->
+          <div class="mb-3">
+            <label class="form-label fw-semibold small mb-2">Duração das Férias *</label>
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+              <button type="button" class="btn btn-outline-primary btn-dias" data-dias="10" onclick="setDias(this,10)">
+                <i class="bi bi-moon me-1"></i>10 dias
+              </button>
+              <button type="button" class="btn btn-outline-primary btn-dias" data-dias="20" onclick="setDias(this,20)">
+                <i class="bi bi-moon-stars me-1"></i>20 dias
+              </button>
+              <button type="button" class="btn btn-outline-primary btn-dias" data-dias="30" onclick="setDias(this,30)">
+                <i class="bi bi-stars me-1"></i>30 dias
+              </button>
+              <div class="d-flex align-items-center gap-1 ms-1">
+                <span class="text-muted small">Outro:</span>
+                <input type="number" class="form-control form-control-sm" id="diasCustom"
+                       min="1" max="90" placeholder="—" style="width:68px;"
+                       oninput="setDiasCustom(this.value)">
+                <span class="text-muted small">dias</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Resultado: datas calculadas -->
+          <div id="resultadoDatas" class="resultado-datas mb-3" style="display:none;">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <div class="ret-label">Último dia de férias</div>
+                <div class="ret-value" id="dtFimDisplay">—</div>
+              </div>
+              <div class="text-center">
+                <div class="ret-label">Total</div>
+                <div class="fw-bold mt-1" id="dtDiasDisplay"
+                     style="font-size:1.5rem;color:#1a237e;line-height:1;">—</div>
+                <div style="font-size:.65rem;color:#888;">dias</div>
+              </div>
+              <div class="text-end">
+                <div class="ret-label">Retorno ao trabalho</div>
+                <div class="ret-value ret-retorno" id="dtRetornoDisplay">—</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Campo oculto data_fim (enviado ao backend) -->
+          <input type="hidden" name="data_fim" id="dtFimHidden" value="{{ form_fim or '' }}">
+
+          <!-- Status (gestor only) -->
+          {% if not modo_solicitacao %}
+          <div class="mb-4">
+            <label class="form-label fw-semibold small">Status</label>
+            <select class="form-select" name="status">
+              <option value="Planejado">Planejado</option>
+              <option value="Confirmado">Confirmado</option>
+            </select>
+          </div>
+          {% endif %}
+
+          <div class="mb-3 small text-muted">
+            <i class="bi bi-shield-check me-1 text-primary"></i>
+            {% if modo_solicitacao %}
+            Sua solicitação será analisada pelo gestor antes de ser confirmada.
+            {% else %}
+            Validações: mínimo 12 meses de admissão · sem sobreposição · saldo suficiente
+            {% endif %}
+          </div>
+
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary fw-semibold">
+              <i class="bi bi-check-lg me-1"></i>
+              {% if modo_solicitacao %}Enviar Solicitação{% else %}Registrar{% endif %}
+            </button>
+            <a href="/" class="btn btn-outline-secondary">Cancelar</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let _dias = 0;
+
+/* ── Saldo ── */
+async function carregarSaldo(id) {
+  const box = document.getElementById('saldoBox');
+  if (!id) { box.style.display = 'none'; return; }
+  try {
+    const r = await fetch('/api/saldo/' + id);
+    const d = await r.json();
+    if (d.estagiario) {
+      document.getElementById('saldoValor').textContent = 'Estagiário';
+      document.getElementById('saldoBar').style.width = '0%';
+      document.getElementById('saldoBar').className = 'progress-bar bg-secondary';
+    } else {
+      const s = d.saldo ?? 0;
+      document.getElementById('saldoValor').textContent = s + ' dias';
+      const pct = Math.min(Math.max((s / 30) * 100, 0), 100);
+      const bar = document.getElementById('saldoBar');
+      bar.style.width = pct + '%';
+      bar.className = 'progress-bar ' + (s >= 20 ? 'bg-success' : s >= 10 ? 'bg-warning' : 'bg-danger');
+    }
+    box.style.display = 'block';
+  } catch(e) {}
+}
+
+/* ── Botões de dias ── */
+function setDias(btn, dias) {
+  document.querySelectorAll('.btn-dias').forEach(b => {
+    b.classList.remove('ativo');
+  });
+  btn.classList.add('ativo');
+  document.getElementById('diasCustom').value = '';
+  _dias = dias;
+  recalcFim();
+}
+
+function setDiasCustom(val) {
+  const d = parseInt(val);
+  if (d > 0) {
+    document.querySelectorAll('.btn-dias').forEach(b => b.classList.remove('ativo'));
+    _dias = d;
+    recalcFim();
+  } else {
+    _dias = 0;
+    document.getElementById('resultadoDatas').style.display = 'none';
+    document.getElementById('dtFimHidden').value = '';
+  }
+}
+
+/* ── Próximo dia útil (seg–sex) ── */
+function proximoDiaUtil(dt) {
+  const wd = dt.getUTCDay(); // 0=Dom, 6=Sab
+  if (wd === 6) return new Date(dt.getTime() + 2 * 86400000); // Sáb → Seg
+  if (wd === 0) return new Date(dt.getTime() + 1 * 86400000); // Dom → Seg
+  return dt;
+}
+
+/* ── Cálculo automático da data fim ── */
+function recalcFim() {
+  const iniVal = document.getElementById('dtIni').value;
+  const box    = document.getElementById('resultadoDatas');
+
+  if (!iniVal || _dias <= 0) {
+    box.style.display = 'none';
+    document.getElementById('dtFimHidden').value = '';
+    return;
+  }
+
+  // Calcula datas (usando UTC puro para evitar fuso)
+  const [y, m, d] = iniVal.split('-').map(Number);
+  const fim = new Date(Date.UTC(y, m - 1, d + _dias - 1));
+  const ret = proximoDiaUtil(new Date(Date.UTC(y, m - 1, d + _dias)));
+
+  const fmtBR  = dt => dt.toLocaleDateString('pt-BR', {timeZone:'UTC', day:'2-digit', month:'2-digit', year:'numeric'});
+  const fmtISO = dt => dt.toISOString().split('T')[0];
+
+  document.getElementById('dtFimDisplay').textContent     = fmtBR(fim);
+  document.getElementById('dtRetornoDisplay').textContent  = fmtBR(ret);
+  document.getElementById('dtDiasDisplay').textContent     = _dias;
+  document.getElementById('dtFimHidden').value             = fmtISO(fim);
+
+  box.style.display = '';
+}
+
+/* ── Validação antes de enviar ── */
+function validarForm() {
+  if (!document.getElementById('dtFimHidden').value) {
+    alert('Selecione a data de início e a duração das férias.');
+    return false;
+  }
+  return true;
+}
+
+/* ── Inicialização ── */
+window.addEventListener('DOMContentLoaded', () => {
+  const sel = document.getElementById('selColab');
+  if (sel.value) carregarSaldo(sel.value);
+
+  // Pré-preenche se voltou com erro de validação
+  const iniVal = document.getElementById('dtIni').value;
+  const fimVal = document.getElementById('dtFimHidden').value;
+  if (iniVal && fimVal) {
+    const [yi,mi,di] = iniVal.split('-').map(Number);
+    const [yf,mf,df] = fimVal.split('-').map(Number);
+    const ini = new Date(Date.UTC(yi, mi-1, di));
+    const fim = new Date(Date.UTC(yf, mf-1, df));
+    const dias = Math.round((fim - ini) / 86400000) + 1;
+    _dias = dias;
+    // Clica no botão correspondente se existir
+    const btn = document.querySelector(`.btn-dias[data-dias="${dias}"]`);
+    if (btn) btn.classList.add('ativo');
+    else document.getElementById('diasCustom').value = dias;
+    recalcFim();
+  }
+});
+</script>
+{% endblock %}

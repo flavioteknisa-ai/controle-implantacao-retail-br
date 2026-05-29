@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Controle Implantação Retail BR{% endblock %}</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #1a237e;
+      --primary-light: #283593;
+      --accent: #00acc1;
+      --success: #2e7d32;
+      --warning: #f57f17;
+      --danger: #b71c1c;
+      --bg: #f0f2f5;
+      --card-shadow: 0 2px 12px rgba(0,0,0,.08);
+    }
+    body { background: var(--bg); font-family: 'Segoe UI', sans-serif; min-height: 100vh; }
+
+    /* Sidebar */
+    .sidebar {
+      position: fixed; left: 0; top: 0; bottom: 0; width: 230px;
+      background: linear-gradient(180deg, var(--primary) 0%, #0d47a1 100%);
+      color: #fff; z-index: 100; display: flex; flex-direction: column;
+      box-shadow: 3px 0 15px rgba(0,0,0,.2);
+    }
+    .sidebar-brand {
+      padding: 22px 20px 18px; border-bottom: 1px solid rgba(255,255,255,.12);
+    }
+    .sidebar-brand h5 { font-weight: 700; margin: 0; font-size: .95rem; letter-spacing: .5px; }
+    .sidebar-brand small { opacity: .65; font-size: .75rem; }
+    .sidebar-logo { font-size: 1.8rem; margin-bottom: 6px; }
+    .nav-section { padding: 16px 12px 6px; font-size: .7rem; text-transform: uppercase;
+                   letter-spacing: 1.2px; opacity: .5; font-weight: 600; }
+    .sidebar .nav-link {
+      color: rgba(255,255,255,.8); padding: 10px 16px; border-radius: 8px; margin: 2px 8px;
+      font-size: .875rem; transition: all .2s; display: flex; align-items: center; gap: 10px;
+    }
+    .sidebar .nav-link:hover, .sidebar .nav-link.active {
+      background: rgba(255,255,255,.15); color: #fff;
+    }
+    .sidebar .nav-link i { font-size: 1rem; width: 20px; text-align: center; }
+    .sidebar-footer {
+      margin-top: auto; padding: 16px; border-top: 1px solid rgba(255,255,255,.1);
+      font-size: .75rem; opacity: .5; text-align: center;
+    }
+
+    /* Main */
+    .main-content { margin-left: 230px; padding: 28px 32px; min-height: 100vh; }
+    .page-header { margin-bottom: 28px; }
+    .page-header h2 { font-weight: 700; color: #1a237e; margin: 0; font-size: 1.5rem; }
+    .page-header p { color: #666; margin: 4px 0 0; font-size: .875rem; }
+
+    /* Stat cards */
+    .stat-card {
+      background: #fff; border-radius: 14px; padding: 20px 22px;
+      box-shadow: var(--card-shadow); position: relative; overflow: hidden;
+      transition: transform .2s;
+    }
+    .stat-card:hover { transform: translateY(-3px); }
+    .stat-card .icon-bg {
+      position: absolute; right: -10px; top: -10px; width: 80px; height: 80px;
+      border-radius: 50%; opacity: .08;
+    }
+    .stat-card .stat-number { font-size: 2rem; font-weight: 800; line-height: 1; }
+    .stat-card .stat-label { font-size: .8rem; color: #888; margin-top: 4px; font-weight: 500; }
+    .stat-card .stat-badge { font-size: .7rem; padding: 3px 8px; border-radius: 20px; margin-top: 8px; display: inline-block; }
+
+    /* Cards gerais */
+    .card { border: none; border-radius: 14px; box-shadow: var(--card-shadow); }
+    .card-header { border-radius: 14px 14px 0 0 !important; border: none; padding: 16px 20px; font-weight: 600; }
+    .card-header.dark { background: var(--primary); color: #fff; }
+    .card-body { padding: 20px; }
+
+    /* Badges de status */
+    .badge-confirmado { background: #e8f5e9; color: #2e7d32; }
+    .badge-planejado  { background: #e3f2fd; color: #1565c0; }
+    .badge-realizado  { background: #f3e5f5; color: #6a1b9a; }
+    .badge-aberta     { background: #fff8e1; color: #e65100; }
+    .badge-cancelado  { background: #fce4ec; color: #b71c1c; }
+    .status-badge {
+      font-size: .7rem; padding: 4px 10px; border-radius: 20px; font-weight: 600; letter-spacing: .3px;
+    }
+
+    /* Saldo progress */
+    .saldo-ok      { color: #2e7d32; }
+    .saldo-alerta  { color: #e65100; }
+    .saldo-critico { color: #b71c1c; }
+
+    /* Timeline */
+    .timeline-bar {
+      height: 32px; border-radius: 6px; display: flex; align-items: center;
+      padding: 0 10px; font-size: .75rem; font-weight: 600; color: #fff;
+      position: relative; overflow: hidden; transition: transform .15s;
+      cursor: default;
+    }
+    .timeline-bar:hover { transform: scaleY(1.1); z-index: 2; }
+    .timeline-col-name {
+      font-size: .8rem; font-weight: 600; color: #333; white-space: nowrap;
+      overflow: hidden; text-overflow: ellipsis; max-width: 140px;
+    }
+
+    /* Calendário */
+    .cal-day {
+      width: 34px; height: 34px; border-radius: 8px; display: flex; align-items: center;
+      justify-content: center; font-size: .78rem; font-weight: 600; cursor: default;
+      transition: transform .15s;
+    }
+    .cal-day:hover { transform: scale(1.15); z-index: 2; position: relative; }
+    .cal-day.today { border: 2px solid var(--primary); }
+    .cal-day.ferias-1 { background: #bbdefb; color: #1565c0; }
+    .cal-day.ferias-2 { background: #c8e6c9; color: #2e7d32; }
+    .cal-day.ferias-3 { background: #f8bbd0; color: #880e4f; }
+    .cal-day.ferias-4 { background: #ffe0b2; color: #e65100; }
+    .cal-day.ferias-5 { background: #e1bee7; color: #6a1b9a; }
+    .cal-day.ferias-multi { background: #ef9a9a; color: #b71c1c; }
+    .cal-day.fds { opacity: .45; }
+    .cal-day.vazio { background: transparent; }
+
+    /* Conflito card */
+    .conflito-card {
+      background: #fff5f5; border: 1px solid #ffcdd2; border-left: 4px solid #e53935;
+      border-radius: 10px; padding: 14px 16px;
+    }
+
+    /* Colaborador row */
+    .colab-row {
+      display: flex; align-items: center; gap: 12px; padding: 10px 0;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .colab-row:last-child { border-bottom: none; }
+    .avatar {
+      width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center;
+      justify-content: center; font-weight: 700; font-size: .85rem; flex-shrink: 0;
+      color: #fff;
+    }
+    .progress-thin { height: 6px; border-radius: 3px; }
+
+    /* Tooltips nativos */
+    [data-bs-toggle="tooltip"] { cursor: pointer; }
+
+    /* Animações */
+    @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+    .fade-in { animation: fadeIn .3s ease both; }
+
+    /* Responsivo */
+    @media (max-width: 768px) {
+      .sidebar { width: 60px; }
+      .sidebar .nav-link span, .sidebar-brand h5,
+      .sidebar-brand small, .sidebar-logo, .nav-section, .sidebar-footer { display: none; }
+      .sidebar .nav-link { justify-content: center; padding: 12px; }
+      .main-content { margin-left: 60px; padding: 16px; }
+    }
+  </style>
+  {% block extra_css %}{% endblock %}
+</head>
+<body>
+
+<div class="sidebar">
+  <div class="sidebar-brand">
+    <div class="sidebar-logo">🏢</div>
+    <h5>Controle Implantação</h5>
+    <small>Retail BR</small>
+  </div>
+
+  <div class="nav-section">Menu</div>
+  <a href="/" class="nav-link {% if request.path == '/' %}active{% endif %}">
+    <i class="bi bi-speedometer2"></i><span>Dashboard</span>
+  </a>
+
+  <div class="nav-section">Controle de Projetos</div>
+  <a href="/dashboard-projetos" class="nav-link {% if request.path == '/dashboard-projetos' %}active{% endif %}">
+    <i class="bi bi-graph-up"></i><span>Resumo Projetos</span>
+  </a>
+  <a href="/projetos" class="nav-link {% if request.path == '/projetos' or request.path.startswith('/projeto') %}active{% endif %}">
+    <i class="bi bi-building"></i><span>Projetos</span>
+  </a>
+  {% if current_user.is_authenticated and current_user.is_gestor %}
+  <a href="/novo-projeto" class="nav-link {% if request.path == '/novo-projeto' %}active{% endif %}">
+    <i class="bi bi-plus-circle"></i><span>Novo Projeto</span>
+  </a>
+  {% endif %}
+
+  <div class="nav-section">Férias</div>
+  <a href="/timeline" class="nav-link {% if request.path == '/timeline' %}active{% endif %}">
+    <i class="bi bi-bar-chart-steps"></i><span>Timeline</span>
+  </a>
+  <a href="/colaboradores" class="nav-link {% if request.path == '/colaboradores' %}active{% endif %}">
+    <i class="bi bi-people-fill"></i><span>Colaboradores</span>
+  </a>
+  {% if current_user.is_authenticated and current_user.is_gestor %}
+  <a href="/nova-ferias" class="nav-link {% if request.path == '/nova-ferias' %}active{% endif %}">
+    <i class="bi bi-calendar-plus-fill"></i><span>Registrar Férias</span>
+  </a>
+  {% else %}
+  <a href="/nova-ferias" class="nav-link {% if request.path == '/nova-ferias' %}active{% endif %}">
+    <i class="bi bi-calendar-plus-fill"></i><span>Solicitar Férias</span>
+  </a>
+  {% endif %}
+
+  {% if current_user.is_authenticated and current_user.is_gestor %}
+  <div class="nav-section">Comissionamento</div>
+  <a href="/comissionamentos" class="nav-link {% if request.path == '/comissionamentos' or request.path.startswith('/comissionamento') %}active{% endif %}">
+    <i class="bi bi-briefcase"></i><span>Comissionamentos</span>
+  </a>
+  <a href="/novo-comissionamento" class="nav-link {% if request.path == '/novo-comissionamento' %}active{% endif %}">
+    <i class="bi bi-plus-circle"></i><span>Novo</span>
+  </a>
+  {% endif %}
+
+  {% if current_user.is_authenticated and current_user.is_gestor %}
+  <div class="nav-section">Admin</div>
+  <a href="/novo-colaborador" class="nav-link {% if request.path == '/novo-colaborador' %}active{% endif %}">
+    <i class="bi bi-person-plus-fill"></i><span>Novo Colaborador</span>
+  </a>
+  <a href="/usuarios" class="nav-link {% if request.path == '/usuarios' %}active{% endif %}">
+    <i class="bi bi-shield-lock-fill"></i><span>Usuários</span>
+  </a>
+  {% endif %}
+
+  <div class="sidebar-footer" style="padding:12px 16px;">
+    {% if current_user.is_authenticated %}
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+      <div style="width:28px;height:28px;border-radius:50%;background:rgba(255,255,255,.2);
+                  display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;flex-shrink:0;">
+        {{ current_user.nome[:2].upper() }}
+      </div>
+      <div style="min-width:0;">
+        <div style="font-size:.72rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+          {{ current_user.nome }}
+        </div>
+        <div style="font-size:.62rem;opacity:.6;">
+          {% if current_user.is_gestor %}Gestor{% else %}Colaborador{% endif %}
+        </div>
+      </div>
+    </div>
+    <a href="/logout" style="display:flex;align-items:center;gap:6px;color:rgba(255,255,255,.6);
+       font-size:.72rem;text-decoration:none;transition:color .2s;"
+       onmouseover="this.style.color='#fff'" onmouseout="this.style.color='rgba(255,255,255,.6)'">
+      <i class="bi bi-box-arrow-right"></i><span>Sair</span>
+    </a>
+    {% else %}
+    <div style="font-size:.72rem;opacity:.5;">v1.0 · Teknisa</div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="main-content">
+  {% with msgs = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in msgs %}
+    <div class="alert alert-{{ cat }} alert-dismissible fade show" role="alert">
+      {{ msg }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endfor %}
+  {% endwith %}
+  {% block content %}{% endblock %}
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+  const tooltipEls = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+  tooltipEls.forEach(el => new bootstrap.Tooltip(el, { trigger: 'hover' }));
+</script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>

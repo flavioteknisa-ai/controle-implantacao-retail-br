@@ -1,0 +1,513 @@
+{% extends "base.html" %}
+{% block title %}Dashboard · Controle Implantação Retail BR{% endblock %}
+
+{% block content %}
+<div class="page-header fade-in">
+  <h2><i class="bi bi-speedometer2 me-2"></i>Dashboard</h2>
+  <p>Visão geral de projetos e férias · Hoje: {{ hoje.strftime('%d/%m/%Y') }}</p>
+</div>
+
+<!-- Seção: Projetos ERP -->
+{% if proj_resumo %}
+<div style="margin-bottom: 32px;">
+  <h4 class="mb-3" style="font-size: 1.1rem; font-weight: 700; color: #1a237e;">
+    <i class="bi bi-building me-2"></i>Projetos ERP
+  </h4>
+
+  <div class="row g-3 mb-3 fade-in">
+    <div class="col-6 col-md-3">
+      <a href="/projetos" style="text-decoration:none;color:inherit;">
+        <div class="stat-card" style="cursor:pointer;transition:box-shadow .15s;">
+          <div class="icon-bg" style="background:#2196F3;"></div>
+          <div class="stat-number" style="color:#2196F3;">{{ proj_resumo.total_projetos }}</div>
+          <div class="stat-label"><i class="bi bi-building me-1"></i>Total de Projetos</div>
+          <div class="mt-2" style="font-size:.7rem;color:#1976D2;opacity:.8;">Ver todos →</div>
+        </div>
+      </a>
+    </div>
+
+    <div class="col-6 col-md-3">
+      <a href="/projetos?status=Em andamento" style="text-decoration:none;color:inherit;">
+        <div class="stat-card" style="cursor:pointer;transition:box-shadow .15s;">
+          <div class="icon-bg" style="background:#FF9800;"></div>
+          <div class="stat-number" style="color:#FF9800;">{{ proj_resumo.em_andamento }}</div>
+          <div class="stat-label"><i class="bi bi-hourglass-split me-1"></i>Em Andamento</div>
+          <div class="mt-2" style="font-size:.7rem;color:#F57C00;opacity:.8;">Ver detalhes →</div>
+        </div>
+      </a>
+    </div>
+
+    <div class="col-6 col-md-3">
+      <a href="/projetos?status=Finalizado" style="text-decoration:none;color:inherit;">
+        <div class="stat-card" style="cursor:pointer;transition:box-shadow .15s;">
+          <div class="icon-bg" style="background:#4CAF50;"></div>
+          <div class="stat-number" style="color:#4CAF50;">{{ proj_resumo.finalizados }}</div>
+          <div class="stat-label"><i class="bi bi-check-circle me-1"></i>Finalizados</div>
+          <div class="mt-2" style="font-size:.7rem;color:#388E3C;opacity:.8;">Ver histórico →</div>
+        </div>
+      </a>
+    </div>
+
+    <div class="col-6 col-md-3">
+      <a href="/projetos" style="text-decoration:none;color:inherit;">
+        <div class="stat-card" style="cursor:pointer;transition:box-shadow .15s;">
+          <div class="icon-bg" style="background:#F44336;"></div>
+          <div class="stat-number text-danger">{{ proj_resumo.atrasados }}</div>
+          <div class="stat-label"><i class="bi bi-exclamation-triangle me-1"></i>Atrasados</div>
+          <div class="mt-2" style="font-size:.7rem;color:#D32F2F;opacity:.8;">Atenção necessária →</div>
+        </div>
+      </a>
+    </div>
+  </div>
+
+  {% if proj_criticos %}
+  <div class="alert alert-warning fade-in mb-3" role="alert">
+    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+    <strong>{{ proj_criticos|length }} Projeto{{ 's' if proj_criticos|length != 1 }} em Situação Crítica</strong>
+    <ul class="mb-0 mt-2 small">
+      {% for critico in proj_criticos[:3] %}
+      <li>
+        <strong>{{ critico.projeto.nome }}</strong>
+        {% for motivo in critico.motivos %}
+        <br><small class="text-muted">• {{ motivo }}</small>
+        {% endfor %}
+      </li>
+      {% endfor %}
+      {% if proj_criticos|length > 3 %}
+      <li><a href="/projetos" class="alert-link">+ {{ proj_criticos|length - 3 }} projeto{{ 's' if proj_criticos|length - 3 != 1 }} crítico{{ 's' if proj_criticos|length - 3 != 1 }}</a></li>
+      {% endif %}
+    </ul>
+  </div>
+  {% endif %}
+
+  <hr style="margin: 28px 0; opacity: 0.2;">
+</div>
+{% endif %}
+
+<!-- Stat Cards -->
+<div class="row g-3 mb-4 fade-in">
+  <div class="col-6 col-md-3">
+    <a href="/colaboradores" style="text-decoration:none;color:inherit;">
+      <div class="stat-card" style="cursor:pointer;transition:box-shadow .15s;">
+        <div class="icon-bg" style="background:#1a237e;"></div>
+        <div class="stat-number text-primary">{{ total_ativos }}</div>
+        <div class="stat-label"><i class="bi bi-people-fill me-1"></i>Colaboradores ativos</div>
+        <div class="mt-2" style="font-size:.7rem;color:#3949ab;opacity:.8;">Ver lista →</div>
+      </div>
+    </a>
+  </div>
+  <div class="col-6 col-md-3">
+    <a href="/colaboradores?filtro=ferias_hoje" style="text-decoration:none;color:inherit;">
+      <div class="stat-card" style="cursor:pointer;transition:box-shadow .15s;">
+        <div class="icon-bg" style="background:#2e7d32;"></div>
+        <div class="stat-number text-success">{{ em_ferias_hoje }}</div>
+        <div class="stat-label"><i class="bi bi-calendar-check me-1"></i>Em férias hoje</div>
+        <div class="mt-2" style="font-size:.7rem;color:#388e3c;opacity:.8;">Ver quem está →</div>
+      </div>
+    </a>
+  </div>
+  <div class="col-6 col-md-3">
+    <a href="/colaboradores?filtro=proximos30" style="text-decoration:none;color:inherit;">
+      <div class="stat-card" style="cursor:pointer;transition:box-shadow .15s;">
+        <div class="icon-bg" style="background:#e65100;"></div>
+        <div class="stat-number" style="color:#e65100;">{{ proximos_30 }}</div>
+        <div class="stat-label"><i class="bi bi-calendar-event me-1"></i>Saem em 30 dias</div>
+        <div class="mt-2" style="font-size:.7rem;color:#e65100;opacity:.8;">Ver quem vai →</div>
+      </div>
+    </a>
+  </div>
+  <div class="col-6 col-md-3">
+    <a href="#conflitos" style="text-decoration:none;color:inherit;">
+      <div class="stat-card" style="cursor:pointer;transition:box-shadow .15s;">
+        <div class="icon-bg" style="background:#b71c1c;"></div>
+        <div class="stat-number text-danger">{{ total_conflitos }}</div>
+        <div class="stat-label"><i class="bi bi-exclamation-triangle me-1"></i>Conflitos pendentes</div>
+        <div class="mt-2" style="font-size:.7rem;color:#c62828;opacity:.8;">
+          {% if total_conflitos > 0 %}Resolver abaixo →{% else %}Nenhum conflito{% endif %}
+        </div>
+      </div>
+    </a>
+  </div>
+</div>
+
+<!-- Cards por Cargo -->
+<div class="row g-3 mb-4 fade-in">
+
+  <div class="col-6 col-md-3">
+    <a href="/colaboradores" style="text-decoration:none;color:inherit;">
+      <div class="stat-card" style="cursor:pointer;border-top:3px solid #6a1b9a;">
+        <div class="icon-bg" style="background:#6a1b9a;"></div>
+        <div class="d-flex align-items-center gap-2 mb-1">
+          <i class="bi bi-star-fill" style="color:#6a1b9a;font-size:.85rem;"></i>
+          <span style="font-size:.72rem;font-weight:700;color:#6a1b9a;text-transform:uppercase;letter-spacing:.5px;">Gerência</span>
+        </div>
+        <div class="stat-number" style="color:#6a1b9a;font-size:1.8rem;">{{ contagem_cargos.gerencia }}</div>
+        <div class="stat-label">pessoa{{ 's' if contagem_cargos.gerencia != 1 }} na gerência</div>
+      </div>
+    </a>
+  </div>
+
+  <div class="col-6 col-md-3">
+    <a href="/colaboradores" style="text-decoration:none;color:inherit;">
+      <div class="stat-card" style="cursor:pointer;border-top:3px solid #1565c0;">
+        <div class="icon-bg" style="background:#1565c0;"></div>
+        <div class="d-flex align-items-center gap-2 mb-1">
+          <i class="bi bi-diagram-3-fill" style="color:#1565c0;font-size:.85rem;"></i>
+          <span style="font-size:.72rem;font-weight:700;color:#1565c0;text-transform:uppercase;letter-spacing:.5px;">Coordenadores</span>
+        </div>
+        <div class="stat-number" style="color:#1565c0;font-size:1.8rem;">{{ contagem_cargos.coordenador }}</div>
+        <div class="stat-label">pessoa{{ 's' if contagem_cargos.coordenador != 1 }} coordenando</div>
+      </div>
+    </a>
+  </div>
+
+  <div class="col-6 col-md-3">
+    <a href="/colaboradores" style="text-decoration:none;color:inherit;">
+      <div class="stat-card" style="cursor:pointer;border-top:3px solid #2e7d32;">
+        <div class="icon-bg" style="background:#2e7d32;"></div>
+        <div class="d-flex align-items-center gap-2 mb-1">
+          <i class="bi bi-person-fill" style="color:#2e7d32;font-size:.85rem;"></i>
+          <span style="font-size:.72rem;font-weight:700;color:#2e7d32;text-transform:uppercase;letter-spacing:.5px;">Consultores</span>
+        </div>
+        <div class="stat-number" style="color:#2e7d32;font-size:1.8rem;">{{ contagem_cargos.consultor }}</div>
+        <div class="stat-label">consultor{{ 'es' if contagem_cargos.consultor != 1 }} ativos</div>
+      </div>
+    </a>
+  </div>
+
+  <div class="col-6 col-md-3">
+    <a href="/colaboradores" style="text-decoration:none;color:inherit;">
+      <div class="stat-card" style="cursor:pointer;border-top:3px solid #f57c00;">
+        <div class="icon-bg" style="background:#f57c00;"></div>
+        <div class="d-flex align-items-center gap-2 mb-1">
+          <i class="bi bi-mortarboard-fill" style="color:#f57c00;font-size:.85rem;"></i>
+          <span style="font-size:.72rem;font-weight:700;color:#f57c00;text-transform:uppercase;letter-spacing:.5px;">Estagiários</span>
+        </div>
+        <div class="stat-number" style="color:#f57c00;font-size:1.8rem;">{{ contagem_cargos.estagiario }}</div>
+        <div class="stat-label">estagiário{{ 's' if contagem_cargos.estagiario != 1 }} ativos</div>
+      </div>
+    </a>
+  </div>
+
+</div>
+
+<!-- Solicitações pendentes (gestor) -->
+{% if current_user.is_gestor and solicitacoes_pendentes %}
+<div class="mb-4 fade-in">
+  <h6 class="fw-bold mb-3" style="color:#1565c0;">
+    <i class="bi bi-hourglass-split me-1"></i>
+    Solicitações Pendentes
+    <span class="badge ms-1" style="background:#1565c0;font-size:.7rem;">{{ solicitacoes_pendentes|length }}</span>
+  </h6>
+  {% for s in solicitacoes_pendentes %}
+  <div class="mb-2 d-flex align-items-start justify-content-between flex-wrap gap-2"
+       style="background:#f0f4ff;border:1px solid #c5cae9;border-left:4px solid #3949ab;border-radius:10px;padding:14px 16px;">
+    <div class="d-flex align-items-center gap-2">
+      <div class="avatar" style="background:{{ s.cor }};width:32px;height:32px;font-size:.7rem;flex-shrink:0;">
+        {{ s.colaborador.nome[:2].upper() }}
+      </div>
+      <div>
+        <strong>{{ s.colaborador.nome }}</strong>
+        <span class="text-muted small ms-2">{{ s.colaborador.time }}</span><br>
+        <small>
+          <i class="bi bi-calendar3 me-1 text-primary"></i>
+          {{ s.ferias.data_inicio.strftime('%d/%m/%Y') }} – {{ s.ferias.data_fim.strftime('%d/%m/%Y') }}
+          · <strong>{{ s.ferias.dias }} dias</strong>
+        </small>
+      </div>
+    </div>
+    <div class="d-flex gap-2">
+      <form method="POST" action="/aprovar-solicitacao/{{ s.ferias.id }}">
+        <button class="btn btn-sm btn-success fw-semibold">
+          <i class="bi bi-check-lg me-1"></i>Aprovar
+        </button>
+      </form>
+      <form method="POST" action="/rejeitar-solicitacao/{{ s.ferias.id }}"
+            onsubmit="return confirm('Rejeitar a solicitação de {{ s.colaborador.nome }}?')">
+        <button class="btn btn-sm btn-outline-danger fw-semibold">
+          <i class="bi bi-x-lg me-1"></i>Rejeitar
+        </button>
+      </form>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- Minhas solicitações (colaborador) -->
+{% if not current_user.is_gestor and minhas_ferias %}
+<div class="mb-4 fade-in">
+  <h6 class="fw-bold mb-3 text-primary">
+    <i class="bi bi-calendar-heart me-1"></i>Minhas Férias
+  </h6>
+  <div class="card">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover mb-0" style="font-size:.84rem;">
+          <thead style="background:#f8f9fa;">
+            <tr>
+              <th class="ps-3 py-2">Período</th>
+              <th class="py-2">Dias</th>
+              <th class="py-2">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for f in minhas_ferias %}
+            <tr>
+              <td class="ps-3 py-2">
+                {{ f.data_inicio.strftime('%d/%m/%Y') }} – {{ f.data_fim.strftime('%d/%m/%Y') }}
+              </td>
+              <td class="py-2 fw-semibold">{{ f.dias }}</td>
+              <td class="py-2">
+                {% if f.status == 'Solicitado' %}
+                  <span class="status-badge badge-aberta"><i class="bi bi-hourglass-split me-1"></i>Aguardando aprovação</span>
+                {% elif f.status == 'Confirmado' %}
+                  <span class="status-badge badge-confirmado">Confirmado</span>
+                {% elif f.status == 'Planejado' %}
+                  <span class="status-badge badge-planejado">Aprovado · Planejado</span>
+                {% else %}
+                  <span class="status-badge badge-cancelado">{{ f.status }}</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Conflitos -->
+{% if conflitos_pendentes %}
+<div class="mb-4 fade-in" id="conflitos">
+  <h6 class="fw-bold mb-3 text-danger"><i class="bi bi-exclamation-triangle-fill me-1"></i>Conflitos Detectados</h6>
+  {% for c in conflitos_pendentes %}
+  <div class="conflito-card mb-2 d-flex align-items-start justify-content-between flex-wrap gap-2">
+    <div>
+      <strong>{{ c.colaborador_principal.nome }}</strong>
+      <span class="text-muted small ms-2">
+        {{ c.ferias_principal.data_inicio.strftime('%d/%m') }} –
+        {{ c.ferias_principal.data_fim.strftime('%d/%m/%Y') }} · {{ c.ferias_principal.dias }} dias
+      </span><br>
+      <small class="text-danger">
+        <i class="bi bi-arrow-right me-1"></i>Conflita com:
+        {% for f in c.conflitos_com %}
+          {{ colaboradores_dict[f.colaborador_id].nome if f.colaborador_id in colaboradores_dict else '?' }}{% if not loop.last %}, {% endif %}
+        {% endfor %}
+      </small>
+    </div>
+    <div class="d-flex gap-2">
+      <form method="POST" action="/aprovar-conflito/{{ c.ferias_principal.id }}">
+        <button class="btn btn-sm btn-success fw-semibold">
+          <i class="bi bi-check-lg me-1"></i>Aprovar
+        </button>
+      </form>
+      <form method="POST" action="/reprovar-ferias/{{ c.ferias_principal.id }}"
+            onsubmit="return confirm('Reprovar e cancelar as férias de {{ c.colaborador_principal.nome }}?')">
+        <button class="btn btn-sm btn-danger fw-semibold">
+          <i class="bi bi-x-lg me-1"></i>Reprovar
+        </button>
+      </form>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="row g-4">
+  <!-- Próximas férias -->
+  <div class="col-lg-7">
+    <div class="card fade-in">
+      <div class="card-header dark d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-calendar3 me-2"></i>Próximas Férias (90 dias)</span>
+        <a href="/nova-ferias" class="btn btn-sm btn-light fw-semibold">
+          <i class="bi bi-plus-lg me-1"></i>Nova
+        </a>
+      </div>
+      <div class="card-body p-0">
+        {% if proximas %}
+        <div class="table-responsive">
+          <table class="table table-hover mb-0" style="font-size:.85rem;">
+            <thead style="background:#f8f9fa;">
+              <tr>
+                <th class="ps-3 py-2">Colaborador</th>
+                <th>Período</th>
+                <th>Dias</th>
+                <th>Status</th>
+                <th class="pe-3 text-end">Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in proximas %}
+              <tr>
+                <td class="ps-3 py-2">
+                  <div class="d-flex align-items-center gap-2">
+                    <div class="avatar" style="background:{{ item.cor }}; width:30px; height:30px; font-size:.7rem;">
+                      {{ item.colaborador.nome[:2].upper() }}
+                    </div>
+                    <div>
+                      <div class="fw-semibold">{{ item.colaborador.nome }}</div>
+                      <div class="text-muted" style="font-size:.72rem;">{{ item.colaborador.time }}</div>
+                    </div>
+                  </div>
+                </td>
+                <td class="py-2">
+                  {{ item.ferias.data_inicio.strftime('%d/%m') }} – {{ item.ferias.data_fim.strftime('%d/%m/%Y') }}
+                  {% if item.dias_para_inicio == 0 %}
+                    <span class="badge bg-success ms-1" style="font-size:.65rem;">Hoje</span>
+                  {% elif item.dias_para_inicio <= 7 %}
+                    <span class="badge bg-warning text-dark ms-1" style="font-size:.65rem;">{{ item.dias_para_inicio }}d</span>
+                  {% endif %}
+                </td>
+                <td class="py-2 fw-semibold">{{ item.ferias.dias }}</td>
+                <td class="py-2">
+                  {% if item.ferias.status == 'Confirmado' %}
+                    <span class="status-badge badge-confirmado">Confirmado</span>
+                  {% elif item.ferias.status == 'Planejado' %}
+                    <span class="status-badge badge-planejado">Planejado</span>
+                  {% else %}
+                    <span class="status-badge badge-aberta">{{ item.ferias.status }}</span>
+                  {% endif %}
+                </td>
+                <td class="py-2 pe-3 text-end">
+                  <div class="d-flex gap-1 justify-content-end">
+                    {% if item.ferias.status == 'Planejado' %}
+                    <form method="POST" action="/confirmar-ferias/{{ item.ferias.id }}" style="display:inline">
+                      <button class="btn btn-sm btn-outline-success py-0 px-2"
+                              data-bs-toggle="tooltip" title="Confirmar férias">
+                        <i class="bi bi-check-lg"></i>
+                      </button>
+                    </form>
+                    {% endif %}
+                    <form method="POST" action="/reprovar-ferias/{{ item.ferias.id }}" style="display:inline"
+                          onsubmit="return confirm('Reprovar e cancelar as férias de {{ item.colaborador.nome }}?')">
+                      <button class="btn btn-sm btn-outline-danger py-0 px-2"
+                              data-bs-toggle="tooltip" title="Reprovar / Cancelar">
+                        <i class="bi bi-x-lg"></i>
+                      </button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="text-center py-5 text-muted">
+          <i class="bi bi-calendar-x" style="font-size:2rem; opacity:.4;"></i>
+          <p class="mt-2 mb-0">Nenhuma férias agendada nos próximos 90 dias</p>
+          <a href="/nova-ferias" class="btn btn-primary btn-sm mt-3">Registrar Férias</a>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Saldos -->
+  <div class="col-lg-5">
+    <div class="card fade-in">
+      <div class="card-header dark d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-wallet2 me-2"></i>Saldo de Férias Disponível</span>
+        <span class="badge bg-secondary" style="font-size:.7rem;">Dias ainda disponíveis</span>
+      </div>
+      <div class="card-body" style="max-height:420px; overflow-y:auto;">
+        {% for item in saldos_lista %}
+        <div class="colab-row">
+          <div class="avatar" style="background:{{ item.cor }};">
+            {{ item.colaborador.nome[:2].upper() }}
+          </div>
+          <div class="flex-grow-1 min-width-0">
+            <div class="d-flex justify-content-between align-items-center">
+              <span class="fw-semibold" style="font-size:.83rem;">{{ item.colaborador.nome }}</span>
+              <span class="fw-bold saldo-{{ item.status }}" style="font-size:.83rem; white-space:nowrap;">
+                {% if item.saldo is none %}N/A{% else %}{{ item.saldo }}d disponíveis{% endif %}
+              </span>
+            </div>
+            {% if item.saldo is not none %}
+            <div class="progress progress-thin mt-1">
+              {% set pct = [[(item.saldo / 30 * 100)|int, 0]|max, 100]|min %}
+              <div class="progress-bar
+                {% if item.status == 'ok' %}bg-success
+                {% elif item.status == 'alerta' %}bg-warning
+                {% else %}bg-danger{% endif %}"
+                style="width:{{ pct }}%">
+              </div>
+            </div>
+            {% endif %}
+            <div class="text-muted" style="font-size:.7rem;">{{ item.colaborador.time }}</div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Calendário do mês -->
+<div class="row mt-4">
+  <div class="col-12">
+    <div class="card fade-in">
+      <div class="card-header dark d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-calendar-month me-2"></i>Calendário · {{ mes_nome }} {{ ano }}</span>
+        <div class="d-flex gap-2">
+          <a href="/?mes={{ mes_anterior.month }}&ano={{ mes_anterior.year }}" class="btn btn-sm btn-light">
+            <i class="bi bi-chevron-left"></i>
+          </a>
+          <a href="/?mes={{ mes_proximo.month }}&ano={{ mes_proximo.year }}" class="btn btn-sm btn-light">
+            <i class="bi bi-chevron-right"></i>
+          </a>
+        </div>
+      </div>
+      <div class="card-body">
+        <!-- Legenda -->
+        <div class="d-flex flex-wrap gap-3 mb-3" style="font-size:.75rem;">
+          {% for item in legenda_cal %}
+          <div class="d-flex align-items-center gap-1">
+            <div style="width:14px;height:14px;border-radius:3px;background:{{ item.bg }};"></div>
+            <span class="text-muted">{{ item.nome }}</span>
+          </div>
+          {% endfor %}
+          <div class="d-flex align-items-center gap-1">
+            <div style="width:14px;height:14px;border-radius:3px;background:#ef9a9a;"></div>
+            <span class="text-muted">2+ pessoas</span>
+          </div>
+        </div>
+        <!-- Grade -->
+        <div style="overflow-x:auto;">
+          <table style="border-collapse:separate; border-spacing:4px; min-width:320px;">
+            <thead>
+              <tr>
+                {% for d in ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'] %}
+                <th style="width:34px;text-align:center;font-size:.7rem;color:#999;font-weight:600;padding-bottom:4px;">{{ d }}</th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for semana in calendario %}
+              <tr>
+                {% for dia in semana %}
+                {% if dia == 0 %}
+                <td><div class="cal-day vazio"></div></td>
+                {% else %}
+                  {% set info = cal_info[dia] %}
+                  <td>
+                    <div class="cal-day {{ info.cls }}"
+                         {% if info.tip %}data-bs-toggle="tooltip" title="{{ info.tip }}"{% endif %}>
+                      {{ dia }}
+                    </div>
+                  </td>
+                {% endif %}
+                {% endfor %}
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

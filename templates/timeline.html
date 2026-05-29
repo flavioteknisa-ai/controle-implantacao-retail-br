@@ -1,0 +1,490 @@
+{% extends "base.html" %}
+{% block title %}Timeline · Férias Retail{% endblock %}
+
+{% block extra_css %}
+<style>
+  .modal-btn-dias { font-size:.8rem; font-weight:700; border-radius:7px; transition:all .15s; }
+  .modal-btn-ativo { background:#1a237e !important; color:#fff !important; border-color:#1a237e !important; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header fade-in">
+  <h2><i class="bi bi-bar-chart-steps me-2"></i>Timeline de Férias</h2>
+  <p>Visualização dos períodos por cargo e UF · <span class="text-muted" style="font-size:.85rem;">Clique em uma barra para editar · Clique na faixa vazia para adicionar</span></p>
+</div>
+
+<!-- Filtros -->
+<div class="card fade-in mb-4">
+  <div class="card-body py-3">
+    <div class="row g-2 align-items-end flex-wrap">
+      <div class="col-auto">
+        <label class="form-label small fw-semibold mb-1">Mês inicial</label>
+        <input type="month" class="form-control form-control-sm" id="inpInicio"
+               value="{{ filtro_inicio }}" style="width:150px;">
+      </div>
+      <div class="col-auto">
+        <label class="form-label small fw-semibold mb-1">Mês final</label>
+        <input type="month" class="form-control form-control-sm" id="inpFim"
+               value="{{ filtro_fim }}" style="width:150px;">
+      </div>
+      <div class="col-auto">
+        <button class="btn btn-primary btn-sm" onclick="aplicarPeriodo()">
+          <i class="bi bi-funnel me-1"></i>Período
+        </button>
+      </div>
+      <div class="col-auto d-none d-md-block">
+        <div style="width:1px;height:32px;background:#dee2e6;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Legenda -->
+<div class="d-flex gap-4 mb-3 fade-in" style="font-size:.78rem;">
+  <div class="d-flex align-items-center gap-1">
+    <div style="width:28px;height:12px;border-radius:3px;background:#1e88e5;opacity:1;"></div>
+    <span class="text-muted">Confirmado</span>
+  </div>
+  <div class="d-flex align-items-center gap-1">
+    <div style="width:28px;height:12px;border-radius:3px;background:#1e88e5;opacity:.5;"></div>
+    <span class="text-muted">Planejado</span>
+  </div>
+  <div class="d-flex align-items-center gap-1">
+    <div style="width:2px;height:14px;background:#e53935;"></div>
+    <span class="text-muted">Hoje</span>
+  </div>
+  <div class="d-flex align-items-center gap-1">
+    <i class="bi bi-pencil-square text-muted" style="font-size:.85rem;"></i>
+    <span class="text-muted">Clique na barra para editar</span>
+  </div>
+  <div class="d-flex align-items-center gap-1">
+    <i class="bi bi-plus-circle text-muted" style="font-size:.85rem;"></i>
+    <span class="text-muted">Clique na faixa vazia para adicionar</span>
+  </div>
+</div>
+
+<div class="card fade-in">
+  <div class="card-header dark">
+    <i class="bi bi-diagram-3 me-2"></i>{{ periodo_label }}
+  </div>
+  <div class="card-body" style="overflow-x:auto; padding:20px 16px;">
+
+    {% if not dados_timeline or dados_timeline|selectattr('separador','equalto',False)|list|length == 0 %}
+      <div class="text-center py-5 text-muted">
+        <i class="bi bi-calendar-x" style="font-size:2.5rem;opacity:.3;"></i>
+        <p class="mt-2">Nenhuma férias no período selecionado</p>
+      </div>
+    {% else %}
+    <div style="min-width:800px;">
+
+      <!-- Header de meses -->
+      <div class="d-flex mb-3" style="margin-left:170px;">
+        {% for m in meses_header %}
+        <div style="flex:{{ m.dias }};text-align:center;font-size:.68rem;font-weight:700;
+                    color:#666;border-left:1px solid #e0e0e0;padding-left:4px;">
+          {{ m.label }}
+        </div>
+        {% endfor %}
+      </div>
+
+      {% for row in dados_timeline %}
+
+        {% if row.separador %}
+          {% if row.tipo == 'cargo' %}
+          <div class="d-flex align-items-center mb-2 mt-{% if not loop.first %}4{% else %}0{% endif %}"
+               data-tl-sep="{{ row.cargo_key }}">
+            <div style="width:170px;flex-shrink:0;padding-right:12px;">
+              <span class="badge text-white fw-semibold"
+                    style="font-size:.72rem;background:{% if row.cargo_key=='gerencia' %}#6a1b9a{% elif row.cargo_key=='coordenador' %}#1565c0{% elif row.cargo_key=='estagiario' %}#f57c00{% else %}#2e7d32{% endif %};">
+                {{ row.label }}
+              </span>
+              <span class="text-muted ms-1" style="font-size:.68rem;">{{ row.total }} pessoa{{ 's' if row.total != 1 }}</span>
+            </div>
+            <div class="flex-grow-1" style="border-top:1px dashed #ccc;margin-top:2px;"></div>
+          </div>
+          {% else %}
+          <div class="d-flex align-items-center mb-1 mt-1"
+               data-tl-uf-sep="{{ row.uf_key }}"
+               data-tl-cargo-sep="{{ row.cargo_key }}">
+            <div style="width:170px;flex-shrink:0;padding-right:12px;padding-left:8px;">
+              <span style="font-size:.68rem;font-weight:700;color:#999;letter-spacing:.7px;">── {{ row.label }}</span>
+            </div>
+            <div class="flex-grow-1" style="border-top:1px dashed #e8e8e8;"></div>
+          </div>
+          {% endif %}
+
+        {% else %}
+        <div class="d-flex align-items-center mb-1"
+             data-tl-row
+             data-nome="{{ row.nome|lower }}"
+             data-nome-display="{{ row.nome }}"
+             data-cargo="{{ row.cargo }}"
+             data-uf="{{ row.uf or '' }}"
+             data-colab-id="{{ row.id }}">
+
+          <!-- Nome + UF -->
+          <div style="width:170px;flex-shrink:0;padding-right:10px;">
+            <div class="d-flex align-items-center gap-2">
+              <div class="avatar" style="background:{{ row.cor }};width:24px;height:24px;font-size:.6rem;flex-shrink:0;">
+                {{ row.nome[:2].upper() }}
+              </div>
+              <div style="min-width:0;">
+                <div class="fw-semibold text-truncate" style="font-size:.78rem;max-width:115px;">{{ row.nome }}</div>
+                {% if row.uf %}
+                <span style="font-size:.65rem;color:#888;font-weight:600;">{{ row.uf }}</span>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+
+          <!-- Barra clicável: vazia → nova férias -->
+          <div class="flex-grow-1 position-relative tl-bar-track"
+               style="height:28px;background:#f0f4ff;border-radius:5px;overflow:visible;cursor:pointer;"
+               title="Clique para adicionar férias"
+               data-colab-id="{{ row.id }}"
+               data-colab-nome="{{ row.nome }}"
+               onclick="barClick(event, this)">
+
+            {% if not row.tem_ferias %}
+            <div style="position:absolute;inset:0;display:flex;align-items:center;padding-left:8px;pointer-events:none;">
+              <span style="font-size:.65rem;color:#90a4ae;font-style:italic;">
+                <i class="bi bi-plus-circle me-1"></i>sem férias · clique para adicionar
+              </span>
+            </div>
+            {% endif %}
+
+            {% for seg in row.segmentos %}
+            <!-- Segmento: clicável → editar -->
+            <div class="tl-seg"
+                 style="position:absolute;left:{{ seg.left }}%;width:{{ seg.width }}%;top:0;bottom:0;
+                        background:{{ row.cor }};border-radius:4px;opacity:{{ seg.opacity }};
+                        display:flex;align-items:center;padding:0 6px;overflow:hidden;z-index:2;
+                        cursor:pointer;transition:filter .15s;"
+                 data-fid="{{ seg.fid }}"
+                 data-ini="{{ seg.data_inicio_real }}"
+                 data-fim="{{ seg.data_fim_real }}"
+                 data-status="{{ seg.status }}"
+                 data-bs-toggle="tooltip"
+                 title="{{ seg.label }}"
+                 onclick="segClick(event, this)"
+                 onmouseenter="this.style.filter='brightness(1.15)'"
+                 onmouseleave="this.style.filter=''">
+              {% if seg.width > 4 %}
+              <span style="font-size:.65rem;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;pointer-events:none;">
+                {{ seg.dias }}d
+              </span>
+              {% endif %}
+            </div>
+            {% endfor %}
+
+            <!-- Linha do hoje -->
+            {% if hoje_pct is defined and 0 <= hoje_pct <= 100 %}
+            <div style="position:absolute;left:{{ hoje_pct }}%;top:-4px;bottom:-4px;
+                        width:2px;background:#e53935;z-index:10;pointer-events:none;"
+                 data-bs-toggle="tooltip" title="Hoje"></div>
+            {% endif %}
+          </div>
+        </div>
+        {% endif %}
+
+      {% endfor %}
+
+      <div id="tlSemResultados" style="display:none;" class="text-center py-4 text-muted">
+        <i class="bi bi-person-x" style="font-size:2rem;opacity:.3;"></i>
+        <p class="mt-2 small">Nenhum colaborador encontrado com esses filtros</p>
+        <button class="btn btn-sm btn-outline-secondary" onclick="limparTl()">Limpar filtros</button>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+
+<!-- ════════════════════════ MODAL EDITAR FÉRIAS ════════════════════════ -->
+<div class="modal fade" id="modalEditFerias" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:440px;">
+    <div class="modal-content" style="border-radius:14px;overflow:hidden;">
+
+      <div class="modal-header" id="modalHeaderEdit"
+           style="background:linear-gradient(135deg,#1a237e,#1565c0);color:#fff;border:none;padding:18px 22px;">
+        <div>
+          <h6 class="modal-title mb-0 fw-bold" id="modalEditTitle">Editar Férias</h6>
+          <div id="modalEditSubtitle" class="opacity-75" style="font-size:.78rem;margin-top:2px;"></div>
+        </div>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+
+      <div class="modal-body px-4 py-3">
+
+        <!-- Info do colaborador -->
+        <div class="d-flex align-items-center gap-3 mb-3 p-3 rounded"
+             style="background:#f0f4ff;border:1px solid #c5cae9;">
+          <div class="avatar" id="modalEditAvatar" style="background:#1e88e5;width:38px;height:38px;font-size:.9rem;">??</div>
+          <div>
+            <div class="fw-bold" id="modalEditNome">—</div>
+            <div class="text-muted small" id="modalEditTime">—</div>
+          </div>
+        </div>
+
+        <!-- Data de início -->
+        <div class="mb-3">
+          <label class="form-label small fw-semibold mb-1">Data de Início *</label>
+          <input type="date" class="form-control form-control-sm" id="modalIni"
+                 oninput="recalcModal()">
+        </div>
+
+        <!-- Seletor de dias -->
+        <div class="mb-3">
+          <label class="form-label small fw-semibold mb-1">Duração *</label>
+          <div class="d-flex align-items-center gap-2 flex-wrap">
+            <button type="button" class="btn btn-sm btn-outline-primary modal-btn-dias" data-dias="10" onclick="setModalDias(this,10)">10 dias</button>
+            <button type="button" class="btn btn-sm btn-outline-primary modal-btn-dias" data-dias="20" onclick="setModalDias(this,20)">20 dias</button>
+            <button type="button" class="btn btn-sm btn-outline-primary modal-btn-dias" data-dias="30" onclick="setModalDias(this,30)">30 dias</button>
+            <div class="d-flex align-items-center gap-1">
+              <span class="text-muted" style="font-size:.78rem;">Outro:</span>
+              <input type="number" class="form-control form-control-sm" id="modalDiasCustom"
+                     min="1" max="90" placeholder="—" style="width:62px;"
+                     oninput="setModalDiasCustom(this.value)">
+              <span class="text-muted" style="font-size:.78rem;">dias</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Resultado calculado -->
+        <div id="modalResultado" class="mb-3 p-3 rounded"
+             style="display:none;background:linear-gradient(135deg,#e8f5e9,#f1f8e9);border:1px solid #a5d6a7;">
+          <div class="d-flex justify-content-between align-items-start">
+            <div>
+              <div style="font-size:.65rem;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:.5px;">Último dia</div>
+              <div class="fw-bold mt-1" id="modalFimDisplay" style="color:#1b5e20;">—</div>
+            </div>
+            <div class="text-center">
+              <div style="font-size:.65rem;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:.5px;">Total</div>
+              <div class="fw-bold" id="modalDiasDisplay" style="font-size:1.4rem;color:#1a237e;line-height:1.1;">—</div>
+              <div style="font-size:.6rem;color:#888;">dias</div>
+            </div>
+            <div class="text-end">
+              <div style="font-size:.65rem;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:.5px;">Retorno</div>
+              <div class="fw-bold mt-1" id="modalRetornoDisplay" style="color:#1565c0;">—</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Status -->
+        <div class="mb-2">
+          <label class="form-label small fw-semibold mb-1">Status</label>
+          <select class="form-select form-select-sm" id="modalStatus">
+            <option value="Planejado">Planejado</option>
+            <option value="Confirmado">Confirmado</option>
+          </select>
+        </div>
+
+      </div><!-- /modal-body -->
+
+      <div class="modal-footer border-0 px-4 pb-4 pt-2 d-flex justify-content-between">
+        <!-- Excluir (só no modo edição) -->
+        <form id="frmExcluirModal" method="POST" style="display:none;"
+              onsubmit="return confirm('Excluir estas férias definitivamente?')">
+          <input type="hidden" name="next" value="{{ url_for('timeline') }}">
+          <button type="submit" class="btn btn-sm btn-outline-danger">
+            <i class="bi bi-trash3 me-1"></i>Excluir
+          </button>
+        </form>
+        <div id="frmExcluirPlaceholder"></div><!-- ocupa espaço quando form está oculto -->
+
+        <div class="d-flex gap-2">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-sm btn-primary fw-semibold" id="btnSalvarModal"
+                  onclick="salvarModal()">
+            <i class="bi bi-check-lg me-1"></i>Salvar
+          </button>
+        </div>
+      </div>
+
+      <!-- Formulário hidden para submit de edição -->
+      <form id="frmEditPost" method="POST" style="display:none;">
+        <input type="hidden" name="data_inicio" id="frmEditIni">
+        <input type="hidden" name="data_fim"    id="frmEditFim">
+        <input type="hidden" name="status"      id="frmEditStatus">
+      </form>
+
+    </div>
+  </div>
+</div>
+<!-- ════════════════════════════════════════════════════════════════════ -->
+
+{% endblock %}
+
+
+{% block extra_js %}
+<script>
+/* ── Período ── */
+function aplicarPeriodo() {
+  const ini = document.getElementById('inpInicio').value;
+  const fim = document.getElementById('inpFim').value;
+  if (ini && fim) window.location.href = '/timeline?inicio=' + ini + '&fim=' + fim;
+}
+
+function filtrarTimeline() {
+  // Mostrar todos os colaboradores (sem filtro de cargo)
+  const cargosVis = new Set();
+  const ufsVis = new Map();
+  let total = 0;
+
+  document.querySelectorAll('[data-tl-row]').forEach(div => {
+    div.style.display = '';
+    const c = div.dataset.cargo;
+    const u = div.dataset.uf || '';
+    cargosVis.add(c);
+    if (!ufsVis.has(c)) ufsVis.set(c, new Set());
+    ufsVis.get(c).add(u);
+    total++;
+  });
+
+  // Mostrar todos os separadores de cargo
+  document.querySelectorAll('[data-tl-sep]').forEach(div => {
+    div.style.display = '';
+  });
+
+  // Mostrar todos os separadores de UF
+  document.querySelectorAll('[data-tl-uf-sep]').forEach(div => {
+    div.style.display = '';
+  });
+
+  const sem = document.getElementById('tlSemResultados');
+  if (sem) sem.style.display = total === 0 ? '' : 'none';
+}
+function limparTl() {
+  filtrarTimeline();
+}
+
+/* ── Clique na barra vazia → nova férias ── */
+function barClick(evt, barEl) {
+  if (evt.target.closest('.tl-seg')) return; // clicou num segmento
+  window.location.href = '/nova-ferias?colab=' + barEl.dataset.colabId;
+}
+
+/* ── Clique num segmento → editar ── */
+let _editFid  = null;
+let _modalDias = 0;
+
+function segClick(evt, segEl) {
+  evt.stopPropagation();
+  _editFid = segEl.dataset.fid;
+  _modalDias = 0;
+
+  const row = segEl.closest('[data-tl-row]');
+  const nome  = row?.dataset.nomeDisplay || row?.dataset.nome || '—';
+  const cargo = row?.dataset.cargo || '';
+
+  // Header
+  document.getElementById('modalEditTitle').textContent    = 'Editar Férias';
+  document.getElementById('modalEditSubtitle').textContent = nome;
+  document.getElementById('modalEditAvatar').textContent   = nome.substring(0,2).toUpperCase();
+  document.getElementById('modalEditNome').textContent     = nome;
+  document.getElementById('modalEditTime').textContent     = cargo.charAt(0).toUpperCase() + cargo.slice(1);
+
+  // Preenche data início
+  document.getElementById('modalIni').value    = segEl.dataset.ini;
+  document.getElementById('modalStatus').value = segEl.dataset.status;
+
+  // Pré-seleciona dias baseado nas datas existentes
+  const [yi,mi,di] = segEl.dataset.ini.split('-').map(Number);
+  const [yf,mf,df] = segEl.dataset.fim.split('-').map(Number);
+  const diasExist = Math.round(
+    (new Date(Date.UTC(yf,mf-1,df)) - new Date(Date.UTC(yi,mi-1,di))) / 86400000
+  ) + 1;
+
+  // Limpa seleção anterior
+  document.querySelectorAll('.modal-btn-dias').forEach(b => b.classList.remove('modal-btn-ativo'));
+  const btn = document.querySelector(`.modal-btn-dias[data-dias="${diasExist}"]`);
+  if (btn) {
+    btn.classList.add('modal-btn-ativo');
+    document.getElementById('modalDiasCustom').value = '';
+  } else {
+    document.getElementById('modalDiasCustom').value = diasExist;
+  }
+  _modalDias = diasExist;
+  recalcModal();
+
+  // Formulário de exclusão
+  const frmEx = document.getElementById('frmExcluirModal');
+  frmEx.action = '/deletar-ferias/' + _editFid;
+  frmEx.style.display = '';
+  document.getElementById('frmExcluirPlaceholder').style.display = 'none';
+
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEditFerias')).show();
+}
+
+/* ── Seletor de dias no modal ── */
+function setModalDias(btn, dias) {
+  document.querySelectorAll('.modal-btn-dias').forEach(b => b.classList.remove('modal-btn-ativo'));
+  btn.classList.add('modal-btn-ativo');
+  document.getElementById('modalDiasCustom').value = '';
+  _modalDias = dias;
+  recalcModal();
+}
+
+function setModalDiasCustom(val) {
+  const d = parseInt(val);
+  document.querySelectorAll('.modal-btn-dias').forEach(b => b.classList.remove('modal-btn-ativo'));
+  _modalDias = d > 0 ? d : 0;
+  recalcModal();
+}
+
+/* ── Próximo dia útil (seg–sex) ── */
+function proximoDiaUtil(dt) {
+  const wd = dt.getUTCDay(); // 0=Dom, 6=Sáb
+  if (wd === 6) return new Date(dt.getTime() + 2 * 86400000); // Sáb → Seg
+  if (wd === 0) return new Date(dt.getTime() + 1 * 86400000); // Dom → Seg
+  return dt;
+}
+
+/* ── Recalcula datas no modal ── */
+function recalcModal() {
+  const iniVal = document.getElementById('modalIni').value;
+  const box    = document.getElementById('modalResultado');
+
+  if (!iniVal || _modalDias <= 0) { box.style.display = 'none'; return; }
+
+  const [y, m, d] = iniVal.split('-').map(Number);
+  const fim = new Date(Date.UTC(y, m-1, d + _modalDias - 1));
+  const ret = proximoDiaUtil(new Date(Date.UTC(y, m-1, d + _modalDias)));
+  const fmtBR  = dt => dt.toLocaleDateString('pt-BR', {timeZone:'UTC', day:'2-digit', month:'2-digit', year:'numeric'});
+
+  document.getElementById('modalFimDisplay').textContent     = fmtBR(fim);
+  document.getElementById('modalRetornoDisplay').textContent = fmtBR(ret);
+  document.getElementById('modalDiasDisplay').textContent    = _modalDias;
+  box.style.display = '';
+}
+
+/* ── Salvar edição ── */
+function salvarModal() {
+  const ini = document.getElementById('modalIni').value;
+  if (!ini)           { alert('Preencha a data de início.'); return; }
+  if (_modalDias <= 0){ alert('Selecione a duração das férias.'); return; }
+
+  const [y, m, d] = ini.split('-').map(Number);
+  const fim = new Date(Date.UTC(y, m-1, d + _modalDias - 1));
+  const fimISO = fim.toISOString().split('T')[0];
+
+  const frm = document.getElementById('frmEditPost');
+  frm.action = '/editar-ferias/' + _editFid;
+  document.getElementById('frmEditIni').value    = ini;
+  document.getElementById('frmEditFim').value    = fimISO;
+  document.getElementById('frmEditStatus').value = document.getElementById('modalStatus').value;
+  frm.submit();
+}
+
+/* ── Hover visual na faixa ── */
+document.querySelectorAll('.tl-bar-track').forEach(el => {
+  el.addEventListener('mouseenter', function() {
+    if (!this.querySelector('.tl-seg')) this.style.background = '#e8eaf6';
+  });
+  el.addEventListener('mouseleave', function() {
+    this.style.background = '#f0f4ff';
+  });
+});
+</script>
+{% endblock %}

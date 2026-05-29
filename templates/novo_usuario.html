@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block title %}{% if user %}Editar{% else %}Novo{% endif %} Usuário · Férias Retail{% endblock %}
+
+{% block content %}
+<div class="page-header fade-in">
+  <h2><i class="bi bi-person-gear me-2"></i>{% if user %}Editar Usuário{% else %}Novo Usuário{% endif %}</h2>
+  <p>{% if user %}Atualize os dados de <strong>{{ user.nome }}</strong>{% else %}Crie um novo acesso ao sistema{% endif %}</p>
+</div>
+
+<div class="row justify-content-center">
+  <div class="col-lg-5 col-md-7">
+    <div class="card fade-in">
+      <div class="card-header dark"><i class="bi bi-shield-lock me-2"></i>Dados de Acesso</div>
+      <div class="card-body">
+
+        {% if erro %}
+        <div class="alert alert-danger d-flex gap-2 align-items-center">
+          <i class="bi bi-exclamation-triangle-fill"></i>{{ erro }}
+        </div>
+        {% endif %}
+
+        <form method="POST">
+
+          <!-- Nome -->
+          <div class="mb-3">
+            <label class="form-label fw-semibold small">Nome completo *</label>
+            <input type="text" class="form-control" name="nome" required
+                   placeholder="Ex: João Silva"
+                   value="{{ user.nome if user else '' }}">
+          </div>
+
+          <!-- Username -->
+          <div class="mb-3">
+            <label class="form-label fw-semibold small">Username (login) *</label>
+            <input type="text" class="form-control" name="username"
+                   placeholder="ex: joao.silva"
+                   value="{{ user.username if user else '' }}"
+                   {% if user %}readonly style="background:#f5f5f5;"{% else %}required{% endif %}>
+            {% if not user %}
+            <div class="form-text">Apenas letras, números e pontos. Será usado para fazer login.</div>
+            {% endif %}
+          </div>
+
+          <!-- Perfil -->
+          <div class="mb-3">
+            <label class="form-label fw-semibold small">Perfil de acesso *</label>
+            <select class="form-select" name="perfil" id="selPerfil" onchange="toggleColab()">
+              <option value="colaborador" {% if not user or user.perfil == 'colaborador' %}selected{% endif %}>
+                Colaborador — pode solicitar férias
+              </option>
+              <option value="gestor" {% if user and user.perfil == 'gestor' %}selected{% endif %}>
+                Gestor — acesso total
+              </option>
+            </select>
+          </div>
+
+          <!-- Colaborador vinculado -->
+          <div class="mb-3" id="boxColab">
+            <label class="form-label fw-semibold small">Colaborador vinculado</label>
+            <select class="form-select" name="colaborador_id">
+              <option value="">— Nenhum —</option>
+              {% for c in colaboradores %}
+              <option value="{{ c.id }}"
+                {% if user and user.colaborador_id == c.id %}selected{% endif %}>
+                {{ c.nome }} · {{ c.time }}
+              </option>
+              {% endfor %}
+            </select>
+            <div class="form-text">Vincule ao registro do colaborador para que possa solicitar suas próprias férias.</div>
+          </div>
+
+          <!-- Senha -->
+          <div class="mb-3">
+            <label class="form-label fw-semibold small">
+              {% if user %}Nova senha{% else %}Senha *{% endif %}
+            </label>
+            <input type="password" class="form-control" name="senha"
+                   placeholder="{% if user %}Deixe em branco para manter{% else %}Mínimo 6 caracteres{% endif %}"
+                   {% if not user %}required{% endif %} minlength="6">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold small">
+              {% if user %}Confirmar nova senha{% else %}Confirmar senha *{% endif %}
+            </label>
+            <input type="password" class="form-control" name="senha2"
+                   placeholder="Repita a senha"
+                   {% if not user %}required{% endif %} minlength="6">
+          </div>
+
+          <!-- Ativo (só na edição) -->
+          {% if user %}
+          <div class="mb-4">
+            <label class="form-label fw-semibold small">Status</label>
+            <select class="form-select" name="ativo">
+              <option value="1" {% if user.ativo %}selected{% endif %}>Ativo</option>
+              <option value="0" {% if not user.ativo %}selected{% endif %}>Inativo</option>
+            </select>
+          </div>
+          {% endif %}
+
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary fw-semibold">
+              <i class="bi bi-check-lg me-1"></i>{% if user %}Salvar alterações{% else %}Criar usuário{% endif %}
+            </button>
+            <a href="/usuarios" class="btn btn-outline-secondary">Cancelar</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function toggleColab() {
+  const perfil = document.getElementById('selPerfil').value;
+  document.getElementById('boxColab').style.display = perfil === 'colaborador' ? '' : 'none';
+}
+toggleColab();
+</script>
+{% endblock %}

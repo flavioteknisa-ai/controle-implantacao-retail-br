@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block title %}Editar Comissionamento - {{ super() }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="d-flex align-items-center gap-3">
+    <a href="/comissionamentos" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-arrow-left"></i> Voltar
+    </a>
+    <div>
+      <h2><i class="bi bi-pencil" style="margin-right:8px;"></i>Editar Comissionamento</h2>
+      <p>{{ comissao.cliente }}</p>
+    </div>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-body">
+        <form method="POST">
+          <div class="row">
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="consultor_id" class="form-label">Consultor <span class="text-danger">*</span></label>
+                <select class="form-select" id="consultor_id" name="consultor_id" required>
+                  <option value="">-- Selecione --</option>
+                  {% for colab in colaboradores %}
+                  <option value="{{ colab.id }}" {% if colab.id == comissao.consultor_id %}selected{% endif %}>
+                    {{ colab.nome }}
+                  </option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="cliente" class="form-label">Cliente <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" id="cliente" name="cliente" required
+                       value="{{ comissao.cliente }}"
+                       placeholder="Ex: Puro Gelato, Olive Garden">
+              </div>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="col-md-4">
+              <div class="mb-3">
+                <label for="data_comissao" class="form-label">Data <span class="text-danger">*</span></label>
+                <input type="date" class="form-control" id="data_comissao" name="data_comissao" required
+                       value="{{ comissao.data_comissao.strftime('%Y-%m-%d') }}">
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="mb-3">
+                <label for="horas_comissionadas" class="form-label">Horas Comissionadas</label>
+                <input type="number" class="form-control" id="horas_comissionadas" name="horas_comissionadas"
+                       step="0.5" placeholder="Ex: 8.00" value="{{ comissao.horas_comissionadas }}">
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="mb-3">
+                <label for="hora_fora_estado" class="form-label">Hora Fora do Estado</label>
+                <input type="time" class="form-control" id="hora_fora_estado" name="hora_fora_estado"
+                       value="{{ comissao.hora_fora_estado or '' }}">
+              </div>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label for="motivo" class="form-label">Motivo</label>
+            <textarea class="form-control" id="motivo" name="motivo" rows="4"
+                      placeholder="Ex: Instalação Domingo, Projeto / Virada KDS Linux, etc.">{{ comissao.motivo or '' }}</textarea>
+          </div>
+
+          <div class="d-grid gap-2 d-sm-flex justify-content-sm-end">
+            <a href="/comissionamentos" class="btn btn-sm btn-outline-secondary">Cancelar</a>
+            <button type="submit" class="btn btn-sm btn-primary">
+              <i class="bi bi-check-circle"></i> Atualizar Comissionamento
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header dark">
+        <i class="bi bi-info-circle"></i> Informações
+      </div>
+      <div class="card-body" style="font-size:.85rem;">
+        <p><strong>Criado em:</strong><br>{{ comissao.criado_em.strftime('%d/%m/%Y %H:%M') }}</p>
+        <p><strong>Atualizado em:</strong><br>{{ comissao.atualizado_em.strftime('%d/%m/%Y %H:%M') }}</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

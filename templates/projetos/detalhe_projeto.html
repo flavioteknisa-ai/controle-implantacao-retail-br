@@ -1,0 +1,574 @@
+{% extends "base.html" %}
+
+{% block title %}{{ projeto.nome }} - {{ super() }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="d-flex justify-content-between align-items-start">
+    <div>
+      <h2><i class="bi bi-building" style="margin-right:8px;"></i>{{ projeto.nome }}</h2>
+      <p style="margin: 4px 0 0;">Detalhes e progresso da implantação</p>
+    </div>
+    {% if current_user.is_gestor %}
+    <div class="d-flex gap-2">
+      {% if projeto.status != 'Finalizado' %}
+      <a href="/editar-projeto/{{ projeto.id }}" class="btn btn-warning btn-sm">
+        <i class="bi bi-pencil"></i> Editar
+      </a>
+      <form method="POST" action="/projeto/{{ projeto.id }}/concluir" style="display:inline;" onsubmit="return confirm('Finalizar este projeto?');">
+        <button type="submit" class="btn btn-success btn-sm">
+          <i class="bi bi-check-circle"></i> Finalizar
+        </button>
+      </form>
+      {% else %}
+      <form method="POST" action="/projeto/{{ projeto.id }}/reativar" style="display:inline;" onsubmit="return confirm('Reativar este projeto para Em Andamento?');">
+        <button type="submit" class="btn btn-primary btn-sm">
+          <i class="bi bi-arrow-counterclockwise"></i> Reativar
+        </button>
+      </form>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Cards de Status -->
+<div class="row mb-4">
+  <div class="col-md-2 mb-3">
+    <div class="stat-card">
+      <div class="stat-number" style="color:#2196F3;">{{ projeto.percentual_geral()|int }}%</div>
+      <div class="stat-label">Progresso Geral</div>
+    </div>
+  </div>
+  <div class="col-md-2 mb-3">
+    <div class="stat-card">
+      <div class="stat-number" style="color:#FF9800;">{{ projeto.modulos|length }}</div>
+      <div class="stat-label">Módulos</div>
+    </div>
+  </div>
+  <div class="col-md-2 mb-3">
+    <div class="stat-card">
+      <div class="stat-number" style="color:#4CAF50;">{{ projeto.unidades|length }}</div>
+      <div class="stat-label">Unidades</div>
+    </div>
+  </div>
+  <div class="col-md-2 mb-3">
+    <div class="stat-card">
+      <div class="stat-number" style="color:#9C27B0;">
+        {% set dias = projeto.dias_restantes() %}
+        {% if dias < 0 %}
+        <span class="text-danger">{{ abs(dias) }}</span>
+        {% else %}
+        {{ dias }}
+        {% endif %}
+      </div>
+      <div class="stat-label">{% if dias < 0 %}Dias Atrasado{% else %}Dias Restantes{% endif %}</div>
+    </div>
+  </div>
+  <div class="col-md-2 mb-3">
+    <div class="stat-card">
+      <div class="stat-number" style="color:#E91E63; font-size:1.2rem;">{{ projeto.numero_unidades }}</div>
+      <div class="stat-label">Unidades</div>
+      <div class="stat-badge" style="background:#f3e5f5;color:#6a1b9a;">
+        {{ projeto.potencial_cliente }}
+      </div>
+    </div>
+  </div>
+  <div class="col-md-2 mb-3">
+    <div class="stat-card">
+      <div class="stat-number" style="color:#673AB7; font-size:1.2rem;">
+        <span class="badge bg-info">{{ projeto.tipo_projeto }}</span>
+      </div>
+      <div class="stat-label">Tipo</div>
+    </div>
+  </div>
+</div>
+
+<div class="row">
+  <!-- Informações Principais -->
+  <div class="col-lg-8">
+    <!-- Dados Básicos -->
+    <div class="card mb-3">
+      <div class="card-header dark">
+        <i class="bi bi-info-circle"></i> Informações Básicas
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-6">
+            <p><strong>Status:</strong><br>
+              {% if p_db.status == 'Em andamento' %}
+              <span class="badge bg-warning">Em andamento</span>
+              {% elif p_db.status == 'Finalizado' %}
+              <span class="badge bg-success">Finalizado</span>
+              {% elif p_db.status == 'Cancelado' %}
+              <span class="badge bg-danger">Cancelado</span>
+              {% endif %}
+            </p>
+          </div>
+          <div class="col-md-6">
+            <p><strong>Responsável:</strong><br>
+              {{ projeto.responsavel or '<em class="text-muted">Não atribuído</em>' }}
+            </p>
+          </div>
+          <div class="col-md-6">
+            <p><strong>Data de Aceite:</strong><br>
+              {{ projeto.data_aceite.strftime('%d/%m/%Y') }}
+            </p>
+          </div>
+          <div class="col-md-6">
+            <p><strong>Data de Conclusão:</strong><br>
+              {% if projeto.data_conclusao %}
+              {{ projeto.data_conclusao.strftime('%d/%m/%Y') }}
+              {% if projeto.esta_atrasado() %}
+              <br><small class="text-danger"><i class="bi bi-exclamation-triangle-fill"></i> Atrasado</small>
+              {% endif %}
+              {% else %}
+              <em class="text-muted">Não definida</em>
+              {% endif %}
+            </p>
+          </div>
+          <div class="col-md-6">
+            <p><strong>Valor Mensal:</strong><br>
+              R$ {{ "%.2f"|format(projeto.valor_mensalidades) }}
+            </p>
+          </div>
+          <div class="col-md-6">
+            <p><strong>Progresso:</strong><br>
+              <div class="progress" style="height: 24px; border-radius: 12px;">
+                <div class="progress-bar bg-info" role="progressbar"
+                     style="width: {{ projeto.percentual_geral() }}%;"
+                     aria-valuenow="{{ projeto.percentual_geral() }}" aria-valuemin="0" aria-valuemax="100">
+                  <small style="font-weight: 600;">{{ projeto.percentual_geral()|int }}%</small>
+                </div>
+              </div>
+            </p>
+          </div>
+        </div>
+        {% if projeto.descricao %}
+        <hr>
+        <p><strong>Descrição:</strong><br>
+          {{ projeto.descricao }}
+        </p>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Módulos -->
+    <div class="card mb-3">
+      <div class="card-header dark d-flex justify-content-between align-items-center">
+        <div>
+          <i class="bi bi-puzzle"></i> Módulos ERP ({{ projeto.modulos|length }})
+        </div>
+        {% if current_user.is_gestor %}
+        <button type="button" class="btn btn-sm btn-light" data-bs-toggle="modal" data-bs-target="#adicionarModuloModal">
+          <i class="bi bi-plus-circle"></i> Adicionar
+        </button>
+        {% endif %}
+      </div>
+      <div class="card-body p-0">
+        {% if projeto.modulos %}
+        <table class="table table-hover mb-0">
+          <thead class="bg-light">
+            <tr>
+              <th>Módulo</th>
+              <th>Status</th>
+              <th>Progresso</th>
+              <th>Conclusão</th>
+              {% if current_user.is_gestor %}<th></th>{% endif %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for modulo in projeto.modulos %}
+            <tr>
+              <td><strong>{{ modulo.nome }}</strong></td>
+              <td>
+                {% if modulo.status == 'Planejado' %}
+                <span class="badge bg-secondary">Planejado</span>
+                {% elif modulo.status == 'Em Progresso' %}
+                <span class="badge bg-warning">Em Progresso</span>
+                {% elif modulo.status == 'Concluído' %}
+                <span class="badge bg-success">Concluído</span>
+                {% elif modulo.status == 'Atrasado' %}
+                <span class="badge bg-danger">Atrasado</span>
+                {% endif %}
+              </td>
+              <td>
+                <div class="progress" style="height: 20px; border-radius: 10px;">
+                  <div class="progress-bar" role="progressbar"
+                       style="width: {{ modulo.percentual_conclusao }}%;">
+                    <small>{{ modulo.percentual_conclusao|int }}%</small>
+                  </div>
+                </div>
+              </td>
+              <td>
+                {% if modulo.data_conclusao %}
+                  {{ modulo.data_conclusao.strftime('%d/%m/%Y') }}<br>
+                  {% set dias_restantes = modulo.dias_restantes() %}
+                  {% if dias_restantes < 0 %}
+                    <small class="text-danger">{{ abs(dias_restantes) }} dias atrás</small>
+                  {% else %}
+                    <small>{{ dias_restantes }} dias</small>
+                  {% endif %}
+                {% else %}
+                  <small class="text-muted">-</small>
+                {% endif %}
+              </td>
+              {% if current_user.is_gestor %}
+              <td>
+                <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal"
+                        data-bs-target="#editarModuloModal{{ modulo.id }}" title="Editar">
+                  <i class="bi bi-pencil"></i>
+                </button>
+              </td>
+              {% endif %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="alert alert-info m-3" role="alert">
+          <i class="bi bi-info-circle"></i> Nenhum módulo adicionado ainda.
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Unidades -->
+    <div class="card mb-3">
+      <div class="card-header dark d-flex justify-content-between align-items-center">
+        <div>
+          <i class="bi bi-geo-alt"></i> Unidades/Lojas ({{ projeto.unidades|length }})
+        </div>
+        {% if current_user.is_gestor %}
+        <button type="button" class="btn btn-sm btn-light" data-bs-toggle="modal" data-bs-target="#adicionarUnidadeModal">
+          <i class="bi bi-plus-circle"></i> Adicionar
+        </button>
+        {% endif %}
+      </div>
+      <div class="card-body p-0">
+        {% if projeto.unidades %}
+        <table class="table table-hover mb-0">
+          <thead class="bg-light">
+            <tr>
+              <th>Unidade</th>
+              <th>Status</th>
+              <th>Período</th>
+              {% if current_user.is_gestor %}<th></th>{% endif %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for unidade in projeto.unidades %}
+            <tr>
+              <td><strong>{{ unidade.nome }}</strong></td>
+              <td>
+                {% if unidade.status == 'Não iniciado' %}
+                <span class="badge bg-secondary">Não iniciado</span>
+                {% elif unidade.status == 'Em andamento' %}
+                <span class="badge bg-warning">Em andamento</span>
+                {% elif unidade.status == 'Finalizado' %}
+                <span class="badge bg-success">Finalizado</span>
+                {% elif unidade.status == 'Atrasado' %}
+                <span class="badge bg-danger">Atrasado</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if unidade.data_inicio and unidade.data_conclusao %}
+                  {{ unidade.data_inicio.strftime('%d/%m') }} a {{ unidade.data_conclusao.strftime('%d/%m/%Y') }}
+                {% else %}
+                  <small class="text-muted">Não definido</small>
+                {% endif %}
+              </td>
+              {% if current_user.is_gestor %}
+              <td>
+                <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal"
+                        data-bs-target="#editarUnidadeModal{{ unidade.id }}" title="Editar">
+                  <i class="bi bi-pencil"></i>
+                </button>
+              </td>
+              {% endif %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="alert alert-info m-3" role="alert">
+          <i class="bi bi-info-circle"></i> Nenhuma unidade adicionada ainda.
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Atividades -->
+    <div class="card">
+      <div class="card-header dark d-flex justify-content-between align-items-center">
+        <div>
+          <i class="bi bi-chat-dots"></i> Atividades ({{ projeto.atividades|length }})
+        </div>
+        {% if current_user.is_gestor %}
+        <button type="button" class="btn btn-sm btn-light" data-bs-toggle="modal" data-bs-target="#adicionarAtividadeModal">
+          <i class="bi bi-plus-circle"></i> Adicionar
+        </button>
+        {% endif %}
+      </div>
+      <div class="card-body">
+        {% if projeto.atividades %}
+        <div class="timeline">
+          {% for atividade in projeto.atividades %}
+          <div style="margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <strong>{{ atividade.titulo }}</strong>
+            </div>
+            {% if current_user.is_gestor %}
+            <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal"
+                    data-bs-target="#deletarAtividadeModal{{ atividade.id }}" title="Deletar">
+              <i class="bi bi-trash"></i>
+            </button>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="alert alert-info" role="alert">
+          <i class="bi bi-info-circle"></i> Nenhuma atividade registrada ainda.
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Sidebar -->
+  <div class="col-lg-4">
+    <!-- Resumo -->
+    <div class="card mb-3">
+      <div class="card-header dark">
+        <i class="bi bi-card-checklist"></i> Resumo
+      </div>
+      <div class="card-body">
+        <div class="mb-3">
+          <small class="text-muted">Módulos em Progresso</small><br>
+          <strong>{{ projeto.modulos_em_progresso()|length }}</strong>
+        </div>
+        <div class="mb-3">
+          <small class="text-muted">Módulos Atrasados</small><br>
+          <strong class="text-danger">{{ projeto.modulos_atrasados()|length }}</strong>
+        </div>
+        <div class="mb-3">
+          <small class="text-muted">Unidades Iniciadas</small><br>
+          <strong>{{ projeto.unidades_iniciadas()|length }}</strong>
+        </div>
+        <div>
+          <small class="text-muted">Unidades Atrasadas</small><br>
+          <strong class="text-danger">{{ projeto.unidades_atrasadas()|length }}</strong>
+        </div>
+      </div>
+    </div>
+
+    <!-- Timeline -->
+    <div class="card">
+      <div class="card-header dark">
+        <i class="bi bi-calendar-event"></i> Timeline
+      </div>
+      <div class="card-body">
+        <div class="mb-3">
+          <small class="text-muted">Inicio</small><br>
+          <strong>{{ projeto.data_aceite.strftime('%d/%m/%Y') }}</strong>
+        </div>
+        <div class="mb-3">
+          <small class="text-muted">Previsão Conclusão</small><br>
+          {% if projeto.data_conclusao %}
+          <strong>{{ projeto.data_conclusao.strftime('%d/%m/%Y') }}</strong>
+          {% else %}
+          <span class="text-muted">Não definida</span>
+          {% endif %}
+        </div>
+        <div>
+          <small class="text-muted">Duração Total</small><br>
+          {% if projeto.data_conclusao %}
+          <strong>{{ (projeto.data_conclusao - projeto.data_aceite).days }} dias</strong>
+          {% else %}
+          <span class="text-muted">—</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Adicionar Módulo -->
+{% if current_user.is_gestor %}
+<div class="modal fade" id="adicionarModuloModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Adicionar Módulo</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="POST" action="/projeto/{{ projeto.id }}/modulo">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label for="modulo" class="form-label">Nome do Módulo</label>
+            <input type="text" class="form-control" id="modulo" name="modulo" required placeholder="Ex: RH, Financeiro, Estoque">
+          </div>
+          <div class="mb-3">
+            <label for="percentual_conclusao" class="form-label">% Conclusão (0-100)</label>
+            <input type="number" class="form-control" id="percentual_conclusao" name="percentual_conclusao"
+                   min="0" max="100" step="1" value="0">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Adicionar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Adicionar Unidade -->
+<div class="modal fade" id="adicionarUnidadeModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Adicionar Unidade</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="POST" action="/projeto/{{ projeto.id }}/unidade">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label for="unidade" class="form-label">Nome da Unidade/Loja</label>
+            <input type="text" class="form-control" id="unidade" name="unidade" required placeholder="Ex: Matriz SP, Filial RJ">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Adicionar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modals para Editar Módulos -->
+{% for modulo in projeto.modulos %}
+<div class="modal fade" id="editarModuloModal{{ modulo.id }}" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Editar Módulo: {{ modulo.nome }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="POST" action="/projeto/{{ projeto.id }}/editar-modulo/{{ modulo.id }}">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label for="modulo" class="form-label">Nome do Módulo</label>
+            <input type="text" class="form-control" id="modulo" name="modulo" required
+                   value="{{ modulo.nome }}" placeholder="Ex: RH, Financeiro, Estoque">
+          </div>
+          <div class="mb-3">
+            <label for="status" class="form-label">Status</label>
+            <select class="form-control" id="status" name="status">
+              <option value="Planejado" {% if modulo.status == 'Planejado' %}selected{% endif %}>Planejado</option>
+              <option value="Em Progresso" {% if modulo.status == 'Em Progresso' %}selected{% endif %}>Em Progresso</option>
+              <option value="Concluído" {% if modulo.status == 'Concluído' %}selected{% endif %}>Concluído</option>
+              <option value="Atrasado" {% if modulo.status == 'Atrasado' %}selected{% endif %}>Atrasado</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label for="percentual_conclusao" class="form-label">% Conclusão (0-100)</label>
+            <input type="number" class="form-control" id="percentual_conclusao" name="percentual_conclusao"
+                   min="0" max="100" step="1" value="{{ modulo.percentual_conclusao or 0 }}">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Salvar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endfor %}
+
+<!-- Modals para Editar Unidades -->
+{% for unidade in projeto.unidades %}
+<div class="modal fade" id="editarUnidadeModal{{ unidade.id }}" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Editar Unidade: {{ unidade.nome }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="POST" action="/projeto/{{ projeto.id }}/editar-unidade/{{ unidade.id }}">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label for="status" class="form-label">Status</label>
+            <select class="form-control" id="status" name="status">
+              <option value="Não iniciado" {% if unidade.status == 'Não iniciado' %}selected{% endif %}>Não iniciado</option>
+              <option value="Em andamento" {% if unidade.status == 'Em andamento' %}selected{% endif %}>Em andamento</option>
+              <option value="Finalizado" {% if unidade.status == 'Finalizado' %}selected{% endif %}>Finalizado</option>
+              <option value="Atrasado" {% if unidade.status == 'Atrasado' %}selected{% endif %}>Atrasado</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Salvar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endfor %}
+{% endif %}
+
+<!-- Modal: Adicionar Atividade -->
+{% if current_user.is_gestor %}
+<div class="modal fade" id="adicionarAtividadeModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Adicionar Atividade</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="POST" action="/projeto/{{ projeto.id }}/atividade">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label for="titulo" class="form-label">Título <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="titulo" name="titulo" required
+                   placeholder="Ex: Reunião de Status - RH">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Adicionar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modals para Deletar Atividades -->
+{% for atividade in projeto.atividades %}
+<div class="modal fade" id="deletarAtividadeModal{{ atividade.id }}" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Deletar Atividade</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p>Tem certeza que deseja deletar a atividade "<strong>{{ atividade.titulo }}</strong>"?</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <form method="POST" action="/projeto/{{ projeto.id }}/deletar-atividade/{{ atividade.id }}" style="display:inline;">
+          <button type="submit" class="btn btn-danger">Deletar</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endfor %}
+{% endif %}
+
+{% endblock %}

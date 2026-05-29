@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}Editar Colaborador · Férias Retail{% endblock %}
+
+{% block extra_css %}
+<style>
+  .field-group { background:#f8f9fa; border-radius:10px; padding:14px 16px; margin-bottom:1rem; }
+  .field-group .form-label { color:#555; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header fade-in">
+  <h2><i class="bi bi-person-gear me-2"></i>Editar Colaborador</h2>
+  <p>Atualize os dados de <strong>{{ colab.nome }}</strong></p>
+</div>
+
+<div class="row justify-content-center">
+  <div class="col-lg-5 col-md-7">
+    <div class="card fade-in">
+      <div class="card-header dark"><i class="bi bi-person-fill me-2"></i>Dados Cadastrais</div>
+      <div class="card-body">
+
+        {% if erro %}
+        <div class="alert alert-danger d-flex gap-2 align-items-center mb-3">
+          <i class="bi bi-exclamation-triangle-fill"></i>{{ erro }}
+        </div>
+        {% endif %}
+
+        <form method="POST">
+
+          <!-- Nome -->
+          <div class="mb-3">
+            <label class="form-label fw-semibold small">Nome completo *</label>
+            <input type="text" class="form-control" name="nome" required
+                   value="{{ colab.nome }}">
+          </div>
+
+          <!-- Admissão -->
+          <div class="mb-3">
+            <label class="form-label fw-semibold small">Data de Admissão *</label>
+            <input type="date" class="form-control" name="data_admissao" required
+                   value="{{ colab.data_admissao.strftime('%Y-%m-%d') }}">
+            <div class="form-text">Férias disponíveis após 12 meses da admissão.</div>
+          </div>
+
+          <!-- Cargo + UF lado a lado -->
+          <div class="row g-2 mb-3">
+            <div class="col-7">
+              <label class="form-label fw-semibold small">Cargo *</label>
+              <select class="form-select" name="tipo">
+                {% set opcoes = [
+                  ('Consultor',   'consultor'),
+                  ('Coordenador', 'coordenador'),
+                  ('Gerente',     'gerencia'),
+                  ('Estagiário',  'estagiario'),
+                  ('Analista',    'outro'),
+                ] %}
+                {% for label, key in opcoes %}
+                <option value="{{ label }}" {% if cargo_atual == key %}selected{% endif %}>
+                  {{ label }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-5">
+              <label class="form-label fw-semibold small">UF</label>
+              <input type="text" class="form-control text-uppercase" name="uf"
+                     placeholder="Ex: SP" value="{{ uf_atual }}" maxlength="2"
+                     oninput="this.value=this.value.toUpperCase()">
+            </div>
+          </div>
+
+          <!-- Cidade -->
+          <div class="mb-4">
+            <label class="form-label fw-semibold small">Cidade</label>
+            <input type="text" class="form-control" name="cidade"
+                   placeholder="Ex: São Paulo, Curitiba…"
+                   value="{{ colab.cidade or '' }}">
+          </div>
+
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary fw-semibold">
+              <i class="bi bi-check-lg me-1"></i>Salvar alterações
+            </button>
+            <a href="/colaboradores" class="btn btn-outline-secondary">Cancelar</a>
+          </div>
+        </form>
+
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

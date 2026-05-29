@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Novo Colaborador · Férias Retail{% endblock %}
+
+{% block content %}
+<div class="page-header fade-in">
+  <h2><i class="bi bi-person-plus-fill me-2"></i>Novo Colaborador</h2>
+  <p>Adicione um novo membro à equipe</p>
+</div>
+
+<div class="row justify-content-center">
+  <div class="col-lg-5 col-md-7">
+    <div class="card fade-in">
+      <div class="card-header dark"><i class="bi bi-person-fill me-2"></i>Dados do Colaborador</div>
+      <div class="card-body">
+
+        {% if erro %}
+        <div class="alert alert-danger d-flex gap-2 align-items-center">
+          <i class="bi bi-exclamation-triangle-fill"></i>{{ erro }}
+        </div>
+        {% endif %}
+
+        <form method="POST">
+
+          <!-- Nome -->
+          <div class="mb-3">
+            <label class="form-label fw-semibold small">Nome completo *</label>
+            <input type="text" class="form-control" name="nome" required
+                   placeholder="Ex: João Silva" value="{{ form_nome or '' }}">
+          </div>
+
+          <!-- Admissão -->
+          <div class="mb-3">
+            <label class="form-label fw-semibold small">Data de Admissão *</label>
+            <input type="date" class="form-control" name="data_admissao" required
+                   value="{{ form_data or '' }}">
+            <div class="form-text">Férias disponíveis após 12 meses da admissão.</div>
+          </div>
+
+          <!-- Cargo + UF lado a lado -->
+          <div class="row g-2 mb-3">
+            <div class="col-7">
+              <label class="form-label fw-semibold small">Cargo *</label>
+              <select class="form-select" name="tipo">
+                <option value="Consultor">Consultor</option>
+                <option value="Coordenador">Coordenador</option>
+                <option value="Gerente">Gerente</option>
+                <option value="Estagiário">Estagiário</option>
+                <option value="Analista">Analista</option>
+              </select>
+            </div>
+            <div class="col-5">
+              <label class="form-label fw-semibold small">UF</label>
+              <input type="text" class="form-control text-uppercase" name="uf"
+                     placeholder="Ex: SP" value="{{ form_uf or '' }}" maxlength="2"
+                     oninput="this.value=this.value.toUpperCase()">
+            </div>
+          </div>
+
+          <!-- Cidade -->
+          <div class="mb-4">
+            <label class="form-label fw-semibold small">Cidade</label>
+            <input type="text" class="form-control" name="cidade"
+                   placeholder="Ex: São Paulo, Curitiba…"
+                   value="{{ form_cidade or '' }}">
+          </div>
+
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary fw-semibold">
+              <i class="bi bi-check-lg me-1"></i>Salvar
+            </button>
+            <a href="/colaboradores" class="btn btn-outline-secondary">Cancelar</a>
+          </div>
+        </form>
+
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

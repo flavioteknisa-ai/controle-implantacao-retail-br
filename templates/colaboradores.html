@@ -1,0 +1,288 @@
+{% extends "base.html" %}
+{% block title %}Colaboradores · Férias Retail{% endblock %}
+
+{% block content %}
+<div class="page-header fade-in d-flex justify-content-between align-items-start">
+  <div>
+    <h2><i class="bi bi-people-fill me-2"></i>Colaboradores</h2>
+    <p>Equipe agrupada por cargo e ordenada por UF</p>
+  </div>
+  {% if current_user.is_gestor %}
+  <a href="/novo-colaborador" class="btn btn-primary">
+    <i class="bi bi-person-plus-fill me-1"></i>Novo Colaborador
+  </a>
+  {% endif %}
+</div>
+
+{% if filtro_ativo %}
+<div class="alert alert-info d-flex align-items-center justify-content-between mb-3 fade-in py-2">
+  <span><i class="bi bi-funnel-fill me-2"></i>
+    Filtrando: <strong>{{ filtro_label }}</strong>
+  </span>
+  <a href="/colaboradores" class="btn btn-sm btn-outline-secondary py-0">
+    <i class="bi bi-x me-1"></i>Limpar filtro
+  </a>
+</div>
+{% endif %}
+
+<!-- Filtros -->
+<div class="card fade-in mb-4">
+  <div class="card-body py-3">
+    <div class="row g-2 align-items-end flex-wrap">
+
+      <!-- Busca por nome -->
+      <div class="col-md-3">
+        <label class="form-label small fw-semibold mb-1">Buscar por nome</label>
+        <div class="input-group input-group-sm">
+          <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+          <input type="text" class="form-control border-start-0" id="filtroNome"
+                 placeholder="Digite o nome…" oninput="filtrarColabs()">
+        </div>
+      </div>
+
+
+      <!-- Cargo -->
+      <div class="col-md-4">
+        <label class="form-label small fw-semibold mb-1">Cargo</label>
+        <div class="d-flex gap-1 flex-wrap">
+          <button class="btn btn-sm btn-primary btn-cargo active" data-cargo="todos" onclick="setCargo(this)">Todos</button>
+          <button class="btn btn-sm btn-outline-secondary btn-cargo" data-cargo="gerencia" onclick="setCargo(this)">Gerência</button>
+          <button class="btn btn-sm btn-outline-secondary btn-cargo" data-cargo="coordenador" onclick="setCargo(this)">Coordenadores</button>
+          <button class="btn btn-sm btn-outline-secondary btn-cargo" data-cargo="consultor" onclick="setCargo(this)">Consultores</button>
+        </div>
+      </div>
+
+      <!-- UF -->
+      <div class="col-md-1">
+        <label class="form-label small fw-semibold mb-1">UF</label>
+        <select class="form-select form-select-sm" id="filtroUF" onchange="filtrarColabs()">
+          <option value="">Todas</option>
+        </select>
+      </div>
+
+      <!-- Limpar -->
+      <div class="col-auto">
+        <button class="btn btn-sm btn-outline-secondary" onclick="limparFiltros()" title="Limpar filtros">
+          <i class="bi bi-x-circle me-1"></i>Limpar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% for grupo in grupos %}
+<div class="mb-4 fade-in" data-grupo-card="{{ grupo.key }}">
+
+  <div class="d-flex align-items-center gap-3 mb-2 px-1">
+    <span class="badge fw-semibold px-3 py-2"
+          style="font-size:.8rem;background:
+            {% if grupo.key == 'gerencia' %}#6a1b9a
+            {% elif grupo.key == 'coordenador' %}#1565c0
+            {% else %}#2e7d32{% endif %};">
+      {% if grupo.key == 'gerencia' %}<i class="bi bi-star-fill me-1"></i>
+      {% elif grupo.key == 'coordenador' %}<i class="bi bi-diagram-3-fill me-1"></i>
+      {% else %}<i class="bi bi-person-fill me-1"></i>{% endif %}
+      {{ grupo.label }}
+    </span>
+    <span class="text-muted small">{{ grupo.itens|length }} pessoa{{ 's' if grupo.itens|length != 1 }}</span>
+    <div style="flex:1;border-top:1px dashed #d0d0d0;"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover mb-0" style="font-size:.84rem;">
+          <thead style="background:#f8f9fa;">
+            <tr>
+              <th class="ps-4 py-2">Colaborador</th>
+              <th class="py-2">UF</th>
+              <th class="py-2">Admissão</th>
+              <th class="py-2">Tempo de casa</th>
+              <th class="py-2">Saldo disponível</th>
+              <th class="py-2">Data limite</th>
+              <th class="py-2">Próximas Férias</th>
+              <th class="py-2">Status</th>
+              <th class="pe-4 py-2"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% set cur_uf = namespace(val='') %}
+            {% for item in grupo.itens %}
+
+              {% if grupo.key == 'consultor' and item.uf != cur_uf.val %}
+                {% set cur_uf.val = item.uf %}
+                <tr data-uf-sep="{{ item.uf or '' }}" style="background:#fafafa;">
+                  <td colspan="9" class="ps-4 py-1">
+                    <span style="font-size:.7rem;font-weight:700;color:#888;letter-spacing:.8px;">
+                      ── {{ item.uf or 'UF não informada' }}
+                    </span>
+                  </td>
+                </tr>
+              {% endif %}
+
+              <tr data-nome="{{ item.colaborador.nome|lower }}"
+                  data-cargo="{{ item.cargo }}"
+                  data-uf="{{ item.uf or '' }}">
+                <td class="ps-4 py-2">
+                  <div class="d-flex align-items-center gap-2">
+                    <div class="avatar" style="background:{{ item.cor }};">
+                      {{ item.colaborador.nome[:2].upper() }}
+                    </div>
+                    <div>
+                      <div class="fw-semibold">{{ item.colaborador.nome }}</div>
+                      <div class="text-muted" style="font-size:.7rem;">{{ item.colaborador.time }}</div>
+                    </div>
+                  </div>
+                </td>
+                <td class="py-2">
+                  <div>
+                    <span class="badge" style="background:#e8eaf6;color:#3949ab;font-size:.72rem;font-weight:700;">
+                      {{ item.uf or '—' }}
+                    </span>
+                    {% if item.colaborador.cidade %}
+                    <div class="text-muted" style="font-size:.68rem;margin-top:2px;">
+                      {{ item.colaborador.cidade }}
+                    </div>
+                    {% endif %}
+                  </div>
+                </td>
+                <td class="py-2">{{ item.colaborador.data_admissao.strftime('%d/%m/%Y') }}</td>
+                <td class="py-2 text-muted small">{{ item.tempo_casa }}</td>
+                <td class="py-2">
+                  {% if item.saldo is none %}
+                    <span class="text-muted small">N/A</span>
+                  {% else %}
+                  <div class="d-flex align-items-center gap-2">
+                    <span class="fw-bold saldo-{{ item.status_saldo }}">{{ item.saldo }}d</span>
+                    <div class="progress progress-thin" style="width:55px;">
+                      {% set pct = [[((item.saldo / 30) * 100)|int, 0]|max, 100]|min %}
+                      <div class="progress-bar
+                        {% if item.status_saldo == 'ok' %}bg-success
+                        {% elif item.status_saldo == 'alerta' %}bg-warning
+                        {% else %}bg-danger{% endif %}"
+                        style="width:{{ pct }}%"></div>
+                    </div>
+                  </div>
+                  {% endif %}
+                </td>
+                <td class="py-2">
+                  {% if item.data_limite %}
+                    {% set urgente = item.data_limite <= hoje.date() %}
+                    <span class="fw-semibold {% if urgente %}text-danger{% else %}text-dark{% endif %}"
+                          style="font-size:.82rem;">
+                      {{ item.data_limite.strftime('%d/%m/%Y') }}
+                    </span>
+                    {% if urgente %}
+                      <i class="bi bi-exclamation-triangle-fill text-danger ms-1" style="font-size:.75rem;"
+                         data-bs-toggle="tooltip" title="Prazo vencido ou hoje!"></i>
+                    {% endif %}
+                  {% else %}
+                    <span class="text-muted small">—</span>
+                  {% endif %}
+                </td>
+                <td class="py-2">
+                  {% if item.proxima_ferias %}
+                    <span class="fw-semibold">{{ item.proxima_ferias.data_inicio.strftime('%d/%m/%Y') }}</span>
+                    <span class="text-muted small ms-1">· {{ item.proxima_ferias.dias }}d</span>
+                  {% else %}
+                    <span class="text-muted small">—</span>
+                  {% endif %}
+                </td>
+                <td class="py-2">
+                  <span class="status-badge badge-confirmado">Ativo</span>
+                </td>
+                <td class="py-2 pe-4 text-end">
+                  {% if current_user.is_gestor %}
+                  <div class="d-flex gap-1 justify-content-end">
+                    <a href="/editar-colaborador/{{ item.colaborador.id }}"
+                       class="btn btn-sm btn-outline-secondary py-0 px-2"
+                       data-bs-toggle="tooltip" title="Editar dados">
+                      <i class="bi bi-pencil"></i>
+                    </a>
+                    <form method="POST" action="/excluir-colaborador/{{ item.colaborador.id }}" style="display:inline;">
+                      <button class="btn btn-sm btn-outline-danger py-0 px-2"
+                              onclick="return confirm('Remover {{ item.colaborador.nome }} permanentemente?')"
+                              data-bs-toggle="tooltip" title="Remover permanentemente">
+                        <i class="bi bi-trash3"></i>
+                      </button>
+                    </form>
+                  </div>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endfor %}
+
+<div id="semResultados" class="text-center py-5 text-muted" style="display:none;">
+  <i class="bi bi-person-x" style="font-size:2.5rem;opacity:.3;"></i>
+  <p class="mt-2">Nenhum colaborador encontrado com esses filtros</p>
+  <button class="btn btn-sm btn-outline-secondary mt-1" onclick="limparFiltros()">
+    <i class="bi bi-x-circle me-1"></i>Limpar filtros
+  </button>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Popula UF select
+window.addEventListener('DOMContentLoaded', () => {
+  const ufs = new Set();
+  document.querySelectorAll('tr[data-uf]').forEach(tr => { if (tr.dataset.uf) ufs.add(tr.dataset.uf); });
+  const sel = document.getElementById('filtroUF');
+  [...ufs].sort().forEach(uf => {
+    const opt = document.createElement('option');
+    opt.value = uf; opt.textContent = uf; sel.appendChild(opt);
+  });
+});
+
+function setCargo(btn) {
+  document.querySelectorAll('.btn-cargo').forEach(b => {
+    b.classList.remove('active', 'btn-primary');
+    b.classList.add('btn-outline-secondary');
+  });
+  btn.classList.remove('btn-outline-secondary');
+  btn.classList.add('active', 'btn-primary');
+  filtrarColabs();
+}
+
+function filtrarColabs() {
+  const texto = document.getElementById('filtroNome').value.toLowerCase().trim();
+  const cargo = document.querySelector('.btn-cargo.active')?.dataset.cargo || 'todos';
+  const uf    = document.getElementById('filtroUF').value;
+  let total = 0;
+
+  document.querySelectorAll('[data-grupo-card]').forEach(grupo => {
+    let algum = false;
+    const ufsVis = new Set();
+
+    grupo.querySelectorAll('tr[data-nome]').forEach(tr => {
+      const ok = (!texto || tr.dataset.nome.includes(texto))
+              && (cargo === 'todos' || tr.dataset.cargo === cargo)
+              && (!uf || tr.dataset.uf === uf);
+      tr.style.display = ok ? '' : 'none';
+      if (ok) { algum = true; total++; ufsVis.add(tr.dataset.uf); }
+    });
+
+    grupo.querySelectorAll('tr[data-uf-sep]').forEach(tr => {
+      tr.style.display = ufsVis.has(tr.dataset.ufSep) ? '' : 'none';
+    });
+
+    grupo.style.display = algum ? '' : 'none';
+  });
+
+  document.getElementById('semResultados').style.display = total === 0 ? '' : 'none';
+}
+
+function limparFiltros() {
+  document.getElementById('filtroNome').value = '';
+  document.getElementById('filtroUF').value = '';
+  setCargo(document.querySelector('[data-cargo="todos"]'));
+}
+</script>
+{% endblock %}

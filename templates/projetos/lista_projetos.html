@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+
+{% block title %}Projetos - {{ super() }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h2><i class="bi bi-building" style="margin-right:8px;"></i>Projetos ERP</h2>
+  <p>Acompanhamento de implantações Retail</p>
+</div>
+
+<!-- Filtros -->
+<div class="card mb-3">
+  <div class="card-body">
+    <div class="row g-3">
+      <div class="col-md-6">
+        <label class="form-label">Filtrar por Status</label>
+        <div class="btn-group w-100" role="group">
+          <a href="/projetos?status=todos" class="btn btn-outline-primary {% if status_filtro == 'todos' %}active{% endif %}">
+            Todos ({{ resumo.total_projetos }})
+          </a>
+          <a href="/projetos?status=Em andamento" class="btn btn-outline-primary {% if status_filtro == 'Em andamento' %}active{% endif %}">
+            Em andamento ({{ resumo.em_andamento }})
+          </a>
+          <a href="/projetos?status=Finalizado" class="btn btn-outline-primary {% if status_filtro == 'Finalizado' %}active{% endif %}">
+            Finalizados ({{ resumo.finalizados }})
+          </a>
+        </div>
+      </div>
+      <div class="col-md-6 text-md-end">
+        {% if current_user.is_gestor %}
+        <a href="/novo-projeto" class="btn btn-primary">
+          <i class="bi bi-plus-circle"></i> Novo Projeto
+        </a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Stats Cards -->
+<div class="row mb-4">
+  <div class="col-md-3 mb-3">
+    <div class="stat-card">
+      <div class="icon-bg" style="background: #2196F3;"></div>
+      <div class="stat-number" style="color:#2196F3;">{{ resumo.total_projetos }}</div>
+      <div class="stat-label">Total de Projetos</div>
+    </div>
+  </div>
+  <div class="col-md-3 mb-3">
+    <div class="stat-card">
+      <div class="icon-bg" style="background: #FF9800;"></div>
+      <div class="stat-number" style="color:#FF9800;">{{ resumo.em_andamento }}</div>
+      <div class="stat-label">Em Andamento</div>
+    </div>
+  </div>
+  <div class="col-md-3 mb-3">
+    <div class="stat-card">
+      <div class="icon-bg" style="background: #4CAF50;"></div>
+      <div class="stat-number" style="color:#4CAF50;">{{ resumo.finalizados }}</div>
+      <div class="stat-label">Finalizados</div>
+    </div>
+  </div>
+  <div class="col-md-3 mb-3">
+    <div class="stat-card">
+      <div class="icon-bg" style="background: #F44336;"></div>
+      <div class="stat-number" style="color:#F44336;">{{ resumo.atrasados }}</div>
+      <div class="stat-label">Atrasados</div>
+    </div>
+  </div>
+</div>
+
+<!-- Tabela de Projetos -->
+<div class="card">
+  <div class="card-header dark">
+    <i class="bi bi-list-ul" style="margin-right:8px;"></i>Lista de Projetos
+  </div>
+  <div class="card-body p-0">
+    {% if projetos %}
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead class="bg-light">
+          <tr>
+            <th style="width: 25%;">Projeto</th>
+            <th style="width: 15%;">Status</th>
+            <th style="width: 15%;">Responsável</th>
+            <th style="width: 15%;">Progresso</th>
+            <th style="width: 15%;">Conclusão</th>
+            <th style="width: 15%;">Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for projeto in projetos %}
+          <tr>
+            <td>
+              <strong>{{ projeto.nome }}</strong>
+              {% if projeto.esta_atrasado() %}
+              <br><small class="text-danger"><i class="bi bi-exclamation-triangle-fill"></i> Atrasado</small>
+              {% endif %}
+            </td>
+            <td>
+              {% if projeto.status == 'Em andamento' %}
+              <span class="badge bg-warning">Em andamento</span>
+              {% elif projeto.status == 'Finalizado' %}
+              <span class="badge bg-success">Finalizado</span>
+              {% elif projeto.status == 'Cancelado' %}
+              <span class="badge bg-danger">Cancelado</span>
+              {% endif %}
+            </td>
+            <td>{{ projeto.responsavel or '-' }}</td>
+            <td>
+              <div class="progress" style="height: 24px; border-radius: 12px;">
+                <div class="progress-bar bg-info" role="progressbar"
+                     style="width: {{ projeto.percentual_geral() }}%;"
+                     aria-valuenow="{{ projeto.percentual_geral() }}" aria-valuemin="0" aria-valuemax="100">
+                  <small style="font-weight: 600;">{{ projeto.percentual_geral()|int }}%</small>
+                </div>
+              </div>
+            </td>
+            <td>
+              <small>
+                {% set dias_restantes = projeto.dias_restantes() %}
+                {% if dias_restantes < 0 %}
+                  <span class="text-danger"><strong>{{ abs(dias_restantes) }} dias atrás</strong></span>
+                {% elif dias_restantes == 0 %}
+                  <span class="text-warning"><strong>Hoje</strong></span>
+                {% else %}
+                  <span>{{ projeto.data_conclusao.strftime('%d/%m/%Y') }}</span><br>
+                  {% if dias_restantes <= 30 %}
+                    <span class="text-warning">{{ dias_restantes }} dias</span>
+                  {% else %}
+                    <span>{{ dias_restantes }} dias</span>
+                  {% endif %}
+                {% endif %}
+              </small>
+            </td>
+            <td>
+              <a href="/projeto/{{ projeto.id }}" class="btn btn-sm btn-outline-primary" title="Detalhes">
+                <i class="bi bi-eye"></i>
+              </a>
+              {% if current_user.is_gestor and projeto.status != 'Finalizado' %}
+              <a href="/editar-projeto/{{ projeto.id }}" class="btn btn-sm btn-outline-warning" title="Editar">
+                <i class="bi bi-pencil"></i>
+              </a>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="alert alert-info m-3" role="alert">
+      <i class="bi bi-info-circle" style="margin-right:8px;"></i>
+      Nenhum projeto encontrado.
+      {% if current_user.is_gestor %}
+      <a href="/novo-projeto" class="alert-link">Criar novo projeto</a>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{% endblock %}
