@@ -107,11 +107,10 @@ def load_user(uid):
 def is_db_initialized():
     """Verifica se o banco de dados foi inicializado"""
     try:
-        with app.app_context():
-            # Tenta contar usuários - se conseguir, o banco está pronto
-            User.query.count()
-            return True
-    except:
+        # Não criar novo app_context - já estamos dentro de um request context
+        User.query.count()
+        return True
+    except Exception:
         return False
 
 @app.before_request
