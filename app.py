@@ -1842,6 +1842,178 @@ def init_database():
                 'original_error': str(e)
             }), 500
 
+# ─── Migração de Dados (Local → Vercel) ────────────────────────────────────────
+
+@app.route('/migrate-data', methods=['POST'])
+def migrate_data():
+    """
+    Endpoint para receber dados do banco local e inserir no banco online.
+    Usado pelo script migrate_local_to_vercel.py
+    """
+    try:
+        data = request.get_json()
+
+        if not data:
+            return jsonify({'status': 'error', 'message': 'Nenhum dado fornecido'}), 400
+
+        summary = {}
+
+        with app.app_context():
+            # Migrar colaboradores
+            if 'colaboradores' in data:
+                for row in data['colaboradores']:
+                    colab = ColaboradorDB(
+                        id=row.get('id'),
+                        nome=row.get('nome'),
+                        data_admissao=row.get('data_admissao'),
+                        time=row.get('time', ''),
+                        cidade=row.get('cidade', ''),
+                        ativo=bool(row.get('ativo', True))
+                    )
+                    db.session.merge(colab)
+                db.session.commit()
+                summary['colaboradores'] = len(data['colaboradores'])
+
+            # Migrar usuários
+            if 'users' in data:
+                for row in data['users']:
+                    user = User(
+                        id=row.get('id'),
+                        username=row.get('username'),
+                        nome=row.get('nome'),
+                        senha_hash=row.get('senha_hash'),
+                        perfil=row.get('perfil', 'colaborador'),
+                        colaborador_id=row.get('colaborador_id'),
+                        ativo=bool(row.get('ativo', True))
+                    )
+                    db.session.merge(user)
+                db.session.commit()
+                summary['users'] = len(data['users'])
+
+            # Migrar férias
+            if 'ferias' in data:
+                for row in data['ferias']:
+                    feria = FeriasDB(
+                        id=row.get('id'),
+                        colaborador_id=row.get('colaborador_id'),
+                        data_inicio=row.get('data_inicio'),
+                        data_fim=row.get('data_fim'),
+                        dias=row.get('dias'),
+                        status=row.get('status', 'Planejado'),
+                        conflito_detectado=bool(row.get('conflito_detectado', False)),
+                        conflito_aprovado=bool(row.get('conflito_aprovado', False))
+                    )
+                    db.session.merge(feria)
+                db.session.commit()
+                summary['ferias'] = len(data['ferias'])
+
+            # Migrar projetos ERP
+            if 'erp_projetos' in data:
+                for row in data['erp_projetos']:
+                    proj = ERPProjetoDB(
+                        id=row.get('id'),
+                        nome_projeto=row.get('nome_projeto'),
+                        data_aceite=row.get('data_aceite'),
+                        data_conclusao=row.get('data_conclusao'),
+                        status=row.get('status', 'Em andamento'),
+                        responsavel_id=row.get('responsavel_id'),
+                        valor_mensalidades=row.get('valor_mensalidades', 0),
+                        descricao=row.get('descricao', ''),
+                        percentual_conclusao=row.get('percentual_conclusao', 0),
+                        numero_unidades=row.get('numero_unidades', 1),
+                        potencial_cliente=row.get('potencial_cliente', 'Médio'),
+                        tipo_projeto=row.get('tipo_projeto', 'Novo'),
+                        criado_em=row.get('criado_em'),
+                        atualizado_em=row.get('atualizado_em')
+                    )
+                    db.session.merge(proj)
+                db.session.commit()
+                summary['erp_projetos'] = len(data['erp_projetos'])
+
+            # Migrar módulos
+            if 'erp_modulos' in data:
+                for row in data['erp_modulos']:
+                    mod = ERPModuloDB(
+                        id=row.get('id'),
+                        projeto_id=row.get('projeto_id'),
+                        modulo=row.get('modulo'),
+                        status_modulo=row.get('status_modulo', 'Planejado'),
+                        data_inicio_modulo=row.get('data_inicio_modulo'),
+                        data_conclusao_modulo=row.get('data_conclusao_modulo'),
+                        percentual_conclusao=row.get('percentual_conclusao', 0),
+                        criado_em=row.get('criado_em')
+                    )
+                    db.session.merge(mod)
+                db.session.commit()
+                summary['erp_modulos'] = len(data['erp_modulos'])
+
+            # Migrar unidades
+            if 'erp_unidades' in data:
+                for row in data['erp_unidades']:
+                    uni = ERPUnidadeDB(
+                        id=row.get('id'),
+                        projeto_id=row.get('projeto_id'),
+                        unidade=row.get('unidade'),
+                        status_unidade=row.get('status_unidade', 'Não iniciado'),
+                        data_inicio_unidade=row.get('data_inicio_unidade'),
+                        data_conclusao_unidade=row.get('data_conclusao_unidade'),
+                        criado_em=row.get('criado_em')
+                    )
+                    db.session.merge(uni)
+                db.session.commit()
+                summary['erp_unidades'] = len(data['erp_unidades'])
+
+            # Migrar atividades
+            if 'erp_atividades' in data:
+                for row in data['erp_atividades']:
+                    ativ = ERPAtividadeDB(
+                        id=row.get('id'),
+                        projeto_id=row.get('projeto_id'),
+                        titulo=row.get('titulo'),
+                        descricao=row.get('descricao', ''),
+                        data_reuniao=row.get('data_reuniao'),
+                        responsavel_nota=row.get('responsavel_nota', ''),
+                        status_atividade=row.get('status_atividade', 'Aberta'),
+                        concluida=bool(row.get('concluida', False)),
+                        criado_em=row.get('criado_em'),
+                        atualizado_em=row.get('atualizado_em')
+                    )
+                    db.session.merge(ativ)
+                db.session.commit()
+                summary['erp_atividades'] = len(data['erp_atividades'])
+
+            # Migrar comissionamentos
+            if 'comissionamentos' in data:
+                for row in data['comissionamentos']:
+                    comis = ComissionamentoDB(
+                        id=row.get('id'),
+                        consultor_id=row.get('consultor_id'),
+                        cliente=row.get('cliente'),
+                        data_comissao=row.get('data_comissao'),
+                        horas_comissionadas=row.get('horas_comissionadas'),
+                        hora_fora_estado=row.get('hora_fora_estado', ''),
+                        motivo=row.get('motivo', ''),
+                        periodo_inicio=row.get('periodo_inicio'),
+                        periodo_fim=row.get('periodo_fim'),
+                        criado_em=row.get('criado_em'),
+                        atualizado_em=row.get('atualizado_em')
+                    )
+                    db.session.merge(comis)
+                db.session.commit()
+                summary['comissionamentos'] = len(data['comissionamentos'])
+
+        return jsonify({
+            'status': 'success',
+            'message': '✅ Dados migrados com sucesso para o Vercel!',
+            'summary': summary
+        }), 200
+
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': f'❌ Erro na migração: {str(e)}'
+        }), 500
+
 # ─── Entry point ──────────────────────────────────────────────────────────────
 
 if __name__ == '__main__':
