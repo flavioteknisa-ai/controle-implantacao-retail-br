@@ -6,15 +6,25 @@ import calendar
 from datetime import datetime, timedelta, date
 from functools import wraps
 
-# ─── Forçar IPv4 para conexões PostgreSQL (Supabase no Vercel) ────────────────
-# O Vercel tenta IPv6 por padrão mas o Supabase bloqueia IPv6
-_original_getaddrinfo = socket.getaddrinfo
-
-def _force_ipv4(host, port, family=0, type=0, proto=0, flags=0):
-    return _original_getaddrinfo(host, port, socket.AF_INET, type, proto, flags)
-
-if os.environ.get('DATABASE_URL', '').startswith('postgresql'):
-    socket.getaddrinfo = _force_ipv4
+# ─── Converter Supabase direct URL para pooler URL (IPv4, melhor para serverless) ──
+def _supabase_pooler_url(url):
+    """
+    Converte conexão direta Supabase para Connection Pooler (IPv4, port 6543).
+    Direct:  postgresql://postgres:pass@db.{ref}.supabase.co:5432/postgres
+    Pooler:  postgresql://postgres.{ref}:pass@aws-0-us-east-1.pooler.supabase.com:6543/postgres
+    """
+    import re
+    m = re.match(
+        r'postgresql://postgres:(.+)@db\.([a-z]+)\.supabase\.co:5432/postgres(.*)',
+        url
+    )
+    if m:
+        password, ref, rest = m.groups()
+        return (
+            f'postgresql://postgres.{ref}:{password}'
+            f'@aws-0-us-east-1.pooler.supabase.com:6543/postgres{rest}'
+        )
+    return url  # Não é Supabase direct, retornar sem alteração
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -52,13 +62,14 @@ os.makedirs(DATA_DIR, exist_ok=True)
 db_url = os.environ.get('DATABASE_URL', '')
 
 if db_url:
-    # Usar banco de dados da variável de ambiente (Supabase)
     # Converter postgres:// para postgresql:// se necessário
     if db_url.startswith('postgres://'):
         db_url = db_url.replace('postgres://', 'postgresql://', 1)
     # Adicionar sslmode=require se não tiver
     if 'postgresql://' in db_url and 'sslmode' not in db_url:
         db_url += '?sslmode=require'
+    # Converter Supabase direct → pooler (resolve problema IPv6 no Vercel)
+    db_url = _supabase_pooler_url(db_url)
 else:
     # Usar SQLite (local ou /tmp no Vercel)
     is_vercel = os.environ.get('VERCEL') == '1'
