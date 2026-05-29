@@ -64,7 +64,7 @@ class ERPProjetoDB(db.Model):
     id                  = db.Column(db.Integer, primary_key=True)
     nome_projeto        = db.Column(db.String(250), nullable=False, unique=True)
     data_aceite         = db.Column(db.Date, nullable=False)
-    data_conclusao      = db.Column(db.Date, nullable=False)
+    data_conclusao      = db.Column(db.Date, nullable=True)
     status              = db.Column(db.String(50), default='Em andamento')
     # Em andamento, Finalizado, Cancelado
     responsavel_id      = db.Column(db.Integer, db.ForeignKey('colaboradores.id'), nullable=True)
