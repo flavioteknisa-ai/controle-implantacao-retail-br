@@ -181,6 +181,39 @@ class VisitaDB(db.Model):
 
 
 # ─────────────────────────────────────────────────────────────────
+# TABELA: Configurações do Sistema (chave→valor)
+# ─────────────────────────────────────────────────────────────────
+
+class AppConfig(db.Model):
+    __tablename__ = 'app_config'
+
+    id         = db.Column(db.Integer, primary_key=True)
+    chave      = db.Column(db.String(100), nullable=False, unique=True)
+    valor      = db.Column(db.Text)
+    atualizado = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
+
+    @classmethod
+    def get(cls, chave: str, default: str = '') -> str:
+        """Lê um valor de configuração do banco."""
+        try:
+            row = cls.query.filter_by(chave=chave).first()
+            return row.valor if row and row.valor else default
+        except Exception:
+            return default
+
+    @classmethod
+    def set(cls, chave: str, valor: str):
+        """Salva ou atualiza um valor de configuração."""
+        row = cls.query.filter_by(chave=chave).first()
+        if row:
+            row.valor = valor
+            row.atualizado = datetime.now()
+        else:
+            db.session.add(cls(chave=chave, valor=valor))
+        db.session.commit()
+
+
+# ─────────────────────────────────────────────────────────────────
 # TABELA: Matriz de Permissões por Perfil
 # ─────────────────────────────────────────────────────────────────
 

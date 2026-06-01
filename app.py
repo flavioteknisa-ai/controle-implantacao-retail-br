@@ -45,7 +45,7 @@ import io
 from io import BytesIO
 
 from models import Colaborador, Ferias
-from database import db, User, ColaboradorDB, FeriasDB, ERPProjetoDB, ERPModuloDB, ERPUnidadeDB, ERPAtividadeDB, ComissionamentoDB, PermissaoPerfil, VisitaDB
+from database import db, User, ColaboradorDB, FeriasDB, ERPProjetoDB, ERPModuloDB, ERPUnidadeDB, ERPAtividadeDB, ComissionamentoDB, PermissaoPerfil, VisitaDB, AppConfig
 from validators import FeriasValidator
 from analytics import FeriasAnalytics
 from erp_models import Projeto, Modulo, Unidade, Atividade
@@ -2485,9 +2485,10 @@ def ai_chat():
     except ImportError:
         return jsonify({'error': 'Módulo anthropic não instalado no servidor.'}), 503
 
-    api_key = os.environ.get('ANTHROPIC_API_KEY', '')
+    # Lê chave: primeiro do banco (configurada pelo gestor), depois variável de ambiente
+    api_key = AppConfig.get('ANTHROPIC_API_KEY') or os.environ.get('ANTHROPIC_API_KEY', '')
     if not api_key:
-        return jsonify({'error': 'Chave ANTHROPIC_API_KEY não configurada no servidor.'}), 503
+        return jsonify({'error': 'Assistente IA não configurado. Acesse Admin → Configurações para inserir a chave da API.'}), 503
 
     payload = request.json or {}
     user_msg  = (payload.get('message') or '').strip()
@@ -3131,6 +3132,33 @@ def resetar_permissoes():
         db.session.rollback()
         flash(f'Erro: {e}', 'danger')
     return redirect(url_for('permissoes'))
+
+
+# ─── Admin: Configurações do Sistema ─────────────────────────────────────────
+
+@app.route('/admin/configuracoes', methods=['GET', 'POST'])
+@login_required
+@gestor_required
+def admin_configuracoes():
+    """Página de configurações do sistema — apenas gestores."""
+    if request.method == 'POST':
+        api_key = request.form.get('anthropic_api_key', '').strip()
+        if api_key:
+            AppConfig.set('ANTHROPIC_API_KEY', api_key)
+            flash('Chave da API configurada com sucesso! O assistente IA já está ativo.', 'success')
+        else:
+            flash('Informe uma chave válida.', 'danger')
+        return redirect(url_for('admin_configuracoes'))
+
+    # Mascarar chave para exibição
+    chave_atual = AppConfig.get('ANTHROPIC_API_KEY', '')
+    chave_mascarada = ''
+    if chave_atual:
+        chave_mascarada = chave_atual[:12] + '•' * max(0, len(chave_atual) - 16) + chave_atual[-4:] if len(chave_atual) > 16 else '••••••••'
+
+    return render_template('admin/configuracoes.html',
+                           chave_mascarada=chave_mascarada,
+                           chave_configurada=bool(chave_atual))
 
 
 # ─── Entry point ──────────────────────────────────────────────────────────────
