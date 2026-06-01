@@ -154,8 +154,8 @@
   </div>
 </div>
 
-<!-- Linha 3: CDA + Top Clientes -->
-<div class="row g-3 mb-4">
+<!-- Linha 3: CDA + Pessoa de Contato -->
+<div class="row g-3 mb-3">
   <!-- CDA -->
   <div class="col-lg-5">
     <div class="chart-card">
@@ -167,26 +167,86 @@
     </div>
   </div>
 
-  <!-- Top Clientes -->
+  <!-- Pessoa de Contato -->
   <div class="col-lg-7">
+    <div class="chart-card">
+      <div class="chart-title">
+        <i class="bi bi-person-badge-fill text-primary"></i>
+        Pessoa de Contato
+      </div>
+      <!-- KPI cards por tipo de contato -->
+      <div class="row g-2 mb-3">
+        {% for lbl in ['Dono','Diretor','Supervisor'] %}
+          {% set idx = chart_contato.labels.index(lbl) if lbl in chart_contato.labels else -1 %}
+          {% set qtd = chart_contato.data[idx] if idx >= 0 else 0 %}
+          {% if lbl == 'Dono' %}{% set icon = 'bi-star-fill' %}{% set color = '#f57f17' %}
+          {% elif lbl == 'Diretor' %}{% set icon = 'bi-person-badge-fill' %}{% set color = '#0340AB' %}
+          {% else %}{% set icon = 'bi-person-check-fill' %}{% set color = '#2e7d32' %}{% endif %}
+          <div class="col-4">
+            <div style="background:#f8f9fa; border-radius:10px; padding:12px 10px; text-align:center; border-left:4px solid {{ color }};">
+              <i class="bi {{ icon }} mb-1 d-block" style="font-size:1.4rem;color:{{ color }};"></i>
+              <div style="font-size:1.6rem;font-weight:800;line-height:1;color:{{ color }};">{{ qtd }}</div>
+              <div style="font-size:.7rem;color:#888;text-transform:uppercase;letter-spacing:.6px;margin-top:3px;">{{ lbl }}</div>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+      <!-- Barra de proporção -->
+      {% set total_contatos = chart_contato.data | sum %}
+      {% if total_contatos > 0 %}
+      {% set cores = ['#f57f17','#0340AB','#2e7d32','#808080','#b71c1c'] %}
+      <div style="height:12px; border-radius:6px; overflow:hidden; display:flex;">
+        {% for i in range(chart_contato.labels|length) %}
+          {% set pct = (chart_contato.data[i] / total_contatos * 100)|round(1) %}
+          {% if pct > 0 %}
+          <div style="width:{{ pct }}%; background:{{ cores[i % 5] }};"
+               title="{{ chart_contato.labels[i] }}: {{ chart_contato.data[i] }} ({{ pct }}%)"></div>
+          {% endif %}
+        {% endfor %}
+      </div>
+      <div class="d-flex flex-wrap gap-2 mt-2">
+        {% for i in range(chart_contato.labels|length) %}
+          {% if chart_contato.data[i] > 0 %}
+          <span style="font-size:.72rem;color:#666;">
+            <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:{{ cores[i % 5] }};margin-right:3px;"></span>
+            {{ chart_contato.labels[i] }}: <strong>{{ chart_contato.data[i] }}</strong>
+            ({{ (chart_contato.data[i] / total_contatos * 100)|round(1) }}%)
+          </span>
+          {% endif %}
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="text-center text-muted py-3 small">Nenhum contato informado</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Linha 4: Top Clientes -->
+<div class="row g-3 mb-4">
+  <div class="col-12">
     <div class="chart-card">
       <div class="chart-title">
         <i class="bi bi-building text-primary"></i>
         Top Clientes Visitados
       </div>
       {% if top_clientes %}
-      {% set max_visits = top_clientes[0][1] %}
-      {% for cliente, qtd in top_clientes %}
-      <div class="mb-2">
-        <div class="d-flex justify-content-between align-items-center mb-1">
-          <span class="small fw-semibold text-truncate" style="max-width:75%;">{{ cliente }}</span>
-          <span class="badge bg-primary rounded-pill">{{ qtd }}</span>
+      <div class="row g-2">
+        {% set max_visits = top_clientes[0][1] %}
+        {% for cliente, qtd in top_clientes %}
+        <div class="col-md-6">
+          <div class="mb-1">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <span class="small fw-semibold text-truncate" style="max-width:80%;">{{ cliente }}</span>
+              <span class="badge bg-primary rounded-pill">{{ qtd }}</span>
+            </div>
+            <div class="top-client-bar">
+              <div class="top-client-fill" style="width:{{ (qtd / max_visits * 100)|round }}%;"></div>
+            </div>
+          </div>
         </div>
-        <div class="top-client-bar">
-          <div class="top-client-fill" style="width:{{ (qtd / max_visits * 100)|round }}%;"></div>
-        </div>
+        {% endfor %}
       </div>
-      {% endfor %}
       {% else %}
       <div class="text-center text-muted py-4 small">Sem dados para o período</div>
       {% endif %}

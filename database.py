@@ -170,6 +170,7 @@ class VisitaDB(db.Model):
     cliente          = db.Column(db.String(200), nullable=False)
     data_visita      = db.Column(db.Date, nullable=False, index=True)
     motivo           = db.Column(db.String(200))                          # STATUS REPORT | RELACIONAMENTO …
+    contato          = db.Column(db.String(50))                           # Dono | Diretor | Supervisor
     cda              = db.Column(db.String(50))                           # PENDENTE | NÃO ENVIADO | ASSINADO …
     custo            = db.Column(db.String(50))                           # TEKNISA | CLIENTE | COMPARTILHADO
     endereco         = db.Column(db.Text)

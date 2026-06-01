@@ -2033,11 +2033,12 @@ def api_projetos():
 
 # ─── Rotas: Controle de Visitas ──────────────────────────────────────────────
 
-VISITA_REGIOES = ['Retail BR SS', 'Retail BR NN']
-VISITA_MOTIVOS = ['STATUS REPORT', 'RELACIONAMENTO']
-VISITA_STATUS  = ['PLANEJADA', 'CONCLUIDA']
-VISITA_CDA     = ['PENDENTE', 'ASSINADO', 'NÃO ENVIADO', 'NÃO SE APLICA']
-VISITA_CUSTO   = ['TEKNISA', 'CLIENTE', 'COMPARTILHADO']
+VISITA_REGIOES   = ['Retail BR SS', 'Retail BR NN']
+VISITA_MOTIVOS   = ['STATUS REPORT', 'RELACIONAMENTO']
+VISITA_STATUS    = ['PLANEJADA', 'CONCLUIDA']
+VISITA_CDA       = ['PENDENTE', 'ASSINADO', 'NÃO ENVIADO', 'NÃO SE APLICA']
+VISITA_CUSTO     = ['TEKNISA', 'CLIENTE', 'COMPARTILHADO']
+VISITA_CONTATOS  = ['Dono', 'Diretor', 'Supervisor']
 
 # Projeto status
 PROJETO_STATUS = ['Em andamento', 'Paralisado', 'Finalizado', 'Cancelado']
@@ -2117,6 +2118,7 @@ def nova_visita():
 
         status      = request.form.get('status', 'PLANEJADA')
         motivo      = request.form.get('motivo', '').strip()
+        contato     = request.form.get('contato', '').strip()
         cda         = request.form.get('cda', '').strip()
         custo       = request.form.get('custo', '').strip()
         endereco    = request.form.get('endereco', '').strip()
@@ -2127,7 +2129,8 @@ def nova_visita():
             return render_template('visitas/nova_visita.html',
                                    colaboradores=colaboradores, regioes=VISITA_REGIOES,
                                    motivos=VISITA_MOTIVOS, status_opts=VISITA_STATUS,
-                                   cda_opts=VISITA_CDA, custo_opts=VISITA_CUSTO)
+                                   cda_opts=VISITA_CDA, custo_opts=VISITA_CUSTO,
+                                   contato_opts=VISITA_CONTATOS)
         try:
             data_visita = datetime.strptime(data_str, '%Y-%m-%d').date()
         except ValueError:
@@ -2135,13 +2138,14 @@ def nova_visita():
             return render_template('visitas/nova_visita.html',
                                    colaboradores=colaboradores, regioes=VISITA_REGIOES,
                                    motivos=VISITA_MOTIVOS, status_opts=VISITA_STATUS,
-                                   cda_opts=VISITA_CDA, custo_opts=VISITA_CUSTO)
+                                   cda_opts=VISITA_CDA, custo_opts=VISITA_CUSTO,
+                                   contato_opts=VISITA_CONTATOS)
 
         v = VisitaDB(
             regiao=regiao, colaborador_id=colaborador_id,
             colaborador_nome=colaborador_nome, status=status,
             cliente=cliente, data_visita=data_visita,
-            motivo=motivo, cda=cda, custo=custo,
+            motivo=motivo, contato=contato, cda=cda, custo=custo,
             endereco=endereco, observacoes=observacoes,
         )
         db.session.add(v)
@@ -2153,7 +2157,7 @@ def nova_visita():
                            colaboradores=colaboradores, regioes=VISITA_REGIOES,
                            motivos=VISITA_MOTIVOS, status_opts=VISITA_STATUS,
                            cda_opts=VISITA_CDA, custo_opts=VISITA_CUSTO,
-                           visita=None)
+                           contato_opts=VISITA_CONTATOS, visita=None)
 
 
 @app.route('/editar-visita/<int:vid>', methods=['GET', 'POST'])
@@ -2178,6 +2182,7 @@ def editar_visita(vid):
 
         v.status      = request.form.get('status', 'PLANEJADA')
         v.motivo      = request.form.get('motivo', '').strip()
+        v.contato     = request.form.get('contato', '').strip()
         v.cda         = request.form.get('cda', '').strip()
         v.custo       = request.form.get('custo', '').strip()
         v.endereco    = request.form.get('endereco', '').strip()
@@ -2196,7 +2201,7 @@ def editar_visita(vid):
                            visita=v, colaboradores=colaboradores,
                            regioes=VISITA_REGIOES, motivos=VISITA_MOTIVOS,
                            status_opts=VISITA_STATUS, cda_opts=VISITA_CDA,
-                           custo_opts=VISITA_CUSTO)
+                           custo_opts=VISITA_CUSTO, contato_opts=VISITA_CONTATOS)
 
 
 @app.route('/excluir-visita/<int:vid>', methods=['POST'])
@@ -2281,6 +2286,16 @@ def dashboard_visitas():
         'data':   list(cda_count.values()),
     }
 
+    # ── Por contato (Dono / Diretor / Supervisor) ────────────────
+    contato_count = Counter(v.contato or 'Não informado' for v in visitas)
+    # Ordem fixa: Dono, Diretor, Supervisor + outros
+    ordem_contato = ['Dono', 'Diretor', 'Supervisor']
+    contato_labels = ordem_contato + [k for k in contato_count if k not in ordem_contato]
+    chart_contato = {
+        'labels': contato_labels,
+        'data':   [contato_count.get(k, 0) for k in contato_labels],
+    }
+
     # ── Top 10 clientes ──────────────────────────────────────────
     cliente_count = Counter(v.cliente for v in visitas)
     top_clientes  = cliente_count.most_common(10)
@@ -2296,6 +2311,7 @@ def dashboard_visitas():
         total=total, concluidas=concluidas, planejadas=planejadas, taxa=taxa,
         chart_colab=chart_colab, chart_mes=chart_mes, chart_motivo=chart_motivo,
         chart_regiao=chart_regiao, chart_cda=chart_cda, chart_evolucao=chart_evolucao,
+        chart_contato=chart_contato,
         top_clientes=top_clientes,
         anos=anos_disponiveis, ano_sel=ano_sel,
         regioes=VISITA_REGIOES, regiao_sel=regiao_sel,

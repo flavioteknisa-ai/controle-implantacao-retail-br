@@ -108,6 +108,22 @@
               <input type="hidden" name="motivo" id="motivoInput"
                      value="{{ visita.motivo or '' if visita else '' }}">
             </div>
+            <div class="col-md-6">
+              <label class="form-label">Pessoa de Contato</label>
+              <div class="quick-chips mt-1" id="contatoChips">
+                {% for c in contato_opts %}
+                <span class="quick-chip {% if visita and visita.contato == c %}active{% endif %}"
+                      data-val="{{ c }}" onclick="selectChip(this,'contato')">
+                  {% if c == 'Dono' %}<i class="bi bi-star-fill me-1" style="font-size:.7rem;color:#f57f17;"></i>
+                  {% elif c == 'Diretor' %}<i class="bi bi-person-badge-fill me-1" style="font-size:.7rem;color:#0340AB;"></i>
+                  {% else %}<i class="bi bi-person-fill me-1" style="font-size:.7rem;color:#2e7d32;"></i>{% endif %}
+                  {{ c }}
+                </span>
+                {% endfor %}
+              </div>
+              <input type="hidden" name="contato" id="contatoInput"
+                     value="{{ visita.contato or '' if visita else '' }}">
+            </div>
           </div>
         </div>
       </div>
