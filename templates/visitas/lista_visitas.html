@@ -136,13 +136,14 @@
       <table class="table table-hover mb-0" style="font-size:.84rem;">
         <thead class="bg-light">
           <tr>
-            <th style="width:12%;">Data</th>
-            <th style="width:18%;">Cliente</th>
-            <th style="width:14%;">Colaborador</th>
-            <th style="width:10%;">Região</th>
-            <th style="width:12%;">Motivo</th>
+            <th style="width:10%;">Data</th>
+            <th style="width:16%;">Cliente</th>
+            <th style="width:13%;">Colaborador</th>
+            <th style="width:9%;">Região</th>
+            <th style="width:10%;">Motivo</th>
+            <th style="width:9%;">Contato</th>
             <th style="width:8%;">Status</th>
-            <th style="width:8%;">CDA</th>
+            <th style="width:7%;">CDA</th>
             <th style="width:7%;">Custo</th>
             <th style="width:11%;text-align:right;">Ações</th>
           </tr>
@@ -162,6 +163,23 @@
             <td class="small">{{ v.colaborador_nome or (v.colaborador.nome if v.colaborador else '—') }}</td>
             <td><span class="badge bg-secondary" style="font-size:.68rem;">{{ v.regiao or '—' }}</span></td>
             <td class="small">{{ v.motivo or '—' }}</td>
+            <td>
+              {% if v.contato == 'Dono' %}
+              <span class="badge" style="background:#fff3e0;color:#e65100;font-size:.68rem;">
+                <i class="bi bi-star-fill me-1"></i>Dono
+              </span>
+              {% elif v.contato == 'Diretor' %}
+              <span class="badge" style="background:#e3f2fd;color:#0340AB;font-size:.68rem;">
+                <i class="bi bi-person-badge-fill me-1"></i>Diretor
+              </span>
+              {% elif v.contato == 'Supervisor' %}
+              <span class="badge" style="background:#e8f5e9;color:#2e7d32;font-size:.68rem;">
+                <i class="bi bi-person-check-fill me-1"></i>Supervisor
+              </span>
+              {% else %}
+              <span class="text-muted">—</span>
+              {% endif %}
+            </td>
             <td>
               {% if v.status == 'PLANEJADA' %}
               <span class="status-badge badge-planejada">Planejada</span>
