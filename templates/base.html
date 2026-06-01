@@ -8,9 +8,9 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
   <style>
     :root {
-      --primary: #0340AB;
-      --primary-light: #0A4CC4;
-      --accent: #00acc1;
+      --primary: #808080;
+      --primary-light: #9A9A9A;
+      --accent: #9E9E9E;
       --success: #2e7d32;
       --warning: #f57f17;
       --danger: #b71c1c;
@@ -22,7 +22,7 @@
     /* Sidebar */
     .sidebar {
       position: fixed; left: 0; top: 0; bottom: 0; width: 230px;
-      background: linear-gradient(180deg, var(--primary) 0%, #022C78 100%);
+      background: linear-gradient(180deg, var(--primary) 0%, #5C5C5C 100%);
       color: #fff; z-index: 100; display: flex; flex-direction: column;
       box-shadow: 3px 0 15px rgba(0,0,0,.2);
     }
@@ -70,7 +70,7 @@
     /* Main */
     .main-content { margin-left: 230px; padding: 28px 32px; min-height: 100vh; }
     .page-header { margin-bottom: 28px; }
-    .page-header h2 { font-weight: 700; color: #0340AB; margin: 0; font-size: 1.5rem; }
+    .page-header h2 { font-weight: 700; color: #808080; margin: 0; font-size: 1.5rem; }
     .page-header p { color: #666; margin: 4px 0 0; font-size: .875rem; }
 
     /* Stat cards */
@@ -96,7 +96,7 @@
 
     /* Badges de status */
     .badge-confirmado { background: #e8f5e9; color: #2e7d32; }
-    .badge-planejado  { background: #e3f2fd; color: #0340AB; }
+    .badge-planejado  { background: #e3f2fd; color: #808080; }
     .badge-realizado  { background: #f3e5f5; color: #6a1b9a; }
     .badge-aberta     { background: #fff8e1; color: #e65100; }
     .badge-cancelado  { background: #fce4ec; color: #b71c1c; }
@@ -130,7 +130,7 @@
     }
     .cal-day:hover { transform: scale(1.15); z-index: 2; position: relative; }
     .cal-day.today { border: 2px solid var(--primary); }
-    .cal-day.ferias-1 { background: #bbdefb; color: #0340AB; }
+    .cal-day.ferias-1 { background: #bbdefb; color: #808080; }
     .cal-day.ferias-2 { background: #c8e6c9; color: #2e7d32; }
     .cal-day.ferias-3 { background: #f8bbd0; color: #880e4f; }
     .cal-day.ferias-4 { background: #ffe0b2; color: #e65100; }

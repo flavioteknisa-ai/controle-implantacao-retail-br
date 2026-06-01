@@ -96,7 +96,7 @@
 <!-- Barra de Resumo Geral -->
 <div class="summary-bar">
   <div class="summary-item">
-    <div class="summary-num" style="color:#0340AB;">{{ stats.total_projetos }}</div>
+    <div class="summary-num" style="color:#808080;">{{ stats.total_projetos }}</div>
     <div class="summary-label">Total de Projetos</div>
   </div>
   <div class="summary-item">
@@ -141,11 +141,11 @@
 {% endif %}
 
 <!-- Cards por Coordenador -->
-<h5 style="color:#0340AB; font-weight:700; margin-bottom:16px;">
+<h5 style="color:#808080; font-weight:700; margin-bottom:16px;">
   <i class="bi bi-people-fill"></i> Projetos por Coordenador
 </h5>
 
-{% set cores = ['#0340AB','#00897b','#e65100','#6a1b9a','#0340AB','#2e7d32','#ad1457','#37474f'] %}
+{% set cores = ['#808080','#00897b','#e65100','#6a1b9a','#808080','#2e7d32','#ad1457','#37474f'] %}
 
 <div class="row">
 {% if coordenadores_resumo %}
@@ -250,7 +250,7 @@
 
 <!-- Próximos Vencimentos -->
 {% if projetos_vencimento_proximo %}
-<h5 style="color:#0340AB; font-weight:700; margin: 8px 0 16px;">
+<h5 style="color:#808080; font-weight:700; margin: 8px 0 16px;">
   <i class="bi bi-calendar-event"></i> Vencimentos nos Próximos 30 dias
 </h5>
 <div class="card">

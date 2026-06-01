@@ -9,7 +9,7 @@
     border-radius:8px; transition:all .15s;
   }
   .btn-dias.ativo {
-    background:#0340AB; color:#fff; border-color:#0340AB;
+    background:#808080; color:#fff; border-color:#808080;
     box-shadow:0 2px 8px rgba(26,35,126,.3);
   }
   .resultado-datas {
@@ -19,7 +19,7 @@
   }
   .ret-label { font-size:.7rem; font-weight:600; color:#666; text-transform:uppercase; letter-spacing:.5px; }
   .ret-value { font-size:1rem; font-weight:700; color:#1b5e20; margin-top:2px; }
-  .ret-retorno { color:#0340AB; }
+  .ret-retorno { color:#808080; }
 </style>
 {% endblock %}
 
@@ -55,7 +55,7 @@
             {% for c in colaboradores %}
             <div class="d-flex align-items-center gap-2 p-2 rounded"
                  style="background:#f0f4ff;border:1px solid #c5cae9;">
-              <div class="avatar" style="background:#1F56CF;width:30px;height:30px;font-size:.65rem;flex-shrink:0;">
+              <div class="avatar" style="background:#A0A0A0;width:30px;height:30px;font-size:.65rem;flex-shrink:0;">
                 {{ c.nome[:2].upper() }}
               </div>
               <div>
@@ -130,7 +130,7 @@
               <div class="text-center">
                 <div class="ret-label">Total</div>
                 <div class="fw-bold mt-1" id="dtDiasDisplay"
-                     style="font-size:1.5rem;color:#0340AB;line-height:1;">—</div>
+                     style="font-size:1.5rem;color:#808080;line-height:1;">—</div>
                 <div style="font-size:.65rem;color:#888;">dias</div>
               </div>
               <div class="text-end">
