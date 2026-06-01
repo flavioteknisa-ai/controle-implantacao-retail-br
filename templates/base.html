@@ -329,17 +329,17 @@
 #ai-fab {
   position:fixed; bottom:28px; right:28px; z-index:1050;
   width:56px; height:56px; border-radius:50%; border:none; cursor:pointer;
-  background: linear-gradient(135deg, #0340AB, #4a7fd4);
-  box-shadow: 0 4px 18px rgba(3,64,171,.45);
+  background: linear-gradient(135deg, #808080, #aaaaaa);
+  box-shadow: 0 4px 18px rgba(128,128,128,.45);
   display:flex; align-items:center; justify-content:center;
   transition: transform .2s, box-shadow .2s;
   animation: fabPulse 3s ease-in-out infinite;
 }
-#ai-fab:hover { transform:scale(1.1); box-shadow:0 6px 24px rgba(3,64,171,.6); }
+#ai-fab:hover { transform:scale(1.1); box-shadow:0 6px 24px rgba(128,128,128,.6); }
 #ai-fab i { color:#fff; font-size:1.35rem; }
 @keyframes fabPulse {
-  0%,100%{ box-shadow:0 4px 18px rgba(3,64,171,.45); }
-  50%    { box-shadow:0 4px 26px rgba(3,64,171,.75), 0 0 0 8px rgba(3,64,171,.12); }
+  0%,100%{ box-shadow:0 4px 18px rgba(128,128,128,.45); }
+  50%    { box-shadow:0 4px 26px rgba(128,128,128,.75), 0 0 0 8px rgba(128,128,128,.12); }
 }
 #ai-fab .ai-badge {
   position:absolute; top:-2px; right:-2px;
@@ -367,7 +367,7 @@
 
 /* Header */
 #ai-header {
-  background:linear-gradient(135deg,#0340AB,#4a7fd4);
+  background:linear-gradient(135deg,#808080,#aaaaaa);
   padding:14px 16px; display:flex; align-items:center; gap:10px;
   flex-shrink:0;
 }
