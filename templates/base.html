@@ -186,10 +186,12 @@
   </div>
 
   <div class="sidebar-nav">
+    {% if current_user.is_authenticated and tem_perm('ver_dashboard') %}
     <div class="nav-section">Menu</div>
-  <a href="/" class="nav-link {% if request.path == '/' %}active{% endif %}">
-    <i class="bi bi-speedometer2"></i><span>Dashboard</span>
-  </a>
+    <a href="/" class="nav-link {% if request.path == '/' %}active{% endif %}">
+      <i class="bi bi-speedometer2"></i><span>Dashboard</span>
+    </a>
+    {% endif %}
 
   <div class="nav-section">Controle de Projetos</div>
   <a href="/dashboard-projetos" class="nav-link {% if request.path == '/dashboard-projetos' %}active{% endif %}">

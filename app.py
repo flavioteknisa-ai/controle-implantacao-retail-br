@@ -219,6 +219,8 @@ CARGO_LABEL = {
 from collections import OrderedDict
 
 PERMISSOES_CATALOG = OrderedDict([
+    # ── Dashboard ────────────────────────────────────────────────
+    ('ver_dashboard',            ('Dashboard',       'Acessar o Dashboard inicial (visão geral)')),
     # ── Projetos ─────────────────────────────────────────────────
     ('ver_projetos',             ('Projetos',        'Ver lista e detalhes de projetos')),
     ('criar_projeto',            ('Projetos',        'Criar novos projetos')),
@@ -245,9 +247,11 @@ PERMISSOES_CATALOG = OrderedDict([
 # Permissões padrão por perfil (usadas enquanto a tabela DB estiver vazia)
 PERMISSOES_DEFAULT: dict = {
     'colaborador': frozenset({
+        'ver_dashboard',
         'ver_projetos', 'ver_timeline', 'ver_colaboradores', 'solicitar_ferias',
     }),
     'coordenador': frozenset({
+        'ver_dashboard',
         'ver_projetos', 'criar_projeto', 'editar_projeto',
         'adicionar_modulo', 'adicionar_unidade', 'adicionar_atividade',
         'ver_timeline', 'ver_colaboradores', 'solicitar_ferias', 'registrar_ferias',
@@ -673,6 +677,20 @@ def excluir_usuario(uid):
 @app.route('/')
 @login_required
 def index():
+    # Verificação de permissão inline (não usa o decorator para evitar
+    # redirect circular: permission_required redireciona para index())
+    if not tem_permissao('ver_dashboard'):
+        # Redireciona para a primeira rota acessível ao usuário
+        for rota, perm in [('listar_projetos', 'ver_projetos'),
+                           ('timeline',        'ver_timeline'),
+                           ('listar_colaboradores', 'ver_colaboradores')]:
+            if tem_permissao(perm):
+                flash('Acesso ao Dashboard não permitido para seu perfil.', 'warning')
+                return redirect(url_for(rota))
+        # Sem nenhuma rota acessível → logout com aviso
+        flash('Seu perfil não tem acesso a nenhuma tela do sistema. Contate o gestor.', 'danger')
+        return redirect(url_for('logout'))
+
     colaboradores_raw, ferias_plan, ferias_real = carregar_tudo()
     colaboradores = sort_colaboradores(colaboradores_raw)
     analytics     = FeriasAnalytics(colaboradores, ferias_plan, ferias_real)
