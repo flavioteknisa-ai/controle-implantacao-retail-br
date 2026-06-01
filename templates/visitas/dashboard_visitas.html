@@ -258,7 +258,7 @@ new Chart(document.getElementById('chartMotivo'), {
   type: 'doughnut',
   data: {
     labels: {{ chart_motivo.labels | tojson }},
-    datasets: [{ data: {{ chart_motivo.values | tojson }},
+    datasets: [{ data: {{ chart_motivo.data | tojson }},
       backgroundColor: PALETTE,
       borderWidth: 2, borderColor: '#fff',
     }]
@@ -275,7 +275,7 @@ new Chart(document.getElementById('chartRegiao'), {
   type: 'doughnut',
   data: {
     labels: {{ chart_regiao.labels | tojson }},
-    datasets: [{ data: {{ chart_regiao.values | tojson }},
+    datasets: [{ data: {{ chart_regiao.data | tojson }},
       backgroundColor: [BLUE, GREEN, ORANGE, GRAY],
       borderWidth: 2, borderColor: '#fff',
     }]
@@ -292,7 +292,7 @@ new Chart(document.getElementById('chartCda'), {
   type: 'pie',
   data: {
     labels: {{ chart_cda.labels | tojson }},
-    datasets: [{ data: {{ chart_cda.values | tojson }},
+    datasets: [{ data: {{ chart_cda.data | tojson }},
       backgroundColor: [GREEN, ORANGE, '#b71c1c', GRAY, '#0277bd'],
       borderWidth: 2, borderColor: '#fff',
     }]

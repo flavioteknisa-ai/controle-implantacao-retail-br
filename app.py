@@ -2264,21 +2264,21 @@ def dashboard_visitas():
     motivo_count = Counter(v.motivo or 'Não informado' for v in visitas)
     chart_motivo = {
         'labels': list(motivo_count.keys()),
-        'values': list(motivo_count.values()),
+        'data':   list(motivo_count.values()),  # 'data' evita conflito com dict.values()
     }
 
     # ── Por região ────────────────────────────────────────────────
     regiao_count = Counter(v.regiao or 'Não informada' for v in visitas)
     chart_regiao = {
         'labels': list(regiao_count.keys()),
-        'values': list(regiao_count.values()),
+        'data':   list(regiao_count.values()),
     }
 
     # ── Por CDA ──────────────────────────────────────────────────
     cda_count = Counter(v.cda or 'Não informado' for v in visitas)
     chart_cda = {
         'labels': list(cda_count.keys()),
-        'values': list(cda_count.values()),
+        'data':   list(cda_count.values()),
     }
 
     # ── Top 10 clientes ──────────────────────────────────────────
@@ -2287,10 +2287,10 @@ def dashboard_visitas():
 
     # ── Evolução mensal acumulada ─────────────────────────────────
     acum_total = 0
-    chart_evolucao = {'labels': meses_pt, 'values': []}
+    chart_evolucao = {'labels': meses_pt, 'data': []}
     for i in range(12):
         acum_total += mes_data[i]['concluidas'] + mes_data[i]['planejadas']
-        chart_evolucao['values'].append(acum_total)
+        chart_evolucao['data'].append(acum_total)
 
     return render_template('visitas/dashboard_visitas.html',
         total=total, concluidas=concluidas, planejadas=planejadas, taxa=taxa,
