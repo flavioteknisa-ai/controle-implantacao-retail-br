@@ -1,0 +1,230 @@
+{% extends "base.html" %}
+{% block title %}Controle de Visitas · {{ super() }}{% endblock %}
+
+{% block extra_css %}
+<style>
+  .badge-planejada  { background:#e3f2fd; color:#0340AB; border:1px solid #bbdefb; }
+  .badge-concluida  { background:#e8f5e9; color:#2e7d32; border:1px solid #c8e6c9; }
+  .badge-cancelada  { background:#fce4ec; color:#b71c1c; border:1px solid #ffcdd2; }
+  .badge-cda-pendente  { background:#fff8e1; color:#f57f17; }
+  .badge-cda-assinado  { background:#e8f5e9; color:#2e7d32; }
+  .badge-cda-nao       { background:#fce4ec; color:#b71c1c; }
+  .badge-cda-na        { background:#f5f5f5; color:#9e9e9e; }
+  .filter-chip { font-size:.78rem; }
+  .visita-row:hover { background:#f8f9ff; cursor:pointer; }
+  .custo-teknisa { background:#e8eaf6; color:#3949ab; font-size:.68rem; padding:2px 7px; border-radius:20px; font-weight:600; }
+  .custo-cliente { background:#e8f5e9; color:#2e7d32; font-size:.68rem; padding:2px 7px; border-radius:20px; font-weight:600; }
+  .custo-compartilhado { background:#fff3e0; color:#e65100; font-size:.68rem; padding:2px 7px; border-radius:20px; font-weight:600; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+    <div>
+      <h2><i class="bi bi-geo-alt-fill me-2"></i>Controle de Visitas</h2>
+      <p>Acompanhamento de visitas comerciais e técnicas</p>
+    </div>
+    {% if tem_perm('criar_visita') %}
+    <a href="/nova-visita" class="btn btn-primary">
+      <i class="bi bi-plus-circle me-1"></i>Nova Visita
+    </a>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Stats Cards -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="icon-bg" style="background:#808080;"></div>
+      <div class="stat-number" style="color:#808080;">{{ resumo.total }}</div>
+      <div class="stat-label">Total de Visitas</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="icon-bg" style="background:#0340AB;"></div>
+      <div class="stat-number" style="color:#0340AB;">{{ resumo.planejadas }}</div>
+      <div class="stat-label">Planejadas</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="icon-bg" style="background:#2e7d32;"></div>
+      <div class="stat-number" style="color:#2e7d32;">{{ resumo.concluidas }}</div>
+      <div class="stat-label">Concluídas</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="icon-bg" style="background:#b71c1c;"></div>
+      <div class="stat-number" style="color:#b71c1c;">{{ resumo.canceladas }}</div>
+      <div class="stat-label">Canceladas</div>
+    </div>
+  </div>
+</div>
+
+<!-- Filtros -->
+<div class="card mb-3">
+  <div class="card-body py-2 px-3">
+    <form method="GET" action="/visitas" class="row g-2 align-items-end">
+      <div class="col-6 col-md-2">
+        <label class="form-label small mb-1">Status</label>
+        <select name="status" class="form-select form-select-sm">
+          <option value="">Todos</option>
+          {% for s in ['PLANEJADA','CONCLUIDA','CANCELADA'] %}
+          <option value="{{ s }}" {% if f_status == s %}selected{% endif %}>{{ s|title }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label small mb-1">Região</label>
+        <select name="regiao" class="form-select form-select-sm">
+          <option value="">Todas</option>
+          {% for r in regioes %}
+          <option value="{{ r }}" {% if f_regiao == r %}selected{% endif %}>{{ r }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label small mb-1">Colaborador</label>
+        <select name="colaborador" class="form-select form-select-sm">
+          <option value="">Todos</option>
+          {% for c in colaboradores %}
+          <option value="{{ c.id }}" {% if f_colab == c.id|string %}selected{% endif %}>{{ c.nome }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label small mb-1">Motivo</label>
+        <select name="motivo" class="form-select form-select-sm">
+          <option value="">Todos</option>
+          {% for m in motivos %}
+          <option value="{{ m }}" {% if f_motivo == m %}selected{% endif %}>{{ m }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label small mb-1">De</label>
+        <input type="date" name="data_ini" class="form-control form-control-sm" value="{{ f_ini }}">
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label small mb-1">Até</label>
+        <input type="date" name="data_fim" class="form-control form-control-sm" value="{{ f_fim }}">
+      </div>
+      <div class="col-12 d-flex gap-2">
+        <button class="btn btn-sm btn-primary px-4">
+          <i class="bi bi-funnel me-1"></i>Filtrar
+        </button>
+        <a href="/visitas" class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-x-circle me-1"></i>Limpar
+        </a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Tabela -->
+<div class="card">
+  <div class="card-header dark d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-list-ul me-2"></i>Visitas ({{ visitas|length }})</span>
+  </div>
+  <div class="card-body p-0">
+    {% if visitas %}
+    <div class="table-responsive">
+      <table class="table table-hover mb-0" style="font-size:.84rem;">
+        <thead class="bg-light">
+          <tr>
+            <th style="width:12%;">Data</th>
+            <th style="width:18%;">Cliente</th>
+            <th style="width:14%;">Colaborador</th>
+            <th style="width:10%;">Região</th>
+            <th style="width:12%;">Motivo</th>
+            <th style="width:8%;">Status</th>
+            <th style="width:8%;">CDA</th>
+            <th style="width:7%;">Custo</th>
+            <th style="width:11%;text-align:right;">Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for v in visitas %}
+          <tr class="visita-row" onclick="window.location='/editar-visita/{{ v.id }}'">
+            <td class="fw-semibold">{{ v.data_visita.strftime('%d/%m/%Y') }}</td>
+            <td>
+              <strong>{{ v.cliente }}</strong>
+              {% if v.endereco %}
+              <div class="text-muted" style="font-size:.72rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px;">
+                <i class="bi bi-geo me-1"></i>{{ v.endereco }}
+              </div>
+              {% endif %}
+            </td>
+            <td class="small">{{ v.colaborador_nome or (v.colaborador.nome if v.colaborador else '—') }}</td>
+            <td><span class="badge bg-secondary" style="font-size:.68rem;">{{ v.regiao or '—' }}</span></td>
+            <td class="small">{{ v.motivo or '—' }}</td>
+            <td>
+              {% if v.status == 'PLANEJADA' %}
+              <span class="status-badge badge-planejada">Planejada</span>
+              {% elif v.status == 'CONCLUIDA' %}
+              <span class="status-badge badge-concluida">Concluída</span>
+              {% else %}
+              <span class="status-badge badge-cancelada">Cancelada</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if v.cda == 'ASSINADO' %}
+              <span class="status-badge badge-cda-assinado">Assinado</span>
+              {% elif v.cda == 'PENDENTE' %}
+              <span class="status-badge badge-cda-pendente">Pendente</span>
+              {% elif v.cda in ('NÃO ENVIADO','NÃO ENVIADA') %}
+              <span class="status-badge badge-cda-nao">Não env.</span>
+              {% elif v.cda %}
+              <span class="status-badge badge-cda-na">{{ v.cda }}</span>
+              {% else %}
+              <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if v.custo == 'TEKNISA' %}
+              <span class="custo-teknisa">Teknisa</span>
+              {% elif v.custo == 'CLIENTE' %}
+              <span class="custo-cliente">Cliente</span>
+              {% elif v.custo == 'COMPARTILHADO' %}
+              <span class="custo-compartilhado">Comp.</span>
+              {% else %}
+              <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td onclick="event.stopPropagation();" class="text-end pe-3">
+              {% if tem_perm('editar_visita') %}
+              <a href="/editar-visita/{{ v.id }}" class="btn btn-sm btn-outline-primary me-1" title="Editar">
+                <i class="bi bi-pencil"></i>
+              </a>
+              <form method="POST" action="/excluir-visita/{{ v.id }}" style="display:inline;"
+                    onsubmit="return confirm('Excluir visita a {{ v.cliente }}?')">
+                <button class="btn btn-sm btn-outline-danger" title="Excluir">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </form>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="text-center py-5 text-muted">
+      <i class="bi bi-geo-alt" style="font-size:2.5rem;opacity:.3;"></i>
+      <p class="mt-3 mb-0 fw-semibold">Nenhuma visita encontrada</p>
+      <p class="small">Ajuste os filtros ou registre uma nova visita.</p>
+      {% if tem_perm('criar_visita') %}
+      <a href="/nova-visita" class="btn btn-primary btn-sm mt-2">
+        <i class="bi bi-plus-circle me-1"></i>Registrar Visita
+      </a>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

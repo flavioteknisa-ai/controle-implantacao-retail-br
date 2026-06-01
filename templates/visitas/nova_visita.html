@@ -1,0 +1,271 @@
+{% extends "base.html" %}
+{% block title %}{% if visita %}Editar Visita{% else %}Nova Visita{% endif %} · {{ super() }}{% endblock %}
+
+{% block extra_css %}
+<style>
+  .section-title {
+    font-size:.72rem; font-weight:700; text-transform:uppercase; letter-spacing:1.2px;
+    color:#808080; border-bottom:1px solid #eee; padding-bottom:6px; margin-bottom:14px;
+  }
+  .form-label { font-weight:600; font-size:.82rem; }
+  .btn-status { border:2px solid transparent; border-radius:10px; padding:10px 14px;
+                font-size:.8rem; font-weight:700; text-align:center; cursor:pointer;
+                transition:all .15s; user-select:none; }
+  .btn-status.selected-PLANEJADA  { border-color:#0340AB; background:#e3f2fd; color:#0340AB; }
+  .btn-status.selected-CONCLUIDA  { border-color:#2e7d32; background:#e8f5e9; color:#2e7d32; }
+  .btn-status.selected-CANCELADA  { border-color:#b71c1c; background:#fce4ec; color:#b71c1c; }
+  .btn-status:not([class*="selected"]):hover { background:#f5f5f5; }
+  .quick-chips { display:flex; flex-wrap:wrap; gap:6px; }
+  .quick-chip { font-size:.75rem; padding:4px 12px; border-radius:20px; border:1px solid #ddd;
+                cursor:pointer; transition:all .15s; background:#fff; }
+  .quick-chip:hover  { border-color:#808080; background:#f5f5f5; }
+  .quick-chip.active { border-color:#808080; background:#808080; color:#fff; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h2>
+    <i class="bi bi-{% if visita %}pencil-square{% else %}geo-alt-fill{% endif %} me-2"></i>
+    {% if visita %}Editar Visita{% else %}Nova Visita{% endif %}
+  </h2>
+  <p>{% if visita %}Atualize os dados da visita a {{ visita.cliente }}{% else %}Registre uma nova visita comercial ou técnica{% endif %}</p>
+</div>
+
+<div class="row g-3">
+  <!-- Coluna principal -->
+  <div class="col-lg-8">
+    <form method="POST" id="formVisita">
+
+      <!-- BLOCO 1: Identificação -->
+      <div class="card mb-3">
+        <div class="card-header dark"><i class="bi bi-building me-2"></i>Identificação</div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-md-8">
+              <label class="form-label">Cliente <span class="text-danger">*</span></label>
+              <input type="text" class="form-control" name="cliente" required
+                     value="{{ visita.cliente if visita else '' }}"
+                     placeholder="Nome do cliente / estabelecimento">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Data da Visita <span class="text-danger">*</span></label>
+              <input type="date" class="form-control" name="data_visita" required
+                     value="{{ visita.data_visita.strftime('%Y-%m-%d') if visita and visita.data_visita else '' }}">
+            </div>
+            <div class="col-12">
+              <label class="form-label">Endereço</label>
+              <input type="text" class="form-control" name="endereco"
+                     value="{{ visita.endereco or '' if visita else '' }}"
+                     placeholder="Rua, número, bairro, cidade - UF">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- BLOCO 2: Responsável e Região -->
+      <div class="card mb-3">
+        <div class="card-header dark"><i class="bi bi-person-badge me-2"></i>Responsável e Região</div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">Colaborador Responsável</label>
+              <select class="form-select" name="colaborador_id" id="selColab">
+                <option value="">-- Selecionar --</option>
+                {% for c in colaboradores %}
+                <option value="{{ c.id }}"
+                  {% if visita and visita.colaborador_id == c.id %}selected{% endif %}>
+                  {{ c.nome }}
+                </option>
+                {% endfor %}
+              </select>
+              <div class="form-text">Ou informe manualmente abaixo</div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Nome manual (se não cadastrado)</label>
+              <input type="text" class="form-control" name="colaborador_nome"
+                     id="inputColabNome"
+                     value="{{ visita.colaborador_nome or '' if visita else '' }}"
+                     placeholder="Deixe em branco se selecionou acima">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Região</label>
+              <select class="form-select" name="regiao">
+                <option value="">-- Selecionar --</option>
+                {% for r in regioes %}
+                <option value="{{ r }}" {% if visita and visita.regiao == r %}selected{% endif %}>{{ r }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Motivo da Visita</label>
+              <div class="quick-chips mt-1" id="motivoChips">
+                {% for m in motivos %}
+                <span class="quick-chip {% if visita and visita.motivo == m %}active{% endif %}"
+                      data-val="{{ m }}" onclick="selectChip(this,'motivo')">{{ m }}</span>
+                {% endfor %}
+              </div>
+              <input type="hidden" name="motivo" id="motivoInput"
+                     value="{{ visita.motivo or '' if visita else '' }}">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- BLOCO 3: Status e Documentação -->
+      <div class="card mb-3">
+        <div class="card-header dark"><i class="bi bi-clipboard-check me-2"></i>Status e Documentação</div>
+        <div class="card-body">
+          <div class="row g-3">
+            <!-- Status visual -->
+            <div class="col-12">
+              <label class="form-label">Status</label>
+              <div class="d-flex gap-2 flex-wrap" id="statusBtns">
+                {% for s in status_opts %}
+                <div class="btn-status {% if (visita and visita.status == s) or (not visita and s == 'PLANEJADA') %}selected-{{ s }}{% endif %}"
+                     data-val="{{ s }}" onclick="selectStatus(this)">
+                  {% if s == 'PLANEJADA' %}
+                  <i class="bi bi-calendar-event d-block mb-1" style="font-size:1.2rem;"></i>
+                  {% elif s == 'CONCLUIDA' %}
+                  <i class="bi bi-check-circle-fill d-block mb-1" style="font-size:1.2rem;"></i>
+                  {% else %}
+                  <i class="bi bi-x-circle-fill d-block mb-1" style="font-size:1.2rem;"></i>
+                  {% endif %}
+                  {{ s|title }}
+                </div>
+                {% endfor %}
+              </div>
+              <input type="hidden" name="status" id="statusInput"
+                     value="{{ visita.status if visita else 'PLANEJADA' }}">
+            </div>
+
+            <!-- CDA -->
+            <div class="col-md-6">
+              <label class="form-label">CDA (Contrato de Acordo)</label>
+              <div class="quick-chips mt-1" id="cdaChips">
+                {% for c in cda_opts %}
+                <span class="quick-chip {% if visita and visita.cda == c %}active{% endif %}"
+                      data-val="{{ c }}" onclick="selectChip(this,'cda')">{{ c }}</span>
+                {% endfor %}
+              </div>
+              <input type="hidden" name="cda" id="cdaInput"
+                     value="{{ visita.cda or '' if visita else '' }}">
+            </div>
+
+            <!-- Custo -->
+            <div class="col-md-6">
+              <label class="form-label">Custo da Visita</label>
+              <div class="quick-chips mt-1" id="custoChips">
+                {% for c in custo_opts %}
+                <span class="quick-chip {% if visita and visita.custo == c %}active{% endif %}"
+                      data-val="{{ c }}" onclick="selectChip(this,'custo')">{{ c }}</span>
+                {% endfor %}
+              </div>
+              <input type="hidden" name="custo" id="custoInput"
+                     value="{{ visita.custo or '' if visita else '' }}">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- BLOCO 4: Observações -->
+      <div class="card mb-3">
+        <div class="card-header dark"><i class="bi bi-chat-text me-2"></i>Observações</div>
+        <div class="card-body">
+          <textarea class="form-control" name="observacoes" rows="3"
+                    placeholder="Anotações sobre a visita, pontos discutidos, próximos passos…">{{ visita.observacoes or '' if visita else '' }}</textarea>
+        </div>
+      </div>
+
+      <!-- Ações -->
+      <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-primary px-4">
+          <i class="bi bi-check-circle me-1"></i>
+          {% if visita %}Salvar Alterações{% else %}Registrar Visita{% endif %}
+        </button>
+        <a href="/visitas" class="btn btn-outline-secondary">
+          <i class="bi bi-arrow-left me-1"></i>Cancelar
+        </a>
+        {% if visita and tem_perm('editar_visita') %}
+        <form method="POST" action="/excluir-visita/{{ visita.id }}" class="ms-auto"
+              onsubmit="return confirm('Excluir esta visita?')">
+          <button class="btn btn-outline-danger">
+            <i class="bi bi-trash me-1"></i>Excluir
+          </button>
+        </form>
+        {% endif %}
+      </div>
+
+    </form>
+  </div>
+
+  <!-- Coluna lateral -->
+  <div class="col-lg-4">
+    <!-- Dicas rápidas -->
+    <div class="card mb-3 bg-light border-0">
+      <div class="card-body">
+        <h6 class="fw-bold mb-3"><i class="bi bi-lightbulb me-2 text-warning"></i>Guia de Preenchimento</h6>
+        <ul class="small mb-0 text-muted">
+          <li class="mb-1"><strong>Cliente:</strong> nome do estabelecimento visitado</li>
+          <li class="mb-1"><strong>Status Planejada:</strong> visita agendada mas não realizada</li>
+          <li class="mb-1"><strong>Status Concluída:</strong> visita já realizada</li>
+          <li class="mb-1"><strong>CDA:</strong> status do Contrato de Acordo pós-visita</li>
+          <li class="mb-1"><strong>Custo:</strong> quem arca com despesas da visita</li>
+          <li><strong>Região:</strong> área geográfica de atuação (NN=Norte, SS=Sul…)</li>
+        </ul>
+      </div>
+    </div>
+
+    {% if visita %}
+    <!-- Informações do registro -->
+    <div class="card border-0" style="background:#fff8e1;border:1px solid #ffe082!important;">
+      <div class="card-body">
+        <h6 class="fw-bold mb-2"><i class="bi bi-info-circle me-1"></i>Registro</h6>
+        <div class="small text-muted">
+          <div>Criado em: <strong>{{ visita.criado_em.strftime('%d/%m/%Y %H:%M') if visita.criado_em else '—' }}</strong></div>
+          <div>Atualizado: <strong>{{ visita.atualizado_em.strftime('%d/%m/%Y %H:%M') if visita.atualizado_em else '—' }}</strong></div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Status selector
+function selectStatus(el) {
+  document.querySelectorAll('#statusBtns .btn-status').forEach(b => {
+    b.className = 'btn-status';
+  });
+  const val = el.dataset.val;
+  el.classList.add('selected-' + val);
+  document.getElementById('statusInput').value = val;
+}
+
+// Generic chip selector
+function selectChip(el, field) {
+  const container = el.parentElement;
+  container.querySelectorAll('.quick-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById(field + 'Input').value = el.dataset.val;
+}
+
+// When colaborador_id is selected, clear manual name
+document.getElementById('selColab').addEventListener('change', function() {
+  if (this.value) {
+    document.getElementById('inputColabNome').value = '';
+    document.getElementById('inputColabNome').disabled = true;
+  } else {
+    document.getElementById('inputColabNome').disabled = false;
+  }
+});
+
+// Init
+(function() {
+  const sel = document.getElementById('selColab');
+  if (sel.value) document.getElementById('inputColabNome').disabled = true;
+})();
+</script>
+{% endblock %}

@@ -156,6 +156,31 @@ class ComissionamentoDB(db.Model):
 
 
 # ─────────────────────────────────────────────────────────────────
+# TABELA: Controle de Visitas
+# ─────────────────────────────────────────────────────────────────
+
+class VisitaDB(db.Model):
+    __tablename__ = 'visitas'
+
+    id               = db.Column(db.Integer, primary_key=True)
+    regiao           = db.Column(db.String(100), nullable=False)          # RETAIL NN, RETAIL SS …
+    colaborador_id   = db.Column(db.Integer, db.ForeignKey('colaboradores.id'), nullable=True, index=True)
+    colaborador_nome = db.Column(db.String(200))                          # fallback quando sem vínculo
+    status           = db.Column(db.String(50), default='PLANEJADA', index=True)  # PLANEJADA | CONCLUIDA | CANCELADA
+    cliente          = db.Column(db.String(200), nullable=False)
+    data_visita      = db.Column(db.Date, nullable=False, index=True)
+    motivo           = db.Column(db.String(200))                          # STATUS REPORT | RELACIONAMENTO …
+    cda              = db.Column(db.String(50))                           # PENDENTE | NÃO ENVIADO | ASSINADO …
+    custo            = db.Column(db.String(50))                           # TEKNISA | CLIENTE | COMPARTILHADO
+    endereco         = db.Column(db.Text)
+    observacoes      = db.Column(db.Text)
+    criado_em        = db.Column(db.DateTime, default=datetime.now)
+    atualizado_em    = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
+
+    colaborador = db.relationship('ColaboradorDB', backref='visitas', foreign_keys=[colaborador_id])
+
+
+# ─────────────────────────────────────────────────────────────────
 # TABELA: Matriz de Permissões por Perfil
 # ─────────────────────────────────────────────────────────────────
 

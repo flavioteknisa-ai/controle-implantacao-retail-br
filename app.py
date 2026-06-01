@@ -45,7 +45,7 @@ import io
 from io import BytesIO
 
 from models import Colaborador, Ferias
-from database import db, User, ColaboradorDB, FeriasDB, ERPProjetoDB, ERPModuloDB, ERPUnidadeDB, ERPAtividadeDB, ComissionamentoDB, PermissaoPerfil
+from database import db, User, ColaboradorDB, FeriasDB, ERPProjetoDB, ERPModuloDB, ERPUnidadeDB, ERPAtividadeDB, ComissionamentoDB, PermissaoPerfil, VisitaDB
 from validators import FeriasValidator
 from analytics import FeriasAnalytics
 from erp_models import Projeto, Modulo, Unidade, Atividade
@@ -242,6 +242,10 @@ PERMISSOES_CATALOG = OrderedDict([
     ('exportar_comissionamentos',('Comissionamento', 'Exportar relatório Excel')),
     # ── Relatórios ───────────────────────────────────────────────
     ('ver_relatorios',           ('Relatórios',      'Acessar módulo de relatórios de comissão')),
+    # ── Visitas ──────────────────────────────────────────────────
+    ('ver_visitas',              ('Visitas',         'Ver lista e detalhes de visitas')),
+    ('criar_visita',             ('Visitas',         'Registrar nova visita')),
+    ('editar_visita',            ('Visitas',         'Editar e excluir visitas')),
 ])
 
 # Permissões padrão por perfil (usadas enquanto a tabela DB estiver vazia)
@@ -257,6 +261,7 @@ PERMISSOES_DEFAULT: dict = {
         'ver_timeline', 'ver_colaboradores', 'solicitar_ferias', 'registrar_ferias',
         'ver_comissionamentos', 'criar_comissionamento', 'exportar_comissionamentos',
         'ver_relatorios',
+        'ver_visitas', 'criar_visita', 'editar_visita',
     }),
     # gestor / master → is_gestor == True → sempre permitido (sem verificação no DB)
 }
@@ -2024,6 +2029,183 @@ def api_projetos():
             for c in criticos
         ]
     })
+
+# ─── Rotas: Controle de Visitas ──────────────────────────────────────────────
+
+VISITA_REGIOES = ['RETAIL NN', 'RETAIL SS', 'RETAIL NE', 'RETAIL CO', 'RETAIL SE', 'OUTRO']
+VISITA_MOTIVOS = ['STATUS REPORT', 'RELACIONAMENTO', 'IMPLANTAÇÃO', 'TREINAMENTO', 'SUPORTE', 'REUNIÃO', 'OUTROS']
+VISITA_STATUS  = ['PLANEJADA', 'CONCLUIDA', 'CANCELADA']
+VISITA_CDA     = ['PENDENTE', 'ASSINADO', 'NÃO ENVIADO', 'NÃO SE APLICA']
+VISITA_CUSTO   = ['TEKNISA', 'CLIENTE', 'COMPARTILHADO']
+
+
+@app.route('/visitas')
+@login_required
+@permission_required('ver_visitas')
+def listar_visitas():
+    # Filtros
+    f_status  = request.args.get('status', '')
+    f_regiao  = request.args.get('regiao', '')
+    f_colab   = request.args.get('colaborador', '')
+    f_motivo  = request.args.get('motivo', '')
+    f_ini     = request.args.get('data_ini', '')
+    f_fim     = request.args.get('data_fim', '')
+
+    q = VisitaDB.query
+    if f_status:  q = q.filter(VisitaDB.status   == f_status)
+    if f_regiao:  q = q.filter(VisitaDB.regiao    == f_regiao)
+    if f_motivo:  q = q.filter(VisitaDB.motivo    == f_motivo)
+    if f_colab:
+        try:
+            q = q.filter(VisitaDB.colaborador_id == int(f_colab))
+        except ValueError:
+            pass
+    if f_ini:
+        try:
+            q = q.filter(VisitaDB.data_visita >= datetime.strptime(f_ini, '%Y-%m-%d').date())
+        except ValueError:
+            pass
+    if f_fim:
+        try:
+            q = q.filter(VisitaDB.data_visita <= datetime.strptime(f_fim, '%Y-%m-%d').date())
+        except ValueError:
+            pass
+
+    visitas = q.order_by(VisitaDB.data_visita.desc()).all()
+
+    # Resumo para cards
+    todas = VisitaDB.query.all()
+    resumo = {
+        'total':      len(todas),
+        'planejadas': sum(1 for v in todas if v.status == 'PLANEJADA'),
+        'concluidas': sum(1 for v in todas if v.status == 'CONCLUIDA'),
+        'canceladas': sum(1 for v in todas if v.status == 'CANCELADA'),
+    }
+
+    colaboradores = ColaboradorDB.query.filter_by(ativo=True).order_by(ColaboradorDB.nome).all()
+
+    return render_template('visitas/lista_visitas.html',
+                           visitas=visitas, resumo=resumo,
+                           colaboradores=colaboradores,
+                           regioes=VISITA_REGIOES, motivos=VISITA_MOTIVOS,
+                           f_status=f_status, f_regiao=f_regiao,
+                           f_colab=f_colab, f_motivo=f_motivo,
+                           f_ini=f_ini, f_fim=f_fim)
+
+
+@app.route('/nova-visita', methods=['GET', 'POST'])
+@login_required
+@permission_required('criar_visita')
+def nova_visita():
+    colaboradores = ColaboradorDB.query.filter_by(ativo=True).order_by(ColaboradorDB.nome).all()
+
+    if request.method == 'POST':
+        cliente      = request.form.get('cliente', '').strip()
+        regiao       = request.form.get('regiao', '').strip()
+        data_str     = request.form.get('data_visita', '')
+        colaborador_id = request.form.get('colaborador_id') or None
+        if colaborador_id:
+            colaborador_id = int(colaborador_id)
+            colab = ColaboradorDB.query.get(colaborador_id)
+            colaborador_nome = colab.nome if colab else ''
+        else:
+            colaborador_nome = request.form.get('colaborador_nome', '').strip()
+
+        status      = request.form.get('status', 'PLANEJADA')
+        motivo      = request.form.get('motivo', '').strip()
+        cda         = request.form.get('cda', '').strip()
+        custo       = request.form.get('custo', '').strip()
+        endereco    = request.form.get('endereco', '').strip()
+        observacoes = request.form.get('observacoes', '').strip()
+
+        if not cliente:
+            flash('Nome do cliente é obrigatório.', 'danger')
+            return render_template('visitas/nova_visita.html',
+                                   colaboradores=colaboradores, regioes=VISITA_REGIOES,
+                                   motivos=VISITA_MOTIVOS, status_opts=VISITA_STATUS,
+                                   cda_opts=VISITA_CDA, custo_opts=VISITA_CUSTO)
+        try:
+            data_visita = datetime.strptime(data_str, '%Y-%m-%d').date()
+        except ValueError:
+            flash('Data da visita inválida.', 'danger')
+            return render_template('visitas/nova_visita.html',
+                                   colaboradores=colaboradores, regioes=VISITA_REGIOES,
+                                   motivos=VISITA_MOTIVOS, status_opts=VISITA_STATUS,
+                                   cda_opts=VISITA_CDA, custo_opts=VISITA_CUSTO)
+
+        v = VisitaDB(
+            regiao=regiao, colaborador_id=colaborador_id,
+            colaborador_nome=colaborador_nome, status=status,
+            cliente=cliente, data_visita=data_visita,
+            motivo=motivo, cda=cda, custo=custo,
+            endereco=endereco, observacoes=observacoes,
+        )
+        db.session.add(v)
+        db.session.commit()
+        flash(f'Visita a "{cliente}" registrada com sucesso!', 'success')
+        return redirect(url_for('listar_visitas'))
+
+    return render_template('visitas/nova_visita.html',
+                           colaboradores=colaboradores, regioes=VISITA_REGIOES,
+                           motivos=VISITA_MOTIVOS, status_opts=VISITA_STATUS,
+                           cda_opts=VISITA_CDA, custo_opts=VISITA_CUSTO,
+                           visita=None)
+
+
+@app.route('/editar-visita/<int:vid>', methods=['GET', 'POST'])
+@login_required
+@permission_required('editar_visita')
+def editar_visita(vid):
+    v = VisitaDB.query.get_or_404(vid)
+    colaboradores = ColaboradorDB.query.filter_by(ativo=True).order_by(ColaboradorDB.nome).all()
+
+    if request.method == 'POST':
+        v.cliente    = request.form.get('cliente', '').strip()
+        v.regiao     = request.form.get('regiao', '').strip()
+        data_str     = request.form.get('data_visita', '')
+        colab_id     = request.form.get('colaborador_id') or None
+        if colab_id:
+            v.colaborador_id   = int(colab_id)
+            colab = ColaboradorDB.query.get(v.colaborador_id)
+            v.colaborador_nome = colab.nome if colab else ''
+        else:
+            v.colaborador_id   = None
+            v.colaborador_nome = request.form.get('colaborador_nome', '').strip()
+
+        v.status      = request.form.get('status', 'PLANEJADA')
+        v.motivo      = request.form.get('motivo', '').strip()
+        v.cda         = request.form.get('cda', '').strip()
+        v.custo       = request.form.get('custo', '').strip()
+        v.endereco    = request.form.get('endereco', '').strip()
+        v.observacoes = request.form.get('observacoes', '').strip()
+        try:
+            v.data_visita = datetime.strptime(data_str, '%Y-%m-%d').date()
+        except ValueError:
+            flash('Data inválida.', 'danger')
+            return redirect(url_for('editar_visita', vid=vid))
+
+        db.session.commit()
+        flash(f'Visita atualizada!', 'success')
+        return redirect(url_for('listar_visitas'))
+
+    return render_template('visitas/nova_visita.html',
+                           visita=v, colaboradores=colaboradores,
+                           regioes=VISITA_REGIOES, motivos=VISITA_MOTIVOS,
+                           status_opts=VISITA_STATUS, cda_opts=VISITA_CDA,
+                           custo_opts=VISITA_CUSTO)
+
+
+@app.route('/excluir-visita/<int:vid>', methods=['POST'])
+@login_required
+@permission_required('editar_visita')
+def excluir_visita(vid):
+    v = VisitaDB.query.get_or_404(vid)
+    cliente = v.cliente
+    db.session.delete(v)
+    db.session.commit()
+    flash(f'Visita a "{cliente}" excluída.', 'warning')
+    return redirect(url_for('listar_visitas'))
+
 
 # ─── Inicialização do Banco (Vercel) ───────────────────────────────────────────
 
