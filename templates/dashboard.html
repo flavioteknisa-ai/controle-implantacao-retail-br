@@ -10,7 +10,7 @@
 <!-- Seção: Projetos Retail -->
 {% if proj_resumo %}
 <div style="margin-bottom: 32px;">
-  <h4 class="mb-3" style="font-size: 1.1rem; font-weight: 700; color: #1a237e;">
+  <h4 class="mb-3" style="font-size: 1.1rem; font-weight: 700; color: #0340AB;">
     <i class="bi bi-building me-2"></i>Projetos Retail
   </h4>
 
@@ -21,7 +21,7 @@
           <div class="icon-bg" style="background:#2196F3;"></div>
           <div class="stat-number" style="color:#2196F3;">{{ proj_resumo.total_projetos }}</div>
           <div class="stat-label"><i class="bi bi-building me-1"></i>Total de Projetos</div>
-          <div class="mt-2" style="font-size:.7rem;color:#1976D2;opacity:.8;">Ver todos →</div>
+          <div class="mt-2" style="font-size:.7rem;color:#0340AB;opacity:.8;">Ver todos →</div>
         </div>
       </a>
     </div>
@@ -89,10 +89,10 @@
   <div class="col-6 col-md-3">
     <a href="/colaboradores" style="text-decoration:none;color:inherit;">
       <div class="stat-card" style="cursor:pointer;transition:box-shadow .15s;">
-        <div class="icon-bg" style="background:#1a237e;"></div>
+        <div class="icon-bg" style="background:#0340AB;"></div>
         <div class="stat-number text-primary">{{ total_ativos }}</div>
         <div class="stat-label"><i class="bi bi-people-fill me-1"></i>Colaboradores ativos</div>
-        <div class="mt-2" style="font-size:.7rem;color:#3949ab;opacity:.8;">Ver lista →</div>
+        <div class="mt-2" style="font-size:.7rem;color:#1F56CF;opacity:.8;">Ver lista →</div>
       </div>
     </a>
   </div>
@@ -149,13 +149,13 @@
 
   <div class="col-6 col-md-3">
     <a href="/colaboradores" style="text-decoration:none;color:inherit;">
-      <div class="stat-card" style="cursor:pointer;border-top:3px solid #1565c0;">
-        <div class="icon-bg" style="background:#1565c0;"></div>
+      <div class="stat-card" style="cursor:pointer;border-top:3px solid #0340AB;">
+        <div class="icon-bg" style="background:#0340AB;"></div>
         <div class="d-flex align-items-center gap-2 mb-1">
-          <i class="bi bi-diagram-3-fill" style="color:#1565c0;font-size:.85rem;"></i>
-          <span style="font-size:.72rem;font-weight:700;color:#1565c0;text-transform:uppercase;letter-spacing:.5px;">Coordenadores</span>
+          <i class="bi bi-diagram-3-fill" style="color:#0340AB;font-size:.85rem;"></i>
+          <span style="font-size:.72rem;font-weight:700;color:#0340AB;text-transform:uppercase;letter-spacing:.5px;">Coordenadores</span>
         </div>
-        <div class="stat-number" style="color:#1565c0;font-size:1.8rem;">{{ contagem_cargos.coordenador }}</div>
+        <div class="stat-number" style="color:#0340AB;font-size:1.8rem;">{{ contagem_cargos.coordenador }}</div>
         <div class="stat-label">pessoa{{ 's' if contagem_cargos.coordenador != 1 }} coordenando</div>
       </div>
     </a>
@@ -194,14 +194,14 @@
 <!-- Solicitações pendentes (gestor) -->
 {% if current_user.is_gestor and solicitacoes_pendentes %}
 <div class="mb-4 fade-in">
-  <h6 class="fw-bold mb-3" style="color:#1565c0;">
+  <h6 class="fw-bold mb-3" style="color:#0340AB;">
     <i class="bi bi-hourglass-split me-1"></i>
     Solicitações Pendentes
-    <span class="badge ms-1" style="background:#1565c0;font-size:.7rem;">{{ solicitacoes_pendentes|length }}</span>
+    <span class="badge ms-1" style="background:#0340AB;font-size:.7rem;">{{ solicitacoes_pendentes|length }}</span>
   </h6>
   {% for s in solicitacoes_pendentes %}
   <div class="mb-2 d-flex align-items-start justify-content-between flex-wrap gap-2"
-       style="background:#f0f4ff;border:1px solid #c5cae9;border-left:4px solid #3949ab;border-radius:10px;padding:14px 16px;">
+       style="background:#f0f4ff;border:1px solid #c5cae9;border-left:4px solid #1F56CF;border-radius:10px;padding:14px 16px;">
     <div class="d-flex align-items-center gap-2">
       <div class="avatar" style="background:{{ s.cor }};width:32px;height:32px;font-size:.7rem;flex-shrink:0;">
         {{ s.colaborador.nome[:2].upper() }}

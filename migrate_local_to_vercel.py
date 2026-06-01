@@ -3,10 +3,15 @@
 Script para migrar dados do banco local para o Vercel online
 """
 import os
+import sys
 import sqlite3
 from datetime import datetime, date
 import requests
 import json
+
+# Configurar encoding para Windows
+if sys.platform == 'win32':
+    sys.stdout.reconfigure(encoding='utf-8')
 
 LOCAL_DB = 'data/ferias_data.db'
 VERCEL_URL = 'https://controle-implantacao-retail-br.vercel.app'
@@ -132,12 +137,22 @@ def main():
 
     print(f"\n✅ {sum(len(v) for k, v in data.items() if isinstance(v, list))} registros extraídos do banco local")
 
-    # Confirmar antes de enviar
+    # Se não tiver argumento --confirm, pedir confirmação
     print("\n" + "="*60)
-    response = input("✅ Deseja enviar estes dados para o Vercel? (s/n): ")
-    if response.lower() != 's':
-        print("❌ Migração cancelada")
-        return False
+    if '--confirm' not in sys.argv:
+        print("💡 Dica: Execute com --confirm para pular confirmação")
+        print("   python migrate_local_to_vercel.py --confirm")
+        try:
+            response = input("✅ Deseja enviar estes dados para o Vercel? (s/n): ")
+            if response.lower() != 's':
+                print("❌ Migração cancelada")
+                return False
+        except EOFError:
+            # Se não conseguir ler entrada (ex: Bash), usar --confirm
+            print("Nenhuma entrada de usuário detectada. Use: python migrate_local_to_vercel.py --confirm")
+            return False
+    else:
+        print("✅ Enviando dados automaticamente (--confirm)...")
 
     # Enviar para Vercel
     success = send_data_to_vercel(data)

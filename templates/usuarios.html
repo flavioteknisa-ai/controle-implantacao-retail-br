@@ -31,7 +31,7 @@
           <tr>
             <td class="ps-4 py-2">
               <div class="d-flex align-items-center gap-2">
-                <div class="avatar" style="background:{% if u.is_gestor %}#1a237e{% else %}#2e7d32{% endif %};">
+                <div class="avatar" style="background:{% if u.is_gestor %}#0340AB{% else %}#2e7d32{% endif %};">
                   {{ u.nome[:2].upper() }}
                 </div>
                 <div>
@@ -47,7 +47,7 @@
             </td>
             <td class="py-2">
               {% if u.is_gestor %}
-              <span class="badge" style="background:#1a237e;font-size:.72rem;">
+              <span class="badge" style="background:#0340AB;font-size:.72rem;">
                 <i class="bi bi-shield-fill-check me-1"></i>Gestor
               </span>
               {% else %}
