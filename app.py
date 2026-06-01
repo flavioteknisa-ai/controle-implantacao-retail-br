@@ -2033,9 +2033,9 @@ def api_projetos():
 
 # ─── Rotas: Controle de Visitas ──────────────────────────────────────────────
 
-VISITA_REGIOES = ['RETAIL NN', 'RETAIL SS', 'RETAIL NE', 'RETAIL CO', 'RETAIL SE', 'OUTRO']
-VISITA_MOTIVOS = ['STATUS REPORT', 'RELACIONAMENTO', 'IMPLANTAÇÃO', 'TREINAMENTO', 'SUPORTE', 'REUNIÃO', 'OUTROS']
-VISITA_STATUS  = ['PLANEJADA', 'CONCLUIDA', 'CANCELADA']
+VISITA_REGIOES = ['Retail BR SS', 'Retail BR NN']
+VISITA_MOTIVOS = ['STATUS REPORT', 'RELACIONAMENTO']
+VISITA_STATUS  = ['PLANEJADA', 'CONCLUIDA']
 VISITA_CDA     = ['PENDENTE', 'ASSINADO', 'NÃO ENVIADO', 'NÃO SE APLICA']
 VISITA_CUSTO   = ['TEKNISA', 'CLIENTE', 'COMPARTILHADO']
 
@@ -2211,105 +2211,184 @@ def excluir_visita(vid):
     return redirect(url_for('listar_visitas'))
 
 
-@app.route('/importar-visitas', methods=['GET', 'POST'])
+@app.route('/visitas/dashboard')
 @login_required
-@permission_required('criar_visita')
-def importar_visitas():
-    """Importa visitas de arquivo CSV/XLSX"""
-    if request.method == 'GET':
-        return render_template('visitas/importar_visitas.html')
+@permission_required('ver_visitas')
+def dashboard_visitas():
+    """Dashboard analítico de visitas com gráficos por colaborador, região, período e motivo."""
+    from collections import defaultdict, Counter
+    import calendar as cal_mod
 
-    if 'file' not in request.files:
-        flash('Nenhum arquivo enviado.', 'danger')
-        return redirect(url_for('importar_visitas'))
+    todas = VisitaDB.query.order_by(VisitaDB.data_visita).all()
 
-    file = request.files['file']
-    if not file.filename:
-        flash('Arquivo vazio.', 'danger')
-        return redirect(url_for('importar_visitas'))
+    # ── Filtro de período (ano) ──────────────────────────────────
+    anos_disponiveis = sorted({v.data_visita.year for v in todas}, reverse=True)
+    ano_sel = int(request.args.get('ano', datetime.now().year))
+    regiao_sel = request.args.get('regiao', '')
 
-    try:
-        import io
-        df = pd.read_excel(io.BytesIO(file.read())) if file.filename.endswith(('xlsx','xls')) else \
-             pd.read_csv(io.BytesIO(file.read()), encoding='utf-8')
+    visitas = [v for v in todas if v.data_visita.year == ano_sel]
+    if regiao_sel:
+        visitas = [v for v in visitas if v.regiao == regiao_sel]
 
-        # Mapeamento de colunas (case-insensitive)
-        cols_map = {col.lower().strip(): col for col in df.columns}
+    total   = len(visitas)
+    concluidas = sum(1 for v in visitas if v.status == 'CONCLUIDA')
+    planejadas = sum(1 for v in visitas if v.status == 'PLANEJADA')
+    taxa = round(concluidas / total * 100) if total else 0
 
-        # Função para encontrar coluna
-        def find_col(name):
-            return cols_map.get(name.lower(), None)
+    # ── Por colaborador ──────────────────────────────────────────
+    colab_count = defaultdict(lambda: {'total': 0, 'concluidas': 0, 'planejadas': 0})
+    for v in visitas:
+        nome = v.colaborador_nome or (v.colaborador.nome if v.colaborador else 'Não informado')
+        colab_count[nome]['total'] += 1
+        colab_count[nome]['concluidas' if v.status == 'CONCLUIDA' else 'planejadas'] += 1
+    colab_sorted = sorted(colab_count.items(), key=lambda x: x[1]['total'], reverse=True)
+    chart_colab = {
+        'labels': [c[0] for c in colab_sorted],
+        'concluidas': [c[1]['concluidas'] for c in colab_sorted],
+        'planejadas':  [c[1]['planejadas']  for c in colab_sorted],
+    }
 
-        col_regiao = find_col('região') or find_col('regiao')
-        col_colab  = find_col('colaborador')
-        col_status = find_col('status')
-        col_cliente = find_col('cliente')
-        col_data   = find_col('data de visita') or find_col('data_visita')
-        col_motivo = find_col('motivo')
-        col_cda    = find_col('cda')
-        col_custo  = find_col('custo')
-        col_end    = find_col('endereço') or find_col('endereco')
+    # ── Por mês ──────────────────────────────────────────────────
+    meses_pt = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
+    mes_data  = defaultdict(lambda: {'concluidas': 0, 'planejadas': 0})
+    for v in visitas:
+        m = v.data_visita.month - 1
+        mes_data[m]['concluidas' if v.status == 'CONCLUIDA' else 'planejadas'] += 1
+    chart_mes = {
+        'labels': meses_pt,
+        'concluidas': [mes_data[i]['concluidas'] for i in range(12)],
+        'planejadas':  [mes_data[i]['planejadas']  for i in range(12)],
+    }
 
-        if not all([col_cliente, col_data]):
-            flash('Arquivo deve ter colunas: Cliente e Data de Visita', 'danger')
-            return redirect(url_for('importar_visitas'))
+    # ── Por motivo ────────────────────────────────────────────────
+    motivo_count = Counter(v.motivo or 'Não informado' for v in visitas)
+    chart_motivo = {
+        'labels': list(motivo_count.keys()),
+        'values': list(motivo_count.values()),
+    }
 
-        # Buscar colaboradores para vínculo
-        colabs_map = {c.nome.lower(): c.id for c in ColaboradorDB.query.all()}
+    # ── Por região ────────────────────────────────────────────────
+    regiao_count = Counter(v.regiao or 'Não informada' for v in visitas)
+    chart_regiao = {
+        'labels': list(regiao_count.keys()),
+        'values': list(regiao_count.values()),
+    }
 
-        imported_count = 0
-        for idx, row in df.iterrows():
-            try:
-                cliente = str(row[col_cliente]).strip()
-                if not cliente or pd.isna(cliente):
-                    continue
+    # ── Por CDA ──────────────────────────────────────────────────
+    cda_count = Counter(v.cda or 'Não informado' for v in visitas)
+    chart_cda = {
+        'labels': list(cda_count.keys()),
+        'values': list(cda_count.values()),
+    }
 
-                # Data
-                data_str = str(row[col_data]).strip()
-                try:
-                    if '/' in data_str:
-                        data_visita = datetime.strptime(data_str, '%d/%m/%Y').date()
-                    else:
-                        data_visita = pd.to_datetime(data_str).date()
-                except:
-                    continue
+    # ── Top 10 clientes ──────────────────────────────────────────
+    cliente_count = Counter(v.cliente for v in visitas)
+    top_clientes  = cliente_count.most_common(10)
 
-                # Colaborador
-                colab_nome = str(row[col_colab]).strip() if col_colab and pd.notna(row[col_colab]) else ''
-                colab_id = colabs_map.get(colab_nome.lower()) if colab_nome else None
+    # ── Evolução mensal acumulada ─────────────────────────────────
+    acum_total = 0
+    chart_evolucao = {'labels': meses_pt, 'values': []}
+    for i in range(12):
+        acum_total += mes_data[i]['concluidas'] + mes_data[i]['planejadas']
+        chart_evolucao['values'].append(acum_total)
 
-                # Outros campos
-                regiao = str(row[col_regiao]).strip() if col_regiao and pd.notna(row[col_regiao]) else ''
-                status = str(row[col_status]).strip() if col_status and pd.notna(row[col_status]) else 'PLANEJADA'
-                motivo = str(row[col_motivo]).strip() if col_motivo and pd.notna(row[col_motivo]) else ''
-                cda    = str(row[col_cda]).strip() if col_cda and pd.notna(row[col_cda]) else ''
-                custo  = str(row[col_custo]).strip() if col_custo and pd.notna(row[col_custo]) else ''
-                endereco = str(row[col_end]).strip() if col_end and pd.notna(row[col_end]) else ''
+    return render_template('visitas/dashboard_visitas.html',
+        total=total, concluidas=concluidas, planejadas=planejadas, taxa=taxa,
+        chart_colab=chart_colab, chart_mes=chart_mes, chart_motivo=chart_motivo,
+        chart_regiao=chart_regiao, chart_cda=chart_cda, chart_evolucao=chart_evolucao,
+        top_clientes=top_clientes,
+        anos=anos_disponiveis, ano_sel=ano_sel,
+        regioes=VISITA_REGIOES, regiao_sel=regiao_sel,
+    )
 
-                # Verificar se já existe
-                existing = VisitaDB.query.filter_by(cliente=cliente, data_visita=data_visita).first()
-                if existing:
-                    continue
 
-                v = VisitaDB(
-                    cliente=cliente, data_visita=data_visita,
-                    regiao=regiao, colaborador_id=colab_id,
-                    colaborador_nome=colab_nome,
-                    status=status, motivo=motivo, cda=cda,
-                    custo=custo, endereco=endereco
-                )
-                db.session.add(v)
-                imported_count += 1
-            except Exception as e:
-                continue
+@app.route('/ferias-consolidado')
+@login_required
+@permission_required('ver_timeline')
+def ferias_consolidado():
+    """Dashboard consolidado de férias: saldos, aprovações pendentes, próximas saídas."""
+    colaboradores_raw, ferias_plan, ferias_real = carregar_tudo()
+    colaboradores = sort_colaboradores(colaboradores_raw)
+    hoje          = datetime.now().date()
 
-        db.session.commit()
-        flash(f'Importadas {imported_count} visitas com sucesso!', 'success')
-        return redirect(url_for('listar_visitas'))
+    # Filtros
+    f_cargo = request.args.get('cargo', '')
+    f_uf    = request.args.get('uf', '')
 
-    except Exception as e:
-        flash(f'Erro ao processar arquivo: {str(e)}', 'danger')
-        return redirect(url_for('importar_visitas'))
+    colabs_filtrados = [c for c in colaboradores
+                        if (not f_cargo or c.cargo == f_cargo)
+                        and (not f_uf or c.uf == f_uf)]
+
+    # Mapa rápido de férias por colaborador
+    ferias_map = defaultdict(list) if True else {}
+    from collections import defaultdict as _dd
+    ferias_por_colab = _dd(list)
+    for f in ferias_real + ferias_plan:
+        ferias_por_colab[f.colaborador_id].append(f)
+
+    # Saldos e status por colaborador
+    registros = []
+    for c in colabs_filtrados:
+        freal = [f for f in ferias_real if f.colaborador_id == c.id]
+        fplan = [f for f in ferias_plan if f.colaborador_id == c.id]
+        saldo = saldo_colab(c, freal, fplan)
+
+        # Próximas férias planejadas
+        proximas = sorted([f for f in fplan
+                           if f.data_inicio and f.data_inicio >= hoje],
+                          key=lambda f: f.data_inicio)
+        proxima  = proximas[0] if proximas else None
+
+        # Férias em curso
+        em_curso = next((f for f in fplan
+                         if f.data_inicio and f.data_fim
+                         and f.data_inicio <= hoje <= f.data_fim), None)
+
+        # Dias usados no ano corrente
+        ano_atual = hoje.year
+        dias_usados = sum(f.dias for f in freal
+                          if f.data_inicio and f.data_inicio.year == ano_atual)
+
+        status_saldo = ('critico' if saldo < 0 else
+                        'alerta'  if saldo < 10 else
+                        'ok')
+
+        registros.append({
+            'colab': c,
+            'saldo': saldo,
+            'status_saldo': status_saldo,
+            'proxima': proxima,
+            'em_curso': em_curso,
+            'dias_usados_ano': dias_usados,
+            'pendentes': sum(1 for f in fplan if getattr(f, 'status', '') == 'Pendente'),
+        })
+
+    # Totais para KPIs
+    total_colab      = len(colabs_filtrados)
+    em_ferias_hoje   = sum(1 for r in registros if r['em_curso'])
+    saldo_critico    = sum(1 for r in registros if r['status_saldo'] == 'critico')
+    saldo_alerta     = sum(1 for r in registros if r['status_saldo'] == 'alerta')
+    pendentes_total  = sum(r['pendentes'] for r in registros)
+    proximos_30      = sum(1 for r in registros
+                           if r['proxima'] and
+                           (r['proxima'].data_inicio - hoje).days <= 30)
+
+    # Ordenar: críticos primeiro, depois alerta, depois OK
+    ordem = {'critico': 0, 'alerta': 1, 'ok': 2}
+    registros.sort(key=lambda r: (ordem[r['status_saldo']], r['colab'].nome))
+
+    # Opções de filtro
+    cargos_opts = sorted({c.cargo for c in colaboradores if c.cargo})
+    ufs_opts    = sorted({c.uf for c in colaboradores if c.uf})
+
+    return render_template('ferias/consolidado.html',
+        registros=registros, hoje=hoje,
+        total_colab=total_colab, em_ferias_hoje=em_ferias_hoje,
+        saldo_critico=saldo_critico, saldo_alerta=saldo_alerta,
+        pendentes_total=pendentes_total, proximos_30=proximos_30,
+        f_cargo=f_cargo, f_uf=f_uf,
+        cargos_opts=cargos_opts, ufs_opts=ufs_opts,
+    )
 
 
 # ─── Inicialização do Banco (Vercel) ───────────────────────────────────────────

@@ -26,14 +26,9 @@
       <p>Acompanhamento de visitas comerciais e técnicas</p>
     </div>
     {% if tem_perm('criar_visita') %}
-    <div class="d-flex gap-2">
-      <a href="/nova-visita" class="btn btn-primary">
-        <i class="bi bi-plus-circle me-1"></i>Nova Visita
-      </a>
-      <a href="/importar-visitas" class="btn btn-outline-primary">
-        <i class="bi bi-upload me-1"></i>Importar Planilha
-      </a>
-    </div>
+    <a href="/nova-visita" class="btn btn-primary">
+      <i class="bi bi-plus-circle me-1"></i>Nova Visita
+    </a>
     {% endif %}
   </div>
 </div>

@@ -1,0 +1,226 @@
+{% extends "base.html" %}
+{% block title %}Férias Consolidado · {{ super() }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.kpi-card { background:#fff; border-radius:14px; padding:20px 24px; border:1px solid #eee;
+            box-shadow:0 2px 8px rgba(0,0,0,.06); position:relative; overflow:hidden; }
+.kpi-card .kpi-accent { position:absolute; left:0; top:0; bottom:0; width:5px; border-radius:14px 0 0 14px; }
+.kpi-card .kpi-val   { font-size:2rem; font-weight:800; line-height:1; }
+.kpi-card .kpi-label { font-size:.75rem; color:#888; text-transform:uppercase; letter-spacing:.8px; margin-top:4px; }
+.kpi-card .kpi-icon  { position:absolute; right:18px; top:18px; font-size:1.8rem; opacity:.12; }
+
+.saldo-ok      { color:#2e7d32; font-weight:700; }
+.saldo-alerta  { color:#f57f17; font-weight:700; }
+.saldo-critico { color:#b71c1c; font-weight:700; }
+
+.row-critico   { background: rgba(183,28,28,.04) !important; border-left:4px solid #b71c1c; }
+.row-alerta    { background: rgba(245,127,23,.04) !important; border-left:4px solid #f57f17; }
+.row-ok        { border-left:4px solid transparent; }
+
+.progress-saldo { height:7px; border-radius:4px; background:#f0f0f0; }
+.progress-fill  { height:100%; border-radius:4px; transition: width .3s; }
+
+.tag-ferias { font-size:.68rem; padding:2px 8px; border-radius:20px; font-weight:600; }
+.tag-em-curso   { background:#e8f5e9; color:#2e7d32; }
+.tag-planejada  { background:#e3f2fd; color:#0340AB; }
+.tag-nenhuma    { background:#f5f5f5; color:#9e9e9e; }
+
+.filter-pill { border-radius:20px; font-size:.8rem; padding:5px 14px; border:1px solid #ddd;
+               background:#fff; cursor:pointer; transition:all .15s; text-decoration:none; color:#333; }
+.filter-pill:hover { background:#f5f5f5; color:#333; }
+.filter-pill.active { background:#808080; color:#fff; border-color:#808080; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+    <div>
+      <h2><i class="bi bi-calendar-heart-fill me-2"></i>Férias Consolidado</h2>
+      <p>Visão geral de saldos, aprovações e programação de férias</p>
+    </div>
+    <a href="/timeline" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-bar-chart-steps me-1"></i>Ver Timeline
+    </a>
+  </div>
+</div>
+
+<!-- KPI Cards -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-2">
+    <div class="kpi-card">
+      <div class="kpi-accent" style="background:#808080;"></div>
+      <div class="kpi-icon"><i class="bi bi-people-fill"></i></div>
+      <div class="kpi-val" style="color:#808080;">{{ total_colab }}</div>
+      <div class="kpi-label">Colaboradores</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="kpi-card">
+      <div class="kpi-accent" style="background:#2e7d32;"></div>
+      <div class="kpi-icon"><i class="bi bi-umbrella-fill"></i></div>
+      <div class="kpi-val" style="color:#2e7d32;">{{ em_ferias_hoje }}</div>
+      <div class="kpi-label">Em Férias Hoje</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="kpi-card">
+      <div class="kpi-accent" style="background:#0340AB;"></div>
+      <div class="kpi-icon"><i class="bi bi-calendar-check-fill"></i></div>
+      <div class="kpi-val" style="color:#0340AB;">{{ proximos_30 }}</div>
+      <div class="kpi-label">Saídas em 30 dias</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="kpi-card">
+      <div class="kpi-accent" style="background:#f57f17;"></div>
+      <div class="kpi-icon"><i class="bi bi-hourglass-split"></i></div>
+      <div class="kpi-val" style="color:#f57f17;">{{ pendentes_total }}</div>
+      <div class="kpi-label">Pendentes Aprovação</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="kpi-card">
+      <div class="kpi-accent" style="background:#f57f17;"></div>
+      <div class="kpi-icon"><i class="bi bi-exclamation-triangle-fill"></i></div>
+      <div class="kpi-val" style="color:#f57f17;">{{ saldo_alerta }}</div>
+      <div class="kpi-label">Saldo em Alerta</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="kpi-card">
+      <div class="kpi-accent" style="background:#b71c1c;"></div>
+      <div class="kpi-icon"><i class="bi bi-x-circle-fill"></i></div>
+      <div class="kpi-val" style="color:#b71c1c;">{{ saldo_critico }}</div>
+      <div class="kpi-label">Saldo Crítico</div>
+    </div>
+  </div>
+</div>
+
+<!-- Filtros -->
+<div class="card mb-3">
+  <div class="card-body py-2 px-3">
+    <form method="GET" action="/ferias-consolidado" class="d-flex flex-wrap gap-2 align-items-center">
+      <label class="small fw-semibold text-muted me-1">Cargo:</label>
+      <a href="/ferias-consolidado{% if f_uf %}?uf={{ f_uf }}{% endif %}"
+         class="filter-pill {% if not f_cargo %}active{% endif %}">Todos</a>
+      {% for cargo in cargos_opts %}
+      <a href="/ferias-consolidado?cargo={{ cargo }}{% if f_uf %}&uf={{ f_uf }}{% endif %}"
+         class="filter-pill {% if f_cargo == cargo %}active{% endif %}">{{ cargo }}</a>
+      {% endfor %}
+
+      {% if ufs_opts %}
+      <span class="text-muted small ms-3 me-1 fw-semibold">UF:</span>
+      <a href="/ferias-consolidado{% if f_cargo %}?cargo={{ f_cargo }}{% endif %}"
+         class="filter-pill {% if not f_uf %}active{% endif %}">Todas</a>
+      {% for uf in ufs_opts %}
+      <a href="/ferias-consolidado?uf={{ uf }}{% if f_cargo %}&cargo={{ f_cargo }}{% endif %}"
+         class="filter-pill {% if f_uf == uf %}active{% endif %}">{{ uf }}</a>
+      {% endfor %}
+      {% endif %}
+    </form>
+  </div>
+</div>
+
+<!-- Tabela consolidada -->
+<div class="card">
+  <div class="card-header dark d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-table me-2"></i>Situação de Férias por Colaborador ({{ registros|length }})</span>
+    <div class="d-flex gap-3 small text-white opacity-75">
+      <span><i class="bi bi-square-fill me-1" style="color:#b71c1c;"></i>Crítico</span>
+      <span><i class="bi bi-square-fill me-1" style="color:#f57f17;"></i>Alerta</span>
+      <span><i class="bi bi-square-fill me-1" style="color:#2e7d32;"></i>OK</span>
+    </div>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0" style="font-size:.83rem;">
+        <thead class="bg-light">
+          <tr>
+            <th style="width:22%;">Colaborador</th>
+            <th style="width:10%;">Cargo / UF</th>
+            <th style="width:13%;text-align:center;">Saldo Atual</th>
+            <th style="width:12%;text-align:center;">Dias Usados ({{ hoje.year }})</th>
+            <th style="width:8%;text-align:center;">Pendentes</th>
+            <th style="width:16%;">Status Atual</th>
+            <th style="width:19%;">Próxima Saída</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in registros %}
+          {% set c = r.colab %}
+          <tr class="row-{{ r.status_saldo }}">
+            <td>
+              <strong>{{ c.nome }}</strong>
+              <div class="text-muted" style="font-size:.7rem;">
+                {{ c.cargo or '' }}{% if c.uf %} · {{ c.uf }}{% endif %}
+              </div>
+            </td>
+            <td class="small text-muted">{{ c.cargo or '—' }}<br>{{ c.uf or '—' }}</td>
+            <td style="text-align:center;">
+              <div class="saldo-{{ r.status_saldo }}">{{ r.saldo }} dias</div>
+              <div class="progress-saldo mt-1">
+                <div class="progress-fill"
+                  style="width:{{ [r.saldo, 0]|max / 30 * 100 if r.saldo > 0 else 0 }}%;
+                         background:{% if r.status_saldo == 'critico' %}#b71c1c{% elif r.status_saldo == 'alerta' %}#f57f17{% else %}#2e7d32{% endif %};">
+                </div>
+              </div>
+            </td>
+            <td style="text-align:center;" class="small">{{ r.dias_usados_ano }} dias</td>
+            <td style="text-align:center;">
+              {% if r.pendentes > 0 %}
+              <span class="badge" style="background:#fff3e0;color:#e65100;">{{ r.pendentes }}</span>
+              {% else %}<span class="text-muted">—</span>{% endif %}
+            </td>
+            <td>
+              {% if r.em_curso %}
+              <span class="tag-ferias tag-em-curso">
+                <i class="bi bi-umbrella-fill me-1"></i>Em férias
+              </span>
+              <div class="text-muted small mt-1">
+                até {{ r.em_curso.data_fim.strftime('%d/%m') if r.em_curso.data_fim else '?' }}
+              </div>
+              {% else %}
+              <span class="tag-ferias tag-nenhuma">—</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if r.proxima %}
+              <span class="tag-ferias tag-planejada">
+                <i class="bi bi-calendar-event me-1"></i>
+                {{ r.proxima.data_inicio.strftime('%d/%m/%Y') }}
+              </span>
+              <div class="text-muted small mt-1">
+                {{ r.proxima.dias }} dias ·
+                {% set dias_para = (r.proxima.data_inicio - hoje).days %}
+                {% if dias_para <= 7 %}
+                <span class="text-danger fw-bold">em {{ dias_para }}d</span>
+                {% elif dias_para <= 30 %}
+                <span style="color:#e65100;">em {{ dias_para }}d</span>
+                {% else %}
+                em {{ dias_para }} dias
+                {% endif %}
+              </div>
+              {% else %}
+              <span class="text-muted small">Sem programação</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+          {% if not registros %}
+          <tr><td colspan="7" class="text-center text-muted py-5">
+            <i class="bi bi-calendar-x" style="font-size:2rem;opacity:.3;"></i>
+            <p class="mt-2 mb-0">Nenhum colaborador encontrado.</p>
+          </td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="card-footer text-muted small py-2">
+    <i class="bi bi-info-circle me-1"></i>
+    Saldo <strong>crítico</strong>: negativo — <strong>alerta</strong>: menos de 10 dias — <strong>ok</strong>: 10+ dias
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,306 @@
+{% extends "base.html" %}
+{% block title %}Dashboard de Visitas · {{ super() }}{% endblock %}
+
+{% block extra_css %}
+<style>
+:root { --v-blue:#0340AB; --v-green:#2e7d32; --v-gray:#808080; --v-orange:#e65100; }
+.kpi-card { background:#fff; border-radius:14px; padding:20px 24px; border:1px solid #eee;
+            box-shadow:0 2px 8px rgba(0,0,0,.06); position:relative; overflow:hidden; }
+.kpi-card .kpi-accent { position:absolute; left:0; top:0; bottom:0; width:5px; border-radius:14px 0 0 14px; }
+.kpi-card .kpi-val   { font-size:2.2rem; font-weight:800; line-height:1; }
+.kpi-card .kpi-label { font-size:.78rem; color:#888; text-transform:uppercase; letter-spacing:.8px; margin-top:4px; }
+.kpi-card .kpi-icon  { position:absolute; right:18px; top:18px; font-size:1.8rem; opacity:.15; }
+.chart-card { background:#fff; border-radius:14px; padding:20px; border:1px solid #eee;
+              box-shadow:0 2px 8px rgba(0,0,0,.06); }
+.chart-title { font-size:.8rem; font-weight:700; text-transform:uppercase; letter-spacing:.8px;
+               color:#555; margin-bottom:14px; display:flex; align-items:center; gap:8px; }
+.filter-pill { border-radius:20px; font-size:.8rem; padding:6px 14px; border:1px solid #ddd;
+               background:#fff; cursor:pointer; transition:all .15s; }
+.filter-pill:hover { background:#f5f5f5; }
+.filter-pill.active { background:var(--v-blue); color:#fff; border-color:var(--v-blue); }
+.top-client-bar { height:8px; border-radius:4px; background:#e0e0e0; overflow:hidden; }
+.top-client-fill { height:100%; border-radius:4px; background:var(--v-blue); }
+.taxa-circle { width:90px; height:90px; border-radius:50%;
+               background:conic-gradient(var(--v-green) 0% {{ taxa }}%, #eee {{ taxa }}% 100%);
+               display:flex; align-items:center; justify-content:center; }
+.taxa-inner  { width:66px; height:66px; border-radius:50%; background:#fff;
+               display:flex; align-items:center; justify-content:center;
+               font-size:1rem; font-weight:800; color:var(--v-green); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+    <div>
+      <h2><i class="bi bi-bar-chart-line-fill me-2"></i>Dashboard de Visitas</h2>
+      <p>Indicadores e análises do controle de visitas comerciais</p>
+    </div>
+    <a href="/visitas" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-list-ul me-1"></i>Lista de Visitas
+    </a>
+  </div>
+</div>
+
+<!-- Filtros de período e região -->
+<div class="d-flex flex-wrap gap-2 mb-4 align-items-center">
+  <span class="text-muted small fw-semibold me-1">ANO:</span>
+  {% for a in anos %}
+  <a href="/visitas/dashboard?ano={{ a }}{% if regiao_sel %}&regiao={{ regiao_sel }}{% endif %}"
+     class="filter-pill {% if ano_sel == a %}active{% endif %}">{{ a }}</a>
+  {% endfor %}
+  {% if not anos %}<span class="text-muted small">Sem dados</span>{% endif %}
+  <span class="text-muted small fw-semibold ms-3 me-1">REGIÃO:</span>
+  <a href="/visitas/dashboard?ano={{ ano_sel }}"
+     class="filter-pill {% if not regiao_sel %}active{% endif %}">Todas</a>
+  {% for r in regioes %}
+  <a href="/visitas/dashboard?ano={{ ano_sel }}&regiao={{ r }}"
+     class="filter-pill {% if regiao_sel == r %}active{% endif %}">{{ r }}</a>
+  {% endfor %}
+</div>
+
+<!-- KPI Cards -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-accent" style="background:var(--v-blue);"></div>
+      <div class="kpi-icon"><i class="bi bi-geo-alt-fill"></i></div>
+      <div class="kpi-val" style="color:var(--v-blue);">{{ total }}</div>
+      <div class="kpi-label">Total de Visitas</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-accent" style="background:var(--v-green);"></div>
+      <div class="kpi-icon"><i class="bi bi-check-circle-fill"></i></div>
+      <div class="kpi-val" style="color:var(--v-green);">{{ concluidas }}</div>
+      <div class="kpi-label">Concluídas</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-accent" style="background:#0277bd;"></div>
+      <div class="kpi-icon"><i class="bi bi-calendar-event"></i></div>
+      <div class="kpi-val" style="color:#0277bd;">{{ planejadas }}</div>
+      <div class="kpi-label">Planejadas</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-accent" style="background:var(--v-green);"></div>
+      <div class="kpi-icon"><i class="bi bi-trophy-fill"></i></div>
+      <div class="d-flex align-items-center gap-3">
+        <div>
+          <div class="kpi-val" style="color:var(--v-green);">{{ taxa }}%</div>
+          <div class="kpi-label">Taxa de Conclusão</div>
+        </div>
+        <div class="taxa-circle ms-auto">
+          <div class="taxa-inner">{{ taxa }}%</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Linha 1: Visitas por Colaborador + Evolução Mensal -->
+<div class="row g-3 mb-3">
+  <!-- Visitas por colaborador - horizontal bar -->
+  <div class="col-lg-8">
+    <div class="chart-card">
+      <div class="chart-title">
+        <i class="bi bi-person-lines-fill text-primary"></i>
+        Visitas por Colaborador
+      </div>
+      <div style="max-height:320px; overflow-y:auto;">
+        <canvas id="chartColab" style="min-height:280px;"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Distribuição por Região -->
+  <div class="col-lg-4">
+    <div class="chart-card h-100">
+      <div class="chart-title">
+        <i class="bi bi-pie-chart-fill text-warning"></i>
+        Por Região
+      </div>
+      <canvas id="chartRegiao" style="max-height:280px;"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- Linha 2: Por Mês + Por Motivo + CDA -->
+<div class="row g-3 mb-3">
+  <!-- Evolução mensal -->
+  <div class="col-lg-7">
+    <div class="chart-card">
+      <div class="chart-title">
+        <i class="bi bi-graph-up text-success"></i>
+        Visitas por Mês — {{ ano_sel }}
+      </div>
+      <canvas id="chartMes" style="max-height:260px;"></canvas>
+    </div>
+  </div>
+
+  <!-- Por Motivo -->
+  <div class="col-lg-5">
+    <div class="chart-card">
+      <div class="chart-title">
+        <i class="bi bi-tags-fill text-info"></i>
+        Por Motivo da Visita
+      </div>
+      <canvas id="chartMotivo" style="max-height:260px;"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- Linha 3: CDA + Top Clientes -->
+<div class="row g-3 mb-4">
+  <!-- CDA -->
+  <div class="col-lg-5">
+    <div class="chart-card">
+      <div class="chart-title">
+        <i class="bi bi-file-earmark-check-fill" style="color:#e65100;"></i>
+        Status CDA
+      </div>
+      <canvas id="chartCda" style="max-height:240px;"></canvas>
+    </div>
+  </div>
+
+  <!-- Top Clientes -->
+  <div class="col-lg-7">
+    <div class="chart-card">
+      <div class="chart-title">
+        <i class="bi bi-building text-primary"></i>
+        Top Clientes Visitados
+      </div>
+      {% if top_clientes %}
+      {% set max_visits = top_clientes[0][1] %}
+      {% for cliente, qtd in top_clientes %}
+      <div class="mb-2">
+        <div class="d-flex justify-content-between align-items-center mb-1">
+          <span class="small fw-semibold text-truncate" style="max-width:75%;">{{ cliente }}</span>
+          <span class="badge bg-primary rounded-pill">{{ qtd }}</span>
+        </div>
+        <div class="top-client-bar">
+          <div class="top-client-fill" style="width:{{ (qtd / max_visits * 100)|round }}%;"></div>
+        </div>
+      </div>
+      {% endfor %}
+      {% else %}
+      <div class="text-center text-muted py-4 small">Sem dados para o período</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+const BLUE    = '#0340AB';
+const BLUE_L  = 'rgba(3,64,171,.15)';
+const GREEN   = '#2e7d32';
+const GREEN_L = 'rgba(46,125,50,.15)';
+const GRAY    = '#808080';
+const ORANGE  = '#e65100';
+const PALETTE = ['#0340AB','#2e7d32','#f57f17','#880e4f','#0277bd','#558b2f','#e65100','#6a1b9a'];
+
+Chart.defaults.font.family = "'Segoe UI', sans-serif";
+Chart.defaults.font.size   = 12;
+Chart.defaults.plugins.legend.labels.boxWidth = 12;
+
+/* ── Colaboradores ─────────────────────────────────── */
+new Chart(document.getElementById('chartColab'), {
+  type: 'bar',
+  data: {
+    labels: {{ chart_colab.labels | tojson }},
+    datasets: [
+      { label: 'Concluídas', data: {{ chart_colab.concluidas | tojson }}, backgroundColor: GREEN, borderRadius: 4 },
+      { label: 'Planejadas',  data: {{ chart_colab.planejadas  | tojson }}, backgroundColor: BLUE,  borderRadius: 4 },
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    indexAxis: 'y',
+    plugins: { legend: { position: 'bottom' } },
+    scales: {
+      x: { stacked: true, grid: { color: '#f0f0f0' } },
+      y: { stacked: true, ticks: { font: { size: 11 } } }
+    }
+  }
+});
+
+/* ── Mensal ─────────────────────────────────────────── */
+new Chart(document.getElementById('chartMes'), {
+  type: 'bar',
+  data: {
+    labels: {{ chart_mes.labels | tojson }},
+    datasets: [
+      { label: 'Concluídas', data: {{ chart_mes.concluidas | tojson }},
+        backgroundColor: GREEN, borderRadius: 4 },
+      { label: 'Planejadas',  data: {{ chart_mes.planejadas  | tojson }},
+        backgroundColor: BLUE, borderRadius: 4 },
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { position: 'bottom' } },
+    scales: {
+      x: { stacked: true, grid: { color: '#f0f0f0' } },
+      y: { stacked: true, beginAtZero: true }
+    }
+  }
+});
+
+/* ── Motivo ─────────────────────────────────────────── */
+new Chart(document.getElementById('chartMotivo'), {
+  type: 'doughnut',
+  data: {
+    labels: {{ chart_motivo.labels | tojson }},
+    datasets: [{ data: {{ chart_motivo.values | tojson }},
+      backgroundColor: PALETTE,
+      borderWidth: 2, borderColor: '#fff',
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { position: 'bottom' } },
+    cutout: '62%'
+  }
+});
+
+/* ── Região ─────────────────────────────────────────── */
+new Chart(document.getElementById('chartRegiao'), {
+  type: 'doughnut',
+  data: {
+    labels: {{ chart_regiao.labels | tojson }},
+    datasets: [{ data: {{ chart_regiao.values | tojson }},
+      backgroundColor: [BLUE, GREEN, ORANGE, GRAY],
+      borderWidth: 2, borderColor: '#fff',
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { position: 'bottom' } },
+    cutout: '55%'
+  }
+});
+
+/* ── CDA ─────────────────────────────────────────────── */
+new Chart(document.getElementById('chartCda'), {
+  type: 'pie',
+  data: {
+    labels: {{ chart_cda.labels | tojson }},
+    datasets: [{ data: {{ chart_cda.values | tojson }},
+      backgroundColor: [GREEN, ORANGE, '#b71c1c', GRAY, '#0277bd'],
+      borderWidth: 2, borderColor: '#fff',
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { position: 'bottom' } }
+  }
+});
+</script>
+{% endblock %}

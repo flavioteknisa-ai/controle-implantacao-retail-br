@@ -206,7 +206,10 @@
   </a>
   {% endif %}
 
-  <div class="nav-section">Férias</div>
+  <div class="nav-section">Controle de Férias</div>
+  <a href="/ferias-consolidado" class="nav-link {% if request.path == '/ferias-consolidado' %}active{% endif %}">
+    <i class="bi bi-calendar-heart-fill"></i><span>Férias Consolidado</span>
+  </a>
   <a href="/timeline" class="nav-link {% if request.path == '/timeline' %}active{% endif %}">
     <i class="bi bi-bar-chart-steps"></i><span>Timeline</span>
   </a>
@@ -242,15 +245,15 @@
 
   {% if current_user.is_authenticated and tem_perm('ver_visitas') %}
   <div class="nav-section">Visitas</div>
-  <a href="/visitas" class="nav-link {% if request.path == '/visitas' or request.path.startswith('/visita') or request.path.startswith('/nova-visita') or request.path.startswith('/editar-visita') %}active{% endif %}">
+  <a href="/visitas/dashboard" class="nav-link {% if request.path == '/visitas/dashboard' %}active{% endif %}">
+    <i class="bi bi-bar-chart-line-fill"></i><span>Dashboard Visitas</span>
+  </a>
+  <a href="/visitas" class="nav-link {% if request.path == '/visitas' %}active{% endif %}">
     <i class="bi bi-geo-alt-fill"></i><span>Controle de Visitas</span>
   </a>
   {% if tem_perm('criar_visita') %}
   <a href="/nova-visita" class="nav-link {% if request.path == '/nova-visita' %}active{% endif %}">
     <i class="bi bi-plus-circle"></i><span>Nova Visita</span>
-  </a>
-  <a href="/importar-visitas" class="nav-link {% if request.path == '/importar-visitas' %}active{% endif %}">
-    <i class="bi bi-cloud-upload"></i><span>Importar Planilha</span>
   </a>
   {% endif %}
   {% endif %}
