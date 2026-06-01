@@ -36,7 +36,7 @@ load_dotenv()
 
 from dateutil.relativedelta import relativedelta
 from flask import (Flask, render_template, request, redirect,
-                   url_for, jsonify, flash, send_file, g)
+                   url_for, jsonify, flash, send_file, g, session)
 from flask_login import (LoginManager, login_user, logout_user,
                          login_required, current_user)
 from openpyxl import Workbook
