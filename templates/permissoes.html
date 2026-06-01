@@ -87,10 +87,12 @@
               {% set ns.secao_atual = secao %}
               <tr class="perm-section-row">
                 <td colspan="4">
-                  {% if secao == 'Projetos' %}<i class="bi bi-building me-2"></i>
+                  {% if secao == 'Dashboard' %}<i class="bi bi-speedometer2 me-2"></i>
+                  {% elif secao == 'Projetos' %}<i class="bi bi-building me-2"></i>
                   {% elif secao == 'Férias' %}<i class="bi bi-calendar-heart me-2"></i>
                   {% elif secao == 'Comissionamento' %}<i class="bi bi-briefcase me-2"></i>
                   {% elif secao == 'Relatórios' %}<i class="bi bi-file-earmark-bar-graph me-2"></i>
+                  {% elif secao == 'Visitas' %}<i class="bi bi-geo-alt-fill me-2"></i>
                   {% endif %}{{ secao }}
                 </td>
               </tr>

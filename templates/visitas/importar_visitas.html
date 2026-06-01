@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block title %}Importar Visitas · {{ super() }}{% endblock %}
+
+{% block extra_css %}
+<style>
+  .drag-drop {
+    border: 2px dashed #808080; border-radius: 10px;
+    padding: 40px; text-align: center; cursor: pointer;
+    transition: all .2s; background: #f9f9f9;
+  }
+  .drag-drop:hover { background: #f0f0f0; border-color: #666; }
+  .drag-drop.dragover { background: #e3f2fd; border-color: #0340AB; }
+  .drag-drop i { font-size: 3rem; color: #808080; opacity: .6; }
+  .info-box { background: #f5f5f5; border-left: 4px solid #0340AB; padding: 15px; border-radius: 5px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h2><i class="bi bi-upload me-2"></i>Importar Visitas</h2>
+  <p>Carregue uma planilha (CSV, XLSX) com os dados de visitas</p>
+</div>
+
+<div class="row">
+  <div class="col-lg-8">
+    <form method="POST" enctype="multipart/form-data" id="formImport">
+      <div class="card mb-4">
+        <div class="card-body">
+          <!-- Drag & Drop -->
+          <div class="drag-drop mb-3" id="dropZone">
+            <i class="bi bi-cloud-upload d-block mb-2"></i>
+            <p class="mb-1"><strong>Clique ou arraste o arquivo aqui</strong></p>
+            <p class="small text-muted mb-0">Formatos: XLSX, XLS, CSV</p>
+          </div>
+
+          <!-- Hidden file input -->
+          <input type="file" id="fileInput" name="file" accept=".xlsx,.xls,.csv" style="display:none;">
+
+          <!-- File name display -->
+          <div id="fileName" style="display:none;" class="alert alert-info mb-3">
+            <i class="bi bi-check-circle me-2"></i>
+            Arquivo selecionado: <strong id="displayName"></strong>
+            <button type="button" class="btn btn-sm btn-link float-end" onclick="limparArquivo()">Trocar</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Formato esperado -->
+      <div class="info-box mb-4">
+        <h6 class="mb-2"><i class="bi bi-info-circle me-1"></i>Colunas Obrigatórias</h6>
+        <ul class="small mb-0">
+          <li><strong>Cliente</strong> - Nome do cliente/estabelecimento</li>
+          <li><strong>Data de Visita</strong> - Data no formato DD/MM/YYYY</li>
+        </ul>
+        <hr class="my-2">
+        <h6 class="mb-2">Colunas Opcionais</h6>
+        <ul class="small mb-0">
+          <li>Região, Colaborador, Status, Motivo, CDA, Custo, Endereço</li>
+        </ul>
+      </div>
+
+      <!-- Ações -->
+      <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-primary" id="btnSubmit" disabled>
+          <i class="bi bi-cloud-upload me-1"></i>Importar Visitas
+        </button>
+        <a href="/visitas" class="btn btn-outline-secondary">
+          <i class="bi bi-arrow-left me-1"></i>Voltar
+        </a>
+      </div>
+    </form>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header dark">
+        <i class="bi bi-lightbulb me-2"></i>Dicas de Importação
+      </div>
+      <div class="card-body small">
+        <p><strong>Formato CSV:</strong> Use vírgula ou ponto-e-vírgula como separador. O sistema detecta automaticamente.</p>
+        <p><strong>Formato XLSX:</strong> Planilhas do Excel. Primeira linha deve conter cabeçalhos.</p>
+        <p><strong>Duplicatas:</strong> Visitas duplicadas (mesmo cliente e data) serão ignoradas.</p>
+        <p><strong>Erros:</strong> Linhas com erros são puladas. Verifique o relatório após importação.</p>
+        <p class="mb-0"><strong>Colaboradores:</strong> Se o nome do colaborador estiver no sistema, será vinculado automaticamente.</p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+const fileNameDiv = document.getElementById('fileName');
+const displayName = document.getElementById('displayName');
+const btnSubmit = document.getElementById('btnSubmit');
+
+// Click to upload
+dropZone.addEventListener('click', () => fileInput.click());
+
+// Drag and drop
+['dragenter', 'dragover', 'dragleave', 'drop'].forEach(evt => {
+  dropZone.addEventListener(evt, e => e.preventDefault());
+});
+
+['dragenter', 'dragover'].forEach(evt => {
+  dropZone.addEventListener(evt, () => dropZone.classList.add('dragover'));
+});
+
+['dragleave', 'drop'].forEach(evt => {
+  dropZone.addEventListener(evt, () => dropZone.classList.remove('dragover'));
+});
+
+dropZone.addEventListener('drop', e => {
+  const files = e.dataTransfer.files;
+  if (files.length > 0) fileInput.files = files;
+  atualizarNomeArquivo();
+});
+
+// File input change
+fileInput.addEventListener('change', atualizarNomeArquivo);
+
+function atualizarNomeArquivo() {
+  if (fileInput.files.length > 0) {
+    displayName.textContent = fileInput.files[0].name;
+    fileNameDiv.style.display = 'block';
+    dropZone.style.display = 'none';
+    btnSubmit.disabled = false;
+  }
+}
+
+function limparArquivo() {
+  fileInput.value = '';
+  fileNameDiv.style.display = 'none';
+  dropZone.style.display = 'block';
+  btnSubmit.disabled = true;
+}
+</script>
+{% endblock %}

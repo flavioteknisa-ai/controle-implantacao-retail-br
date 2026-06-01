@@ -253,6 +253,7 @@ PERMISSOES_DEFAULT: dict = {
     'colaborador': frozenset({
         'ver_dashboard',
         'ver_projetos', 'ver_timeline', 'ver_colaboradores', 'solicitar_ferias',
+        'ver_visitas',  # Colaborador pode visualizar visitas
     }),
     'coordenador': frozenset({
         'ver_dashboard',
@@ -2038,6 +2039,9 @@ VISITA_STATUS  = ['PLANEJADA', 'CONCLUIDA', 'CANCELADA']
 VISITA_CDA     = ['PENDENTE', 'ASSINADO', 'NÃO ENVIADO', 'NÃO SE APLICA']
 VISITA_CUSTO   = ['TEKNISA', 'CLIENTE', 'COMPARTILHADO']
 
+# Projeto status
+PROJETO_STATUS = ['Em andamento', 'Paralisado', 'Finalizado', 'Cancelado']
+
 
 @app.route('/visitas')
 @login_required
@@ -2205,6 +2209,107 @@ def excluir_visita(vid):
     db.session.commit()
     flash(f'Visita a "{cliente}" excluída.', 'warning')
     return redirect(url_for('listar_visitas'))
+
+
+@app.route('/importar-visitas', methods=['GET', 'POST'])
+@login_required
+@permission_required('criar_visita')
+def importar_visitas():
+    """Importa visitas de arquivo CSV/XLSX"""
+    if request.method == 'GET':
+        return render_template('visitas/importar_visitas.html')
+
+    if 'file' not in request.files:
+        flash('Nenhum arquivo enviado.', 'danger')
+        return redirect(url_for('importar_visitas'))
+
+    file = request.files['file']
+    if not file.filename:
+        flash('Arquivo vazio.', 'danger')
+        return redirect(url_for('importar_visitas'))
+
+    try:
+        import io
+        df = pd.read_excel(io.BytesIO(file.read())) if file.filename.endswith(('xlsx','xls')) else \
+             pd.read_csv(io.BytesIO(file.read()), encoding='utf-8')
+
+        # Mapeamento de colunas (case-insensitive)
+        cols_map = {col.lower().strip(): col for col in df.columns}
+
+        # Função para encontrar coluna
+        def find_col(name):
+            return cols_map.get(name.lower(), None)
+
+        col_regiao = find_col('região') or find_col('regiao')
+        col_colab  = find_col('colaborador')
+        col_status = find_col('status')
+        col_cliente = find_col('cliente')
+        col_data   = find_col('data de visita') or find_col('data_visita')
+        col_motivo = find_col('motivo')
+        col_cda    = find_col('cda')
+        col_custo  = find_col('custo')
+        col_end    = find_col('endereço') or find_col('endereco')
+
+        if not all([col_cliente, col_data]):
+            flash('Arquivo deve ter colunas: Cliente e Data de Visita', 'danger')
+            return redirect(url_for('importar_visitas'))
+
+        # Buscar colaboradores para vínculo
+        colabs_map = {c.nome.lower(): c.id for c in ColaboradorDB.query.all()}
+
+        imported_count = 0
+        for idx, row in df.iterrows():
+            try:
+                cliente = str(row[col_cliente]).strip()
+                if not cliente or pd.isna(cliente):
+                    continue
+
+                # Data
+                data_str = str(row[col_data]).strip()
+                try:
+                    if '/' in data_str:
+                        data_visita = datetime.strptime(data_str, '%d/%m/%Y').date()
+                    else:
+                        data_visita = pd.to_datetime(data_str).date()
+                except:
+                    continue
+
+                # Colaborador
+                colab_nome = str(row[col_colab]).strip() if col_colab and pd.notna(row[col_colab]) else ''
+                colab_id = colabs_map.get(colab_nome.lower()) if colab_nome else None
+
+                # Outros campos
+                regiao = str(row[col_regiao]).strip() if col_regiao and pd.notna(row[col_regiao]) else ''
+                status = str(row[col_status]).strip() if col_status and pd.notna(row[col_status]) else 'PLANEJADA'
+                motivo = str(row[col_motivo]).strip() if col_motivo and pd.notna(row[col_motivo]) else ''
+                cda    = str(row[col_cda]).strip() if col_cda and pd.notna(row[col_cda]) else ''
+                custo  = str(row[col_custo]).strip() if col_custo and pd.notna(row[col_custo]) else ''
+                endereco = str(row[col_end]).strip() if col_end and pd.notna(row[col_end]) else ''
+
+                # Verificar se já existe
+                existing = VisitaDB.query.filter_by(cliente=cliente, data_visita=data_visita).first()
+                if existing:
+                    continue
+
+                v = VisitaDB(
+                    cliente=cliente, data_visita=data_visita,
+                    regiao=regiao, colaborador_id=colab_id,
+                    colaborador_nome=colab_nome,
+                    status=status, motivo=motivo, cda=cda,
+                    custo=custo, endereco=endereco
+                )
+                db.session.add(v)
+                imported_count += 1
+            except Exception as e:
+                continue
+
+        db.session.commit()
+        flash(f'Importadas {imported_count} visitas com sucesso!', 'success')
+        return redirect(url_for('listar_visitas'))
+
+    except Exception as e:
+        flash(f'Erro ao processar arquivo: {str(e)}', 'danger')
+        return redirect(url_for('importar_visitas'))
 
 
 # ─── Inicialização do Banco (Vercel) ───────────────────────────────────────────
