@@ -236,6 +236,7 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script>
 // ──────────────────────────────────────────────────────────────
 // STATE
@@ -244,9 +245,25 @@ const S = {
   uploadData: null,
   colConfig: { Tradicionais: null, Rollout: null, Treinamento: null },
   selected: new Set(),
-  genResults: [],
-  consolidatedFile: null
+  genResults: [],      // [{coordinator, filename, content_b64}, ...]
+  consolidatedFile: null,
+  consolidatedB64: null
 };
+
+// ── Download helper: create Blob from base64 and trigger save ──
+function downloadFromB64(b64, filename) {
+  try {
+    const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+    const blob  = new Blob([bytes], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    });
+    const url = URL.createObjectURL(blob);
+    Object.assign(document.createElement('a'), { href: url, download: filename }).click();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  } catch(e) {
+    alert('Erro ao baixar arquivo: ' + e.message);
+  }
+}
 const SHEETS = ['Tradicionais', 'Rollout', 'Treinamento'];
 
 // ──────────────────────────────────────────────────────────────
@@ -496,8 +513,9 @@ async function generate() {
       })
     });
     const d = await r.json();
-    S.genResults = d.results || [];
+    S.genResults = d.results || [];          // now includes content_b64 per item
     S.consolidatedFile = d.consolidated || null;
+    S.consolidatedB64  = d.consolidated_b64 || null;
     renderResults(d);
     goToStep(4);
   } catch (e) {
@@ -513,9 +531,11 @@ function renderResults(d) {
 
   // Relatório consolidado
   const consEl = document.getElementById('results-consolidated');
-  if (d.consolidated) {
+  if (d.consolidated && d.consolidated_b64) {
     document.getElementById('consolidated-name').textContent = d.consolidated;
-    document.getElementById('consolidated-link').href = '/relatorios/download/' + encodeURIComponent(d.consolidated);
+    const cl = document.getElementById('consolidated-link');
+    cl.href = '#';
+    cl.onclick = (e) => { e.preventDefault(); downloadFromB64(d.consolidated_b64, d.consolidated); };
     consEl.style.display = '';
   } else {
     consEl.style.display = 'none';
@@ -525,6 +545,7 @@ function renderResults(d) {
   okEl.innerHTML = d.results?.length
     ? '<h6 class="text-success mb-2"><i class="bi bi-check-circle me-2"></i>Gerados com sucesso</h6>' : '';
   (d.results || []).forEach(r => {
+    const safeId = 'dl_' + Math.random().toString(36).slice(2);
     okEl.innerHTML += `
       <div class="result-row">
         <div>
@@ -532,9 +553,12 @@ function renderResults(d) {
           <strong>${r.coordinator}</strong>
           <div class="text-muted small">${r.filename}</div>
         </div>
-        <a href="/relatorios/download/${encodeURIComponent(r.filename)}" class="btn btn-sm btn-outline-success">
+        <button id="${safeId}" class="btn btn-sm btn-outline-success"
+                onclick="downloadFromB64(this.dataset.b64, this.dataset.fname)"
+                data-fname="${r.filename}"
+                data-b64="${r.content_b64 || ''}">
           <i class="bi bi-download me-1"></i>Baixar
-        </a>
+        </button>
       </div>`;
   });
 
@@ -556,22 +580,19 @@ function renderResults(d) {
 async function downloadZip() {
   showLoading('Preparando ZIP…');
   try {
-    const r = await fetch('/relatorios/download-all', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        filenames: [
-          ...S.genResults.map(r => r.filename),
-          ...(S.consolidatedFile ? [S.consolidatedFile] : [])
-        ]
-      })
+    const zip = new JSZip();
+    S.genResults.forEach(r => {
+      if (r.content_b64) zip.file(r.filename, r.content_b64, { base64: true });
     });
-    const blob = await r.blob();
+    if (S.consolidatedFile && S.consolidatedB64) {
+      zip.file(S.consolidatedFile, S.consolidatedB64, { base64: true });
+    }
+    const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
     const url  = URL.createObjectURL(blob);
     Object.assign(document.createElement('a'), { href: url, download: 'relatorios.zip' }).click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
   } catch (e) {
-    alert('Erro: ' + e.message);
+    alert('Erro ao gerar ZIP: ' + e.message);
   } finally {
     hideLoading();
   }

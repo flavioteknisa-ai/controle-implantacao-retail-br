@@ -2505,8 +2505,31 @@ def relatorios_generate():
         except Exception:
             consolidated = None
 
+    # ── Encode all generated files as base64 WITHIN the same request ──────────
+    # Vercel serverless: /tmp is not shared across invocations, so files written
+    # here can't be read in a later /download request. Embedding content_b64 in
+    # the JSON lets the frontend create Blob downloads without a 2nd round-trip.
+    import base64
+    for r in results:
+        fpath = os.path.join(RELATORIOS_OUTPUT, r['filename'])
+        try:
+            with open(fpath, 'rb') as f:
+                r['content_b64'] = base64.b64encode(f.read()).decode('ascii')
+        except Exception:
+            r['content_b64'] = None
+
+    consolidated_b64 = None
+    if consolidated:
+        fpath = os.path.join(RELATORIOS_OUTPUT, consolidated)
+        try:
+            with open(fpath, 'rb') as f:
+                consolidated_b64 = base64.b64encode(f.read()).decode('ascii')
+        except Exception:
+            consolidated_b64 = None
+
     return jsonify({'success_count': len(results), 'error_count': len(errors),
-                    'results': results, 'errors': errors, 'consolidated': consolidated})
+                    'results': results, 'errors': errors,
+                    'consolidated': consolidated, 'consolidated_b64': consolidated_b64})
 
 
 @app.route('/relatorios/download/<path:filename>')
