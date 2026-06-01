@@ -4,7 +4,7 @@ import sys
 import socket
 import calendar
 from datetime import datetime, timedelta, date
-from functools import wraps
+from functools import wraps, lru_cache
 
 # ─── Converter Supabase direct URL para pooler URL (IPv4, melhor para serverless) ──
 def _supabase_pooler_url(url):
@@ -87,6 +87,20 @@ else:
 app.config['SQLALCHEMY_DATABASE_URI']        = db_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
+# ── Connection-pool tuning (Supabase pgBouncer + Vercel serverless) ───────────
+# pool_pre_ping: validates connections before use → prevents slow stale-conn errors
+# pool_recycle:  recycles before pgBouncer's 5-min idle timeout
+# pool_size/max_overflow: kept low — Vercel functions are short-lived
+if db_url.startswith('postgresql'):
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+        'pool_pre_ping':  True,
+        'pool_recycle':   280,
+        'pool_size':      2,
+        'max_overflow':   4,
+        'pool_timeout':   15,
+        'connect_args':   {'connect_timeout': 10},
+    }
+
 db.init_app(app)
 
 # ─── Flask-Login ──────────────────────────────────────────────────────────────
@@ -99,8 +113,8 @@ login_manager.login_message_category = 'warning'
 @login_manager.user_loader
 def load_user(uid):
     try:
-        return User.query.get(int(uid))
-    except:
+        return db.session.get(User, int(uid))
+    except Exception:
         return None
 
 # ─── Verificação de banco inicializado ────────────────────────────────────────
@@ -248,7 +262,9 @@ PERMISSOES_DEFAULT: dict = {
 def cor_colab(idx: int) -> str:
     return CORES[idx % len(CORES)]
 
+@lru_cache(maxsize=256)
 def parse_cargo_uf(time_str: str):
+    """Parse 'Cargo - UF' string → (cargo_key, uf). Cached per unique string."""
     partes = [p.strip() for p in str(time_str or '').split('-', 1)]
     cargo_raw = partes[0].lower() if partes else ''
     uf = partes[1].upper() if len(partes) > 1 else ''
@@ -355,6 +371,53 @@ def db_to_projeto(p: ERPProjetoDB) -> Projeto:
 
     return proj
 
+
+def db_to_projeto_lite(p: ERPProjetoDB, responsaveis_map: dict = None) -> Projeto:
+    """Converts ERPProjetoDB → Projeto WITHOUT sub-queries for modules/units/activities.
+    Uses the stored percentual_conclusao for percentual_geral(). Safe for all list/summary views.
+    Pass responsaveis_map={id: nome} to avoid extra queries (use db_to_projetos_batch_lite)."""
+    if p.responsavel_id:
+        if responsaveis_map is not None:
+            resp_nome = responsaveis_map.get(p.responsavel_id)
+        else:
+            c = db.session.get(ColaboradorDB, p.responsavel_id)
+            resp_nome = c.nome if c else None
+    else:
+        resp_nome = None
+
+    return Projeto(
+        id=p.id,
+        nome=p.nome_projeto,
+        data_aceite=p.data_aceite,
+        data_conclusao=p.data_conclusao,
+        status=p.status,
+        valor_mensalidades=p.valor_mensalidades or 0,
+        responsavel=resp_nome,
+        descricao=p.descricao or '',
+        numero_unidades=p.numero_unidades or 1,
+        potencial_cliente=p.potencial_cliente or 'Médio',
+        tipo_projeto=p.tipo_projeto or 'Novo',
+        ponto_atencao=bool(p.ponto_atencao),
+        percentual_conclusao_db=p.percentual_conclusao or 0,
+    )
+
+
+def db_to_projetos_batch_lite(projetos_db: list) -> list:
+    """Batch-converts a list of ERPProjetoDB to Projeto domain objects.
+    Eliminates N+1 queries by loading all responsaveis in a single IN query."""
+    if not projetos_db:
+        return []
+    resp_ids = {p.responsavel_id for p in projetos_db if p.responsavel_id}
+    if resp_ids:
+        resp_map = {
+            c.id: c.nome
+            for c in ColaboradorDB.query.filter(ColaboradorDB.id.in_(resp_ids)).all()
+        }
+    else:
+        resp_map = {}
+    return [db_to_projeto_lite(p, resp_map) for p in projetos_db]
+
+
 def carregar_tudo():
     colabs_db    = ColaboradorDB.query.filter_by(ativo=True).all()
     colaboradores = [db_to_colab(c) for c in colabs_db]
@@ -380,6 +443,9 @@ def obter_coordenadores():
 # ─── Helpers de saldo / datas ─────────────────────────────────────────────────
 
 def saldo_colab(colab, ferias_real, ferias_plan=None):
+    """Calculate vacation balance for a collaborator.
+    Accepts either the full ferias list or a pre-filtered per-collaborator list.
+    When pre-filtered, the inner colaborador_id checks are redundant but correct."""
     cargo, _ = parse_cargo_uf(colab.time)
     if cargo == 'estagiario':
         return None
@@ -391,6 +457,14 @@ def saldo_colab(colab, ferias_real, ferias_plan=None):
         )
         base -= dias_p
     return max(0, base)
+
+
+def _build_ferias_maps(ferias_list):
+    """Build {colaborador_id: [Ferias]} index for O(1) per-collaborator lookup."""
+    m = {}
+    for f in ferias_list:
+        m.setdefault(f.colaborador_id, []).append(f)
+    return m
 
 def status_saldo(saldo):
     if saldo is None: return 'estagiario'
@@ -657,13 +731,17 @@ def index():
             idx = next((i for i, x in enumerate(colaboradores) if x.id == c.id), 0)
             proximas.append({**item, 'cor': cor_colab(idx)})
 
+    # Pre-index ferias by colaborador_id → O(1) lookup instead of O(N*M) scan
+    ferias_real_map = _build_ferias_maps(ferias_real)
+    ferias_plan_map = _build_ferias_maps(ferias_plan)
+
     # Saldos
     saldos_lista = []
     for i, c in enumerate(colaboradores):
         if not c.ativo: continue
         cargo, _ = parse_cargo_uf(c.time)
         if cargo == 'estagiario': continue
-        s_raw  = saldo_colab(c, ferias_real, ferias_plan)
+        s_raw  = saldo_colab(c, ferias_real_map.get(c.id, []), ferias_plan_map.get(c.id, []))
         s_disp = saldo_quantizado(s_raw)
         saldos_lista.append({
             'colaborador': c, 'saldo': s_disp, 'saldo_raw': s_raw,
@@ -686,9 +764,9 @@ def index():
                 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
     legenda_cal = build_legenda(colaboradores, ferias_plan)
 
-    # Dados de projetos ERP
+    # Dados de projetos — lite batch (no N+1 sub-queries; full load not needed for summary)
     projetos_db = ERPProjetoDB.query.all()
-    projetos = [db_to_projeto(p) for p in projetos_db]
+    projetos = db_to_projetos_batch_lite(projetos_db)
     proj_analytics = ProjetoAnalytics(projetos)
     proj_resumo = proj_analytics.resumo_geral()
     proj_criticos = proj_analytics.projetos_criticos()
@@ -1411,7 +1489,7 @@ def exportar_comissionamentos_excel():
 def listar_projetos():
     """Lista todos os projetos ERP"""
     projetos_db = ERPProjetoDB.query.order_by(ERPProjetoDB.criado_em.desc()).all()
-    todos_projetos = [db_to_projeto(p) for p in projetos_db]
+    todos_projetos = db_to_projetos_batch_lite(projetos_db)  # eliminates N+1
 
     # Filtros
     status_filtro = request.args.get('status', 'todos')
@@ -1441,7 +1519,7 @@ def listar_projetos():
 def dashboard_projetos():
     """Dashboard com visão geral dos projetos e indicadores por coordenador"""
     projetos_db = ERPProjetoDB.query.all()
-    projetos = [db_to_projeto(p) for p in projetos_db]
+    projetos = db_to_projetos_batch_lite(projetos_db)  # eliminates N+1
 
     analytics = ProjetoAnalytics(projetos)
 

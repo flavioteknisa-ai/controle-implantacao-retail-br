@@ -89,7 +89,8 @@ class Projeto:
                  status: str = 'Em andamento', valor_mensalidades: float = 0,
                  responsavel: Optional[str] = None, descricao: str = '',
                  numero_unidades: int = 1, potencial_cliente: str = 'Médio',
-                 tipo_projeto: str = 'Novo', ponto_atencao: bool = False):
+                 tipo_projeto: str = 'Novo', ponto_atencao: bool = False,
+                 percentual_conclusao_db: float = 0):
         self.id = id
         self.nome = nome
         self.data_aceite = data_aceite if isinstance(data_aceite, date) else datetime.strptime(str(data_aceite), "%Y-%m-%d").date()
@@ -105,6 +106,8 @@ class Projeto:
         self.potencial_cliente = potencial_cliente  # 'Pequeno', 'Médio', 'Grande', 'Estratégico'
         self.tipo_projeto = tipo_projeto  # 'Base', 'Novo'
         self.ponto_atencao = ponto_atencao
+        # Stored DB percentual — used as fallback when modules are not loaded (lite views)
+        self._percentual_db: float = percentual_conclusao_db
         self.modulos: List[Modulo] = []
         self.unidades: List[Unidade] = []
         self.atividades: List[Atividade] = []
@@ -153,10 +156,11 @@ class Projeto:
         return self.status in ('Em andamento', 'Paralisado') and self.dias_em_execucao > 240
 
     def percentual_geral(self) -> float:
-        """Calcula percentual geral de conclusão do projeto"""
-        if not self.modulos:
-            return 0
-        return sum(m.percentual_conclusao for m in self.modulos) / len(self.modulos)
+        """Calcula percentual geral de conclusão do projeto.
+        Falls back to DB-stored value when modules are not loaded (lite views)."""
+        if self.modulos:
+            return sum(m.percentual_conclusao for m in self.modulos) / len(self.modulos)
+        return self._percentual_db
 
     def modulos_em_progresso(self) -> List[Modulo]:
         """Retorna módulos em progresso"""

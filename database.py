@@ -53,12 +53,12 @@ class FeriasDB(db.Model):
     __tablename__ = 'ferias'
 
     id                 = db.Column(db.Integer, primary_key=True)
-    colaborador_id     = db.Column(db.Integer, db.ForeignKey('colaboradores.id'), nullable=False)
+    colaborador_id     = db.Column(db.Integer, db.ForeignKey('colaboradores.id'), nullable=False, index=True)
     data_inicio        = db.Column(db.Date, nullable=False)
     data_fim           = db.Column(db.Date, nullable=False)
     dias               = db.Column(db.Integer)
     # status: Solicitado | Planejado | Confirmado | Realizado | Cancelado
-    status             = db.Column(db.String(50), default='Planejado')
+    status             = db.Column(db.String(50), default='Planejado', index=True)
     conflito_detectado = db.Column(db.Boolean, default=False)
     conflito_aprovado  = db.Column(db.Boolean, default=False)
 
@@ -74,9 +74,9 @@ class ERPProjetoDB(db.Model):
     nome_projeto        = db.Column(db.String(250), nullable=False, unique=True)
     data_aceite         = db.Column(db.Date, nullable=False)
     data_conclusao      = db.Column(db.Date, nullable=True)
-    status              = db.Column(db.String(50), default='Em andamento')
-    # Em andamento, Finalizado, Cancelado
-    responsavel_id      = db.Column(db.Integer, db.ForeignKey('colaboradores.id'), nullable=True)
+    status              = db.Column(db.String(50), default='Em andamento', index=True)
+    # Em andamento, Paralisado, Finalizado, Cancelado
+    responsavel_id      = db.Column(db.Integer, db.ForeignKey('colaboradores.id'), nullable=True, index=True)
     valor_mensalidades  = db.Column(db.Float, default=0)
     descricao           = db.Column(db.Text)
     percentual_conclusao = db.Column(db.Float, default=0)
@@ -92,7 +92,7 @@ class ERPModuloDB(db.Model):
     __tablename__ = 'erp_modulos_projeto'
 
     id                      = db.Column(db.Integer, primary_key=True)
-    projeto_id              = db.Column(db.Integer, db.ForeignKey('erp_projetos.id'), nullable=False)
+    projeto_id              = db.Column(db.Integer, db.ForeignKey('erp_projetos.id'), nullable=False, index=True)
     modulo                  = db.Column(db.String(100), nullable=False)
     # Exemplos: RH, Financeiro, Estoque, Vendas, Compras, Produção, etc
     status_modulo           = db.Column(db.String(50), default='Planejado')
@@ -107,7 +107,7 @@ class ERPUnidadeDB(db.Model):
     __tablename__ = 'erp_unidades_projeto'
 
     id                      = db.Column(db.Integer, primary_key=True)
-    projeto_id              = db.Column(db.Integer, db.ForeignKey('erp_projetos.id'), nullable=False)
+    projeto_id              = db.Column(db.Integer, db.ForeignKey('erp_projetos.id'), nullable=False, index=True)
     unidade                 = db.Column(db.String(150), nullable=False)
     # Nome da unidade/loja (ex: Matriz, Filial SP, Filial RJ)
     status_unidade          = db.Column(db.String(50), default='Não iniciado')
@@ -121,7 +121,7 @@ class ERPAtividadeDB(db.Model):
     __tablename__ = 'erp_atividades_projeto'
 
     id                  = db.Column(db.Integer, primary_key=True)
-    projeto_id          = db.Column(db.Integer, db.ForeignKey('erp_projetos.id'), nullable=False)
+    projeto_id          = db.Column(db.Integer, db.ForeignKey('erp_projetos.id'), nullable=False, index=True)
     titulo              = db.Column(db.String(200), nullable=False)
     descricao           = db.Column(db.Text)
     data_reuniao        = db.Column(db.Date, nullable=False)
@@ -140,9 +140,9 @@ class ComissionamentoDB(db.Model):
     __tablename__ = 'comissionamentos'
 
     id                      = db.Column(db.Integer, primary_key=True)
-    consultor_id            = db.Column(db.Integer, db.ForeignKey('colaboradores.id'), nullable=False)
+    consultor_id            = db.Column(db.Integer, db.ForeignKey('colaboradores.id'), nullable=False, index=True)
     cliente                 = db.Column(db.String(200), nullable=False)
-    data_comissao           = db.Column(db.Date, nullable=False)
+    data_comissao           = db.Column(db.Date, nullable=False, index=True)
     horas_comissionadas     = db.Column(db.Float, nullable=False)
     hora_fora_estado        = db.Column(db.String(10))  # HH:MM
     motivo                  = db.Column(db.Text)
