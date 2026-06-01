@@ -2391,6 +2391,135 @@ def ferias_consolidado():
     )
 
 
+# ─── Assistente de IA ────────────────────────────────────────────────────────
+
+def _build_ai_context() -> str:
+    """Monta contexto de dados do sistema para o assistente IA.
+    Exclui comissionamentos conforme requisito do usuário."""
+    from collections import Counter
+    hoje = datetime.now().date()
+
+    # ── Colaboradores ──────────────────────────────────────────────
+    colabs_db = ColaboradorDB.query.filter_by(ativo=True).order_by(ColaboradorDB.nome).all()
+    colabs_txt = "\n".join(
+        f"  - {c.nome} | cargo:{c.cargo or '-'} | uf:{c.uf or '-'} | regime:{c.regime_trabalho or '-'}"
+        for c in colabs_db
+    )
+
+    # ── Férias (planejadas e realizadas recentes) ──────────────────
+    ferias_db = FeriasDB.query.filter(
+        FeriasDB.status != 'Cancelado'
+    ).order_by(FeriasDB.data_inicio.desc()).limit(300).all()
+    colab_id_nome = {c.id: c.nome for c in colabs_db}
+    ferias_txt = "\n".join(
+        f"  - {colab_id_nome.get(f.colaborador_id,'?')} | {f.data_inicio} → {f.data_fim} | {f.dias}d | status:{f.status}"
+        for f in ferias_db
+    )
+
+    # ── Saldos de férias ───────────────────────────────────────────
+    ferias_real = [db_to_ferias(f) for f in FeriasDB.query.filter_by(status='Realizado').all()]
+    ferias_plan = [db_to_ferias(f) for f in FeriasDB.query.filter(FeriasDB.status != 'Realizado', FeriasDB.status != 'Cancelado').all()]
+    saldos_txt_parts = []
+    for c in colabs_db:
+        freal = [f for f in ferias_real if f.colaborador_id == c.id]
+        fplan = [f for f in ferias_plan if f.colaborador_id == c.id]
+        saldo = saldo_colab(c, freal, fplan)
+        saldos_txt_parts.append(f"  - {c.nome}: saldo={saldo}d")
+    saldos_txt = "\n".join(saldos_txt_parts)
+
+    # ── Projetos ───────────────────────────────────────────────────
+    projetos_db = ERPProjetoDB.query.order_by(ERPProjetoDB.criado_em.desc()).all()
+    resp_map = {c.id: c.nome for c in ColaboradorDB.query.all()}
+    projetos_txt = "\n".join(
+        f"  - [{p.status}] {p.nome_projeto} | resp:{resp_map.get(p.responsavel_id,'-')} | aceite:{p.data_aceite} | conclusao:{p.data_conclusao} | "
+        f"valor:R${p.valor_mensalidades or 0:,.0f}/mês | ponto_atencao:{p.ponto_atencao}"
+        for p in projetos_db
+    )
+
+    # ── Visitas ────────────────────────────────────────────────────
+    visitas_db = VisitaDB.query.order_by(VisitaDB.data_visita.desc()).limit(300).all()
+    visitas_txt = "\n".join(
+        f"  - {v.data_visita} | {v.cliente} | colab:{v.colaborador_nome or '-'} | "
+        f"regiao:{v.regiao or '-'} | motivo:{v.motivo or '-'} | status:{v.status} | cda:{v.cda or '-'}"
+        for v in visitas_db
+    )
+
+    # ── Resumos rápidos ────────────────────────────────────────────
+    v_concluidas = sum(1 for v in visitas_db if v.status == 'CONCLUIDA')
+    v_regioes    = Counter(v.regiao or 'N/A' for v in visitas_db)
+    v_colabs     = Counter(v.colaborador_nome or '-' for v in visitas_db)
+    proj_status  = Counter(p.status for p in projetos_db)
+
+    return f"""Você é o assistente de análise de dados do sistema **Controle Implantação Retail BR** da Teknisa.
+Você tem acesso COMPLETO e ATUALIZADO aos dados abaixo (exceto comissionamentos).
+Responda SEMPRE em português do Brasil, de forma clara, objetiva e profissional.
+Forneça comparativos, rankings, percentuais e insights quando solicitado.
+Use markdown leve (negrito, listas) para organizar a resposta.
+Data de hoje: {hoje.strftime('%d/%m/%Y')}
+
+━━━ COLABORADORES ATIVOS ({len(colabs_db)}) ━━━
+{colabs_txt}
+
+━━━ SALDOS DE FÉRIAS ━━━
+{saldos_txt}
+
+━━━ HISTÓRICO DE FÉRIAS (últimas 300) ━━━
+{ferias_txt}
+
+━━━ PROJETOS ({len(projetos_db)} total | {proj_status}) ━━━
+{projetos_txt}
+
+━━━ VISITAS (últimas 300 | {v_concluidas}/{len(visitas_db)} concluídas) ━━━
+Distribuição por região: {dict(v_regioes)}
+Distribuição por colaborador: {dict(v_colabs)}
+{visitas_txt}
+"""
+
+
+@app.route('/ai/chat', methods=['POST'])
+@login_required
+def ai_chat():
+    """Endpoint do assistente IA — acessa dados do sistema exceto comissionamentos."""
+    try:
+        import anthropic as _anthropic
+    except ImportError:
+        return jsonify({'error': 'Módulo anthropic não instalado no servidor.'}), 503
+
+    api_key = os.environ.get('ANTHROPIC_API_KEY', '')
+    if not api_key:
+        return jsonify({'error': 'Chave ANTHROPIC_API_KEY não configurada no servidor.'}), 503
+
+    payload = request.json or {}
+    user_msg  = (payload.get('message') or '').strip()
+    history   = payload.get('history', [])  # [{role, content}, ...]
+
+    if not user_msg:
+        return jsonify({'error': 'Mensagem vazia'}), 400
+
+    # Monta contexto e histórico
+    system_ctx = _build_ai_context()
+
+    messages = []
+    for h in history[-12:]:   # últimas 6 trocas
+        role = h.get('role', 'user')
+        if role in ('user', 'assistant'):
+            messages.append({'role': role, 'content': h.get('content', '')})
+    messages.append({'role': 'user', 'content': user_msg})
+
+    try:
+        client   = _anthropic.Anthropic(api_key=api_key)
+        response = client.messages.create(
+            model      = 'claude-haiku-4-5-20251001',
+            max_tokens = 1500,
+            system     = system_ctx,
+            messages   = messages,
+        )
+        reply = response.content[0].text
+        return jsonify({'response': reply})
+    except Exception as e:
+        return jsonify({'error': f'Erro na API: {str(e)}'}), 500
+
+
 # ─── Inicialização do Banco (Vercel) ───────────────────────────────────────────
 
 @app.route('/init', methods=['GET'])
