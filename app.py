@@ -3294,218 +3294,229 @@ def admin_configuracoes():
                            chave_configurada=bool(chave_atual))
 
 
-# ─── Importador ClickUp ───────────────────────────────────────────────────────
+# ─── Importador ClickUp (via planilha Excel) ─────────────────────────────────
 
-def _clickup_get(path: str, token: str) -> dict:
-    """Faz GET na API do ClickUp e retorna JSON ou lança ValueError."""
-    import requests as _req
-    r = _req.get(
-        f'https://api.clickup.com/api/v2{path}',
-        headers={'Authorization': token},
-        timeout=10
-    )
-    if r.status_code == 401:
-        raise ValueError('Token inválido ou sem permissão.')
-    if r.status_code != 200:
-        raise ValueError(f'Erro API ClickUp ({r.status_code}): {r.text[:200]}')
-    return r.json()
+IMPORT_FIELDS = [
+    ('ignorar',               '— Ignorar coluna —'),
+    ('nome_projeto',          'Nome do Projeto *'),
+    ('data_aceite',           'Data de Aceite (dd/mm/aaaa)'),
+    ('data_conclusao',        'Data de Conclusão (dd/mm/aaaa)'),
+    ('status',                'Status'),
+    ('responsavel',           'Responsável / Coordenador'),
+    ('valor_mensalidades',    'Valor de Manutenção (R$)'),
+    ('percentual_conclusao',  'Percentual de Conclusão (%)'),
+    ('numero_unidades',       'Número de Unidades'),
+    ('descricao',             'Descrição / Observações'),
+]
 
+def _parse_nome_projeto(raw):
+    import re
+    s = re.sub(r'\s*-?\s*\d{1,3}\s*%.*$', '', str(raw), flags=re.DOTALL)
+    s = re.sub(r'\s*\d{2}[/.-]\d{2}[/.-]\d{4}.*$', '', s, flags=re.DOTALL)
+    return s.strip(' -–')
 
-def _clickup_parse_date(ts) -> str:
-    """Converte timestamp ClickUp (ms) para YYYY-MM-DD."""
-    if not ts:
-        return ''
-    try:
-        from datetime import datetime
-        return datetime.utcfromtimestamp(int(ts) / 1000).strftime('%Y-%m-%d')
-    except Exception:
-        return ''
+def _extract_from_raw(raw):
+    import re
+    s = str(raw)
+    data  = re.search(r'(\d{2}/\d{2}/\d{4})', s)
+    valor = re.search(r'(?:Manut|Valor|MANUTENCAO)[^:]*:?\s*R?\$?\s*([\d.]+,\d{2})', s, re.I)
+    pct   = re.search(r'(\d{1,3})\s*%', s)
+    unid  = re.search(r'(\d+)\s*[Uu][Nn]', s)
+    return {
+        'data_aceite':          data.group(1)  if data  else '',
+        'valor_mensalidades':   valor.group(1) if valor else '',
+        'percentual_conclusao': pct.group(1)   if pct   else '',
+        'numero_unidades':      unid.group(1)  if unid  else '',
+    }
 
-
-def _clickup_map_status(status_name: str) -> str:
-    """Mapeia status do ClickUp para status do sistema."""
-    s = (status_name or '').lower()
-    if any(k in s for k in ['conclu', 'done', 'finaliz', 'completo', 'complete']):
-        return 'Finalizado'
-    if any(k in s for k in ['cancel', 'arquiv']):
-        return 'Cancelado'
-    if any(k in s for k in ['paralisa', 'parado', 'hold', 'blocked']):
-        return 'Paralisado'
+def _map_status_clickup(val):
+    s = str(val).lower()
+    if any(k in s for k in ['cancelado', 'cancel']):         return 'Cancelado'
+    if any(k in s for k in ['finalizado', 'done', 'concl']): return 'Finalizado'
+    if any(k in s for k in ['paralisa', 'parado', 'hold']):  return 'Paralisado'
     return 'Em andamento'
+
+def _find_responsavel(raw, colabs):
+    raw = str(raw).lower().strip()
+    if not raw or raw in ('null', 'nan', ''):
+        return None
+    for c in colabs:
+        nome = c.nome.lower()
+        partes = [p for p in nome.split() if len(p) > 2]
+        if partes and all(p in raw for p in partes):
+            return c.id
+        if raw in nome or nome in raw:
+            return c.id
+    return None
+
+def _parse_date_br(s):
+    try:
+        return datetime.strptime(str(s).strip(), '%d/%m/%Y').date()
+    except Exception:
+        try:
+            return datetime.strptime(str(s).strip(), '%Y-%m-%d').date()
+        except Exception:
+            return None
+
+def _parse_valor(s):
+    try:
+        return float(str(s).replace('.', '').replace(',', '.').strip())
+    except Exception:
+        return 0.0
 
 
 @app.route('/admin/importar-clickup', methods=['GET', 'POST'])
 @login_required
 @gestor_required
 def importar_clickup():
-    """Importador de projetos do ClickUp via API."""
-    import requests as _req
+    import pandas as pd, base64, io, json
 
-    step      = request.args.get('step', '1')
-    token     = ''
-    workspaces = []
-    listas     = []
-    tarefas    = []
-    erros      = []
+    step = request.form.get('step', '1') if request.method == 'POST' else '1'
 
-    # ── STEP 1: listar workspaces ─────────────────────────────────
-    if request.method == 'POST' and step == '1':
-        token = request.form.get('token', '').strip()
-        if not token:
-            flash('Informe o token da API.', 'danger')
-        else:
-            try:
-                data = _clickup_get('/team', token)
-                workspaces = data.get('teams', [])
-                if not workspaces:
-                    flash('Nenhum workspace encontrado.', 'warning')
-                else:
-                    return render_template('admin/importar_clickup.html',
-                                           step='2', token=token,
-                                           workspaces=workspaces)
-            except ValueError as e:
-                flash(str(e), 'danger')
+    if step == '1':
+        return render_template('admin/importar_clickup.html', step='1')
 
-    # ── STEP 2: listar listas do workspace escolhido ──────────────
-    elif request.method == 'POST' and step == '2':
-        token       = request.form.get('token', '').strip()
-        workspace_id = request.form.get('workspace_id', '')
-        try:
-            # Buscar spaces
-            spaces = _clickup_get(f'/team/{workspace_id}/space?archived=false', token).get('spaces', [])
-            for space in spaces:
-                # Buscar listas diretas do space
-                direct = _clickup_get(f'/space/{space["id"]}/list?archived=false', token).get('lists', [])
-                for l in direct:
-                    listas.append({'id': l['id'], 'name': l['name'], 'space': space['name']})
-                # Buscar pastas e suas listas
-                folders = _clickup_get(f'/space/{space["id"]}/folder?archived=false', token).get('folders', [])
-                for folder in folders:
-                    for l in folder.get('lists', []):
-                        listas.append({'id': l['id'], 'name': l['name'],
-                                       'space': space['name'] + ' / ' + folder['name']})
-            if not listas:
-                flash('Nenhuma lista encontrada no workspace.', 'warning')
-            else:
-                return render_template('admin/importar_clickup.html',
-                                       step='3', token=token,
-                                       workspace_id=workspace_id, listas=listas)
-        except ValueError as e:
-            flash(str(e), 'danger')
+    elif step == '2':
+        arquivo = request.files.get('arquivo')
+        if not arquivo or not arquivo.filename.endswith(('.xlsx', '.xls')):
+            flash('Envie um arquivo .xlsx válido.', 'danger')
+            return render_template('admin/importar_clickup.html', step='1')
 
-    # ── STEP 3: preview das tarefas da lista ─────────────────────
-    elif request.method == 'POST' and step == '3':
-        token   = request.form.get('token', '').strip()
-        list_id = request.form.get('list_id', '')
-        workspace_id = request.form.get('workspace_id', '')
-        try:
-            raw = _clickup_get(f'/list/{list_id}/task?archived=false&include_closed=true&subtasks=false', token)
-            tasks = raw.get('tasks', [])
-            for t in tasks:
-                tarefas.append({
-                    'id':          t['id'],
-                    'nome':        t.get('name', ''),
-                    'status':      t.get('status', {}).get('status', ''),
-                    'data_inicio': _clickup_parse_date(t.get('start_date')),
-                    'data_fim':    _clickup_parse_date(t.get('due_date')),
-                    'responsavel': (t.get('assignees') or [{}])[0].get('username', '') if t.get('assignees') else '',
-                })
-            if not tarefas:
-                flash('Nenhuma tarefa encontrada na lista.', 'warning')
-            else:
-                return render_template('admin/importar_clickup.html',
-                                       step='4', token=token,
-                                       list_id=list_id, workspace_id=workspace_id,
-                                       tarefas=tarefas)
-        except ValueError as e:
-            flash(str(e), 'danger')
+        raw_bytes = arquivo.read()
+        file_b64  = base64.b64encode(raw_bytes).decode()
+        df = pd.read_excel(io.BytesIO(raw_bytes), header=None, dtype=str).fillna('')
 
-    # ── STEP 4: confirmar importação ─────────────────────────────
-    elif request.method == 'POST' and step == '4':
-        token        = request.form.get('token', '').strip()
-        list_id      = request.form.get('list_id', '')
-        workspace_id = request.form.get('workspace_id', '')
-        selecionados = request.form.getlist('importar')
+        colunas = []
+        for idx in range(len(df.columns)):
+            samples = [str(v)[:80] for v in df[idx].head(5).tolist() if str(v).strip() not in ('', 'nan', 'NaN')]
+            colunas.append({'idx': idx, 'samples': samples[:3]})
 
-        if not selecionados:
-            flash('Selecione ao menos uma tarefa para importar.', 'warning')
-            return redirect(url_for('importar_clickup'))
+        sugestoes = {c['idx']: 'ignorar' for c in colunas}
+        sugestoes[0] = 'nome_projeto'
+        sugestoes[1] = 'descricao'
+        sugestoes[2] = 'responsavel'
+        sugestoes[7] = 'status'
 
-        # Buscar novamente as tarefas para obter dados completos
-        try:
-            raw   = _clickup_get(f'/list/{list_id}/task?archived=false&include_closed=true&subtasks=false', token)
-            tasks = {t['id']: t for t in raw.get('tasks', [])}
-        except ValueError as e:
-            flash(str(e), 'danger')
-            return redirect(url_for('importar_clickup'))
+        return render_template('admin/importar_clickup.html',
+                               step='3', file_b64=file_b64,
+                               colunas=colunas, sugestoes=sugestoes,
+                               import_fields=IMPORT_FIELDS)
 
-        # Obter coordenadores para tentar vincular por nome
+    elif step == '3':
+        file_b64 = request.form.get('file_b64', '')
+        if not file_b64:
+            flash('Sessão expirada. Envie o arquivo novamente.', 'danger')
+            return render_template('admin/importar_clickup.html', step='1')
+
+        mapeamento = {}
+        for k, v in request.form.items():
+            if k.startswith('map_col_'):
+                mapeamento[int(k.replace('map_col_', ''))] = v
+
+        raw_bytes = base64.b64decode(file_b64)
+        df = pd.read_excel(io.BytesIO(raw_bytes), header=None, dtype=str).fillna('')
         colabs = ColaboradorDB.query.filter_by(ativo=True).all()
-        colab_map = {c.nome.lower(): c.id for c in colabs}
+        colab_map_id = {c.id: c.nome for c in colabs}
 
-        importados = 0
-        duplicados = 0
-        for task_id in selecionados:
-            t = tasks.get(task_id)
-            if not t:
+        previews = []
+        for i, (_, row) in enumerate(df.iterrows()):
+            p = {'_row': i}
+            for idx, campo in mapeamento.items():
+                if campo == 'ignorar' or idx >= len(row):
+                    continue
+                val = str(row[idx]).strip()
+                if campo == 'nome_projeto':
+                    extras = _extract_from_raw(val)
+                    p['nome_projeto'] = _parse_nome_projeto(val)
+                    for k, v in extras.items():
+                        if not p.get(k):
+                            p[k] = v
+                elif campo == 'status':
+                    p['status'] = _map_status_clickup(val)
+                elif campo == 'responsavel':
+                    rid = _find_responsavel(val, colabs)
+                    p['responsavel'] = colab_map_id.get(rid, val) if rid else val
+                    p['_resp_id'] = rid
+                else:
+                    p[campo] = val
+
+            if p.get('nome_projeto'):
+                previews.append(p)
+
+        return render_template('admin/importar_clickup.html',
+                               step='4', file_b64=file_b64,
+                               map_json=json.dumps(mapeamento),
+                               previews=previews)
+
+    elif step == '4':
+        import json
+        file_b64    = request.form.get('file_b64', '')
+        map_json    = request.form.get('map_json', '{}')
+        selecionados = set(request.form.getlist('importar'))
+
+        if not file_b64 or not selecionados:
+            flash('Selecione ao menos um projeto.', 'warning')
+            return redirect(url_for('importar_clickup'))
+
+        mapeamento = {int(k): v for k, v in json.loads(map_json).items()}
+        raw_bytes  = base64.b64decode(file_b64)
+        df = pd.read_excel(io.BytesIO(raw_bytes), header=None, dtype=str).fillna('')
+        colabs = ColaboradorDB.query.filter_by(ativo=True).all()
+
+        importados = duplicados = erros = 0
+        for i, (_, row) in enumerate(df.iterrows()):
+            if str(i) not in selecionados:
                 continue
-            nome = t.get('name', '').strip()
+            dados = {}
+            for idx, campo in mapeamento.items():
+                if campo == 'ignorar' or idx >= len(row):
+                    continue
+                val = str(row[idx]).strip()
+                if campo == 'nome_projeto':
+                    extras = _extract_from_raw(val)
+                    dados['nome_projeto'] = _parse_nome_projeto(val)
+                    for k, v in extras.items():
+                        if k not in dados:
+                            dados[k] = v
+                elif campo == 'status':
+                    dados['status'] = _map_status_clickup(val)
+                elif campo == 'responsavel':
+                    dados['_resp_id'] = _find_responsavel(val, colabs)
+                else:
+                    dados[campo] = val
+
+            nome = dados.get('nome_projeto', '').strip()
             if not nome:
                 continue
-
-            # Verificar duplicata
             if ERPProjetoDB.query.filter_by(nome_projeto=nome).first():
                 duplicados += 1
                 continue
-
-            # Tentar vincular responsável
-            resp_id = None
-            assignees = t.get('assignees') or []
-            if assignees:
-                assignee_name = assignees[0].get('username', '').lower()
-                # Busca parcial no nome dos colaboradores
-                for colab_nome, colab_id in colab_map.items():
-                    if assignee_name in colab_nome or colab_nome in assignee_name:
-                        resp_id = colab_id
-                        break
-
-            data_inicio_str = _clickup_parse_date(t.get('start_date'))
-            data_fim_str    = _clickup_parse_date(t.get('due_date'))
             try:
-                data_aceite   = datetime.strptime(data_inicio_str, '%Y-%m-%d').date() if data_inicio_str else date.today()
-                data_conclusao = datetime.strptime(data_fim_str, '%Y-%m-%d').date() if data_fim_str else None
-            except ValueError:
-                data_aceite   = date.today()
-                data_conclusao = None
-
-            status = _clickup_map_status(t.get('status', {}).get('status', ''))
-
-            novo = ERPProjetoDB(
-                nome_projeto=nome,
-                data_aceite=data_aceite,
-                data_conclusao=data_conclusao,
-                status=status,
-                responsavel_id=resp_id,
-                valor_mensalidades=0,
-                descricao=t.get('description', '') or '',
-                percentual_conclusao=0,
-                numero_unidades=1,
-                potencial_cliente='Médio',
-                tipo_projeto='Novo',
-            )
-            db.session.add(novo)
-            importados += 1
+                novo = ERPProjetoDB(
+                    nome_projeto=nome,
+                    data_aceite=_parse_date_br(dados.get('data_aceite','')) or date.today(),
+                    data_conclusao=_parse_date_br(dados.get('data_conclusao','')),
+                    status=dados.get('status', 'Em andamento'),
+                    responsavel_id=dados.get('_resp_id'),
+                    valor_mensalidades=_parse_valor(dados.get('valor_mensalidades','0')),
+                    descricao=(dados.get('descricao','') or '')[:2000],
+                    percentual_conclusao=min(100, max(0, float(str(dados.get('percentual_conclusao','0')).replace(',','.') or 0))),
+                    numero_unidades=max(1, int(str(dados.get('numero_unidades','1')).strip() or 1)),
+                    potencial_cliente='Médio',
+                    tipo_projeto='Novo',
+                )
+                db.session.add(novo)
+                importados += 1
+            except Exception:
+                erros += 1
 
         db.session.commit()
-
-        if importados:
-            flash(f'{importados} projeto(s) importado(s) com sucesso!', 'success')
-        if duplicados:
-            flash(f'{duplicados} tarefa(s) ignorada(s) por já existirem no sistema.', 'warning')
+        if importados: flash(f'{importados} projeto(s) importado(s)!', 'success')
+        if duplicados: flash(f'{duplicados} ignorado(s) — nome já existe.', 'warning')
+        if erros:      flash(f'{erros} linha(s) com erro ignorada(s).', 'danger')
         return redirect(url_for('listar_projetos'))
 
-    return render_template('admin/importar_clickup.html', step='1',
-                           token=token, workspaces=workspaces)
+    return render_template('admin/importar_clickup.html', step='1')
 
 
 # ─── Entry point ──────────────────────────────────────────────────────────────
