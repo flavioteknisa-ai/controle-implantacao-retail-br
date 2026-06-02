@@ -1606,6 +1606,42 @@ def dashboard_projetos():
                           coordenadores_resumo=coordenadores_resumo,
                           resumo_potencial=resumo_potencial)
 
+
+# ─── Validator para Projetos ─────────────────────────────────────────────────
+class ProjetoValidator:
+    """Validador de dados para projetos, módulos e unidades"""
+
+    @staticmethod
+    def validar_projeto(nome: str, data_aceite, data_conclusao) -> tuple:
+        """Valida dados do projeto. Retorna (válido, mensagem_erro)"""
+        if not nome or not nome.strip():
+            return False, "Nome do projeto é obrigatório"
+        if not data_aceite:
+            return False, "Data de aceite é obrigatória"
+        return True, ""
+
+    @staticmethod
+    def validar_modulo(nome: str) -> tuple:
+        """Valida dados do módulo. Retorna (válido, mensagem_erro)"""
+        if not nome or not nome.strip():
+            return False, "Nome do módulo é obrigatório"
+        return True, ""
+
+    @staticmethod
+    def validar_unidade(nome: str) -> tuple:
+        """Valida dados da unidade. Retorna (válido, mensagem_erro)"""
+        if not nome or not nome.strip():
+            return False, "Nome da unidade é obrigatório"
+        return True, ""
+
+    @staticmethod
+    def validar_atividade(nome: str) -> tuple:
+        """Valida dados da atividade. Retorna (válido, mensagem_erro)"""
+        if not nome or not nome.strip():
+            return False, "Nome da atividade é obrigatório"
+        return True, ""
+
+
 @app.route('/novo-projeto', methods=['GET', 'POST'])
 @login_required
 @permission_required('criar_projeto')
