@@ -17,6 +17,7 @@ class ProjetoAnalytics:
         """
         contagem = {
             'Em andamento': 0,
+            'Paralisado': 0,
             'Finalizado': 0,
             'Cancelado': 0
         }
