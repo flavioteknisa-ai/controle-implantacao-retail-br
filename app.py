@@ -1592,6 +1592,7 @@ def dashboard_projetos():
     stats = {
         'total_projetos': len(projetos),
         'em_andamento': sum(1 for p in projetos if p.status == 'Em andamento'),
+        'paralisados': sum(1 for p in projetos if p.status == 'Paralisado'),
         'finalizados': sum(1 for p in projetos if p.status == 'Finalizado'),
         'atrasados': sum(1 for p in projetos if p.esta_atrasado()),
         'progresso_medio': analytics.percentual_conclusao_geral(),
