@@ -1511,11 +1511,20 @@ def exportar_comissionamentos_excel():
 @login_required
 @permission_required('ver_projetos')
 def listar_projetos():
-    """Lista todos os projetos ERP"""
+    """Lista todos os projetos ERP com filtros opcionais"""
     projetos_db = ERPProjetoDB.query.order_by(ERPProjetoDB.criado_em.desc()).all()
     todos_projetos = db_to_projetos_batch_lite(projetos_db)  # eliminates N+1
 
-    # Filtros
+    # Filtro por responsável (coordenador)
+    responsavel_filtro = request.args.get('responsavel_id', '')
+    if responsavel_filtro:
+        try:
+            responsavel_id = int(responsavel_filtro)
+            todos_projetos = [p for p in todos_projetos if p.responsavel_id == responsavel_id]
+        except (ValueError, TypeError):
+            pass
+
+    # Filtros de status
     status_filtro = request.args.get('status', 'todos')
     if status_filtro == 'atencao':
         projetos = [p for p in todos_projetos if p.ponto_atencao]
@@ -1533,9 +1542,20 @@ def listar_projetos():
     resumo['em_atencao']      = sum(1 for p in todos_projetos if p.ponto_atencao)
     resumo['longa_execucao']  = sum(1 for p in todos_projetos if p.alerta_longa_execucao)
 
+    # Obter nome do responsável se filtrado
+    responsavel_nome = ''
+    if responsavel_filtro:
+        try:
+            colab_resp = ColaboradorDB.query.get(int(responsavel_filtro))
+            responsavel_nome = colab_resp.nome if colab_resp else ''
+        except (ValueError, TypeError):
+            pass
+
     return render_template('projetos/lista_projetos.html',
                           projetos=projetos,
                           status_filtro=status_filtro,
+                          responsavel_filtro=responsavel_filtro,
+                          responsavel_nome=responsavel_nome,
                           resumo=resumo)
 
 @app.route('/dashboard-projetos')
@@ -1573,6 +1593,7 @@ def dashboard_projetos():
         if resp not in coordenadores_resumo:
             coordenadores_resumo[resp] = {
                 'nome': resp,
+                'responsavel_id': p.responsavel_id,
                 'projetos_total': 0,
                 'em_andamento': 0,
                 'finalizados': 0,
@@ -2025,6 +2046,24 @@ def deletar_atividade(pid, aid):
     db.session.commit()
 
     flash(f'Atividade "{titulo}" deletada!', 'success')
+    return redirect(url_for('detalhe_projeto', pid=pid))
+
+@app.route('/projeto/<int:pid>/atividade/<int:aid>/status', methods=['POST'])
+@login_required
+@permission_required('adicionar_atividade')
+def atualizar_status_atividade(pid, aid):
+    """Atualiza status da atividade (marcar como concluída)"""
+    atividade_db = ERPAtividadeDB.query.get_or_404(aid)
+    novo_status = request.form.get('status', 'Aberta').strip()
+
+    # Validar status permitidos
+    if novo_status not in ['Aberta', 'Em Progresso', 'Concluída']:
+        novo_status = 'Aberta'
+
+    atividade_db.status_atividade = novo_status
+    db.session.commit()
+
+    flash(f'Atividade marcada como "{novo_status}"!', 'success')
     return redirect(url_for('detalhe_projeto', pid=pid))
 
 # ─── API: saldo ───────────────────────────────────────────────────────────────

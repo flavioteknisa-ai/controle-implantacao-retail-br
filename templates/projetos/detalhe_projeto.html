@@ -381,16 +381,54 @@
         {% if projeto.atividades %}
         <div class="timeline">
           {% for atividade in projeto.atividades %}
-          <div style="margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center;">
-            <div>
-              <strong>{{ atividade.titulo }}</strong>
+          <div style="margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid #f0f0f0; padding: 12px; background:{% if atividade.status == 'Concluída' %}#f0f5f0{% else %}#fafafa{% endif %}; border-radius: 8px;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
+              <div style="flex: 1; min-width: 0;">
+                <strong style="{% if atividade.status == 'Concluída' %}text-decoration: line-through; color: #999;{% endif %}">
+                  {{ atividade.titulo }}
+                </strong>
+                <div style="font-size: .8rem; color: #888; margin-top: 4px;">
+                  {% if atividade.data_reuniao %}
+                  <i class="bi bi-calendar-event me-1"></i>{{ atividade.data_reuniao.strftime('%d/%m/%Y') }}
+                  {% endif %}
+                  {% if atividade.status %}
+                  <span class="badge" style="font-size: .7rem; margin-left: 6px;
+                    {% if atividade.status == 'Concluída' %}background: #4CAF50; color: #fff;
+                    {% elif atividade.status == 'Em Progresso' %}background: #FF9800; color: #fff;
+                    {% else %}background: #999; color: #fff;{% endif %}">
+                    {{ atividade.status }}
+                  </span>
+                  {% endif %}
+                </div>
+              </div>
+
+              {% if tem_perm('adicionar_atividade') %}
+              <div style="flex-shrink: 0; display: flex; gap: 4px;">
+                <!-- Botão para marcar como concluída -->
+                {% if atividade.status != 'Concluída' %}
+                <form method="POST" action="/projeto/{{ projeto.id }}/atividade/{{ atividade.id }}/status" style="display: inline;">
+                  <input type="hidden" name="status" value="Concluída">
+                  <button type="submit" class="btn btn-sm btn-outline-success" title="Marcar como concluída">
+                    <i class="bi bi-check-circle"></i>
+                  </button>
+                </form>
+                {% else %}
+                <form method="POST" action="/projeto/{{ projeto.id }}/atividade/{{ atividade.id }}/status" style="display: inline;">
+                  <input type="hidden" name="status" value="Aberta">
+                  <button type="submit" class="btn btn-sm btn-outline-secondary" title="Marcar como não concluída">
+                    <i class="bi bi-arrow-clockwise"></i>
+                  </button>
+                </form>
+                {% endif %}
+
+                <!-- Botão deletar -->
+                <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal"
+                        data-bs-target="#deletarAtividadeModal{{ atividade.id }}" title="Deletar">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </div>
+              {% endif %}
             </div>
-            {% if tem_perm('adicionar_atividade') %}
-            <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal"
-                    data-bs-target="#deletarAtividadeModal{{ atividade.id }}" title="Deletar">
-              <i class="bi bi-trash"></i>
-            </button>
-            {% endif %}
           </div>
           {% endfor %}
         </div>
