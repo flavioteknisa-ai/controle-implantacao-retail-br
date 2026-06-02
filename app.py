@@ -1617,6 +1617,7 @@ def dashboard_projetos():
                 'responsavel_id': p.responsavel_id,
                 'projetos_total': 0,
                 'em_andamento': 0,
+                'paralisados': 0,
                 'finalizados': 0,
                 'atrasados': 0,
                 'valor_total': 0,
@@ -1626,6 +1627,8 @@ def dashboard_projetos():
         coordenadores_resumo[resp]['projetos_lista'].append(p)
         if p.status == 'Em andamento':
             coordenadores_resumo[resp]['em_andamento'] += 1
+        elif p.status == 'Paralisado':
+            coordenadores_resumo[resp]['paralisados'] += 1
         elif p.status == 'Finalizado':
             coordenadores_resumo[resp]['finalizados'] += 1
         if p.esta_atrasado():
