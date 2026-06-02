@@ -88,20 +88,25 @@ app.config['SQLALCHEMY_DATABASE_URI']        = db_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # ── Connection-pool tuning (Supabase pgBouncer + Vercel serverless) ───────────
-# pool_pre_ping: validates connections before use → prevents slow stale-conn errors
-# pool_recycle:  recycles before pgBouncer's 5-min idle timeout
-# pool_size/max_overflow: kept low — Vercel functions are short-lived
 if db_url.startswith('postgresql'):
     app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
         'pool_pre_ping':  True,
         'pool_recycle':   280,
-        'pool_size':      2,
-        'max_overflow':   4,
+        'pool_size':      3,        # slight increase for concurrent requests
+        'max_overflow':   6,
         'pool_timeout':   15,
-        'connect_args':   {'connect_timeout': 10},
+        'connect_args':   {'connect_timeout': 10, 'options': '-c statement_timeout=8000'},
     }
 
+# ── Application-level cache (SimpleCache = in-process, no Redis needed) ───────
+from flask_caching import Cache
+app.config['CACHE_TYPE']             = 'SimpleCache'
+app.config['CACHE_DEFAULT_TIMEOUT']  = 60   # 60 s default TTL
+
 db.init_app(app)
+
+# ── Cache init (after app config is set) ──────────────────────────────────────
+cache = Cache(app)
 
 # ─── Flask-Login ──────────────────────────────────────────────────────────────
 
@@ -316,11 +321,15 @@ def db_to_ferias(f: FeriasDB) -> Ferias:
     obj.conflito_aprovado  = f.conflito_aprovado  or False
     return obj
 
-def db_to_projeto(p: ERPProjetoDB) -> Projeto:
+def db_to_projeto(p: ERPProjetoDB, colabs_map: dict = None) -> Projeto:
+    """colabs_map={id: nome} avoids an extra query when caller already has colabs loaded."""
     responsavel = None
     if p.responsavel_id:
-        resp_colab = ColaboradorDB.query.get(p.responsavel_id)
-        responsavel = resp_colab.nome if resp_colab else None
+        if colabs_map is not None:
+            responsavel = colabs_map.get(p.responsavel_id)
+        else:
+            resp_colab = ColaboradorDB.query.get(p.responsavel_id)
+            responsavel = resp_colab.nome if resp_colab else None
 
     proj = Projeto(
         id=p.id,
@@ -416,43 +425,41 @@ def db_to_projeto_lite(p: ERPProjetoDB, responsaveis_map: dict = None) -> Projet
     )
 
 
-def db_to_projetos_batch_lite(projetos_db: list) -> list:
+def db_to_projetos_batch_lite(projetos_db: list, resp_map: dict = None) -> list:
     """Batch-converts a list of ERPProjetoDB to Projeto domain objects.
-    Eliminates N+1 queries by loading all responsaveis in a single IN query."""
+    Pass resp_map={id: nome} to reuse an already-loaded colabs map and avoid extra query."""
     if not projetos_db:
         return []
-    resp_ids = {p.responsavel_id for p in projetos_db if p.responsavel_id}
-    if resp_ids:
-        resp_map = {
-            c.id: c.nome
-            for c in ColaboradorDB.query.filter(ColaboradorDB.id.in_(resp_ids)).all()
-        }
-    else:
-        resp_map = {}
+    if resp_map is None:
+        resp_ids = {p.responsavel_id for p in projetos_db if p.responsavel_id}
+        if resp_ids:
+            resp_map = {c.id: c.nome for c in
+                        ColaboradorDB.query.filter(ColaboradorDB.id.in_(resp_ids)).all()}
+        else:
+            resp_map = {}
     return [db_to_projeto_lite(p, resp_map) for p in projetos_db]
 
 
+@cache.cached(timeout=30, key_prefix='carregar_tudo')
+def _carregar_colaboradores_cached():
+    """Colaboradores cached 30s — they rarely change."""
+    colabs_db = ColaboradorDB.query.filter_by(ativo=True).order_by(ColaboradorDB.nome).all()
+    return [db_to_colab(c) for c in colabs_db]
+
 def carregar_tudo():
-    colabs_db    = ColaboradorDB.query.filter_by(ativo=True).all()
-    colaboradores = [db_to_colab(c) for c in colabs_db]
+    colaboradores = _carregar_colaboradores_cached()
+    # Single query: all non-cancelled ferias, split in Python
     ferias_todos = FeriasDB.query.filter(FeriasDB.status != 'Cancelado').all()
     ferias_plan  = [db_to_ferias(f) for f in ferias_todos if f.status != 'Realizado']
     ferias_real  = [db_to_ferias(f) for f in ferias_todos if f.status == 'Realizado']
     return colaboradores, ferias_plan, ferias_real
 
+@cache.cached(timeout=60, key_prefix='coordenadores')
 def obter_coordenadores():
-    """Retorna lista de colaboradores com cargo de coordenador ou gerencia.
-    Se nenhum for encontrado com esses cargos, retorna todos os ativos."""
+    """Coordenadores cached 60s."""
     colabs_db = ColaboradorDB.query.filter_by(ativo=True).order_by(ColaboradorDB.nome).all()
-    coordenadores = []
-    for c in colabs_db:
-        cargo, _ = parse_cargo_uf(c.time)
-        if cargo in ('coordenador', 'gerencia'):
-            coordenadores.append(c)
-    # Se nenhum coordenador/gerente cadastrado, exibe todos os colaboradores ativos
-    if not coordenadores:
-        return colabs_db
-    return coordenadores
+    coordenadores = [c for c in colabs_db if parse_cargo_uf(c.time)[0] in ('coordenador', 'gerencia')]
+    return coordenadores if coordenadores else colabs_db
 
 # ─── Helpers de saldo / datas ─────────────────────────────────────────────────
 
@@ -737,17 +744,19 @@ def index():
     total_conflitos = len(conflitos_pendentes)
 
     # Solicitações pendentes de aprovação (gestor)
+    # Solicitações pendentes — filter from already-loaded ferias_plan (no extra query)
     solicitacoes_pendentes = []
     if current_user.is_gestor:
-        for s_db in FeriasDB.query.filter_by(status='Solicitado').all():
-            colab = colab_map.get(s_db.colaborador_id)
-            if colab:
-                idx = next((i for i, c in enumerate(colaboradores) if c.id == colab.id), 0)
-                solicitacoes_pendentes.append({
-                    'ferias':      db_to_ferias(s_db),
-                    'colaborador': colab,
-                    'cor':         cor_colab(idx),
-                })
+        for f in ferias_plan:
+            if f.status == 'Solicitado':
+                colab = colab_map.get(f.colaborador_id)
+                if colab:
+                    idx = next((i for i, c in enumerate(colaboradores) if c.id == colab.id), 0)
+                    solicitacoes_pendentes.append({
+                        'ferias':      f,
+                        'colaborador': colab,
+                        'cor':         cor_colab(idx),
+                    })
 
     # Próximas férias (90 dias) — exclui Solicitado
     proximas_raw = analytics.obter_proximas_ferias(90)
@@ -794,7 +803,9 @@ def index():
 
     # Dados de projetos — lite batch (no N+1 sub-queries; full load not needed for summary)
     projetos_db = ERPProjetoDB.query.all()
-    projetos = db_to_projetos_batch_lite(projetos_db)
+    # Reuse already-loaded colaboradores to avoid extra query in batch_lite
+    _resp_map_dash = {c.id: c.nome for c in colaboradores_raw}
+    projetos = db_to_projetos_batch_lite(projetos_db, resp_map=_resp_map_dash)
     proj_analytics = ProjetoAnalytics(projetos)
     proj_resumo = proj_analytics.resumo_geral()
     proj_criticos = proj_analytics.projetos_criticos()
@@ -1001,6 +1012,8 @@ def novo_colaborador():
         db.session.add(novo)
         db.session.commit()
         flash(f'Colaborador "{nome}" adicionado com sucesso!', 'success')
+        cache.delete('carregar_tudo')
+        cache.delete('coordenadores')
         return redirect(url_for('listar_colaboradores'))
     return render_template('novo_colaborador.html')
 
@@ -1168,6 +1181,7 @@ def nova_ferias():
             flash(f'Férias de {colab.nome} solicitadas com sucesso!', 'success')
         else:
             flash(f'Férias de {colab.nome} registradas com sucesso!', 'success')
+        cache.delete('carregar_tudo')
         return redirect(url_for('index'))
 
     return render_template('nova_ferias.html', colaboradores=colaboradores,
@@ -1524,7 +1538,7 @@ def exportar_comissionamentos_excel():
 def listar_projetos():
     """Lista todos os projetos ERP com filtros opcionais"""
     projetos_db = ERPProjetoDB.query.order_by(ERPProjetoDB.criado_em.desc()).all()
-    todos_projetos = db_to_projetos_batch_lite(projetos_db)  # eliminates N+1
+    todos_projetos = db_to_projetos_batch_lite(projetos_db)  # already batches colabs
 
     # Filtro por responsável (coordenador)
     responsavel_filtro = request.args.get('responsavel_id', '')
@@ -1584,7 +1598,11 @@ def listar_projetos():
 def dashboard_projetos():
     """Dashboard com visão geral dos projetos e indicadores por coordenador"""
     projetos_db = ERPProjetoDB.query.all()
-    projetos = db_to_projetos_batch_lite(projetos_db)  # eliminates N+1
+    # Build resp_map once here to avoid second colaboradores query inside batch_lite
+    _resp_ids_dp = {p.responsavel_id for p in projetos_db if p.responsavel_id}
+    _resp_map_dp = {c.id: c.nome for c in ColaboradorDB.query.filter(
+        ColaboradorDB.id.in_(_resp_ids_dp)).all()} if _resp_ids_dp else {}
+    projetos = db_to_projetos_batch_lite(projetos_db, resp_map=_resp_map_dp)  # no extra query
 
     analytics = ProjetoAnalytics(projetos)
 
@@ -1782,9 +1800,10 @@ def novo_projeto():
 def detalhe_projeto(pid):
     """Exibe detalhes completos de um projeto"""
     p_db = ERPProjetoDB.query.get_or_404(pid)
-    projeto = db_to_projeto(p_db)
-
+    # Load colabs once; reuse for responsavel lookup AND form dropdown (avoids extra query)
     colaboradores = ColaboradorDB.query.filter_by(ativo=True).order_by(ColaboradorDB.nome).all()
+    colabs_map = {c.id: c.nome for c in colaboradores}
+    projeto = db_to_projeto(p_db, colabs_map=colabs_map)
 
     return render_template('projetos/detalhe_projeto.html',
                           projeto=projeto,
