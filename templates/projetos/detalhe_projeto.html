@@ -226,11 +226,19 @@
         <div>
           <i class="bi bi-puzzle"></i> Módulos ERP ({{ projeto.modulos|length }})
         </div>
-        {% if tem_perm('adicionar_modulo') %}
-        <button type="button" class="btn btn-sm btn-light" data-bs-toggle="modal" data-bs-target="#adicionarModuloModal">
-          <i class="bi bi-plus-circle"></i> Adicionar
-        </button>
-        {% endif %}
+        <div class="d-flex gap-2 align-items-center">
+          <div class="form-check" style="margin: 0;">
+            <input class="form-check-input" type="checkbox" id="showConcluiModulos" checked>
+            <label class="form-check-label" for="showConcluiModulos" style="margin: 0; font-size: .85rem;">
+              Ocultar Concluídos
+            </label>
+          </div>
+          {% if tem_perm('adicionar_modulo') %}
+          <button type="button" class="btn btn-sm btn-light" data-bs-toggle="modal" data-bs-target="#adicionarModuloModal">
+            <i class="bi bi-plus-circle"></i> Adicionar
+          </button>
+          {% endif %}
+        </div>
       </div>
       <div class="card-body p-0">
         {% if projeto.modulos %}
@@ -246,8 +254,8 @@
           </thead>
           <tbody>
             {% for modulo in projeto.modulos %}
-            <tr>
-              <td><strong>{{ modulo.nome }}</strong></td>
+            <tr class="modulo-row" data-status="{{ modulo.status }}" style="{% if modulo.status == 'Concluído' %}opacity: 0.5; background: #f5f5f5;{% endif %} display: {% if modulo.status == 'Concluído' %}none{% endif %};">
+              <td><strong style="{% if modulo.status == 'Concluído' %}text-decoration: line-through; color: #888;{% endif %}">{{ modulo.nome }}</strong></td>
               <td>
                 {% if modulo.status == 'Planejado' %}
                 <span class="badge bg-secondary">Planejado</span>
@@ -306,11 +314,19 @@
         <div>
           <i class="bi bi-geo-alt"></i> Unidades/Lojas ({{ projeto.unidades|length }})
         </div>
-        {% if tem_perm('adicionar_unidade') %}
-        <button type="button" class="btn btn-sm btn-light" data-bs-toggle="modal" data-bs-target="#adicionarUnidadeModal">
-          <i class="bi bi-plus-circle"></i> Adicionar
-        </button>
-        {% endif %}
+        <div class="d-flex gap-2 align-items-center">
+          <div class="form-check" style="margin: 0;">
+            <input class="form-check-input" type="checkbox" id="showConcluiUnidades" checked>
+            <label class="form-check-label" for="showConcluiUnidades" style="margin: 0; font-size: .85rem;">
+              Ocultar Concluídos
+            </label>
+          </div>
+          {% if tem_perm('adicionar_unidade') %}
+          <button type="button" class="btn btn-sm btn-light" data-bs-toggle="modal" data-bs-target="#adicionarUnidadeModal">
+            <i class="bi bi-plus-circle"></i> Adicionar
+          </button>
+          {% endif %}
+        </div>
       </div>
       <div class="card-body p-0">
         {% if projeto.unidades %}
@@ -325,8 +341,8 @@
           </thead>
           <tbody>
             {% for unidade in projeto.unidades %}
-            <tr>
-              <td><strong>{{ unidade.nome }}</strong></td>
+            <tr class="unidade-row" data-status="{{ unidade.status }}" style="{% if unidade.status == 'Finalizado' %}opacity: 0.5; background: #f5f5f5;{% endif %} display: {% if unidade.status == 'Finalizado' %}none{% endif %};">
+              <td><strong style="{% if unidade.status == 'Finalizado' %}text-decoration: line-through; color: #888;{% endif %}">{{ unidade.nome }}</strong></td>
               <td>
                 {% if unidade.status == 'Não iniciado' %}
                 <span class="badge bg-secondary">Não iniciado</span>
@@ -371,17 +387,25 @@
         <div>
           <i class="bi bi-chat-dots"></i> Atividades ({{ projeto.atividades|length }})
         </div>
-        {% if tem_perm('adicionar_atividade') %}
-        <button type="button" class="btn btn-sm btn-light" data-bs-toggle="modal" data-bs-target="#adicionarAtividadeModal">
-          <i class="bi bi-plus-circle"></i> Adicionar
-        </button>
-        {% endif %}
+        <div class="d-flex gap-2 align-items-center">
+          <div class="form-check" style="margin: 0;">
+            <input class="form-check-input" type="checkbox" id="showConcluiAtividades" checked>
+            <label class="form-check-label" for="showConcluiAtividades" style="margin: 0; font-size: .85rem;">
+              Ocultar Concluídos
+            </label>
+          </div>
+          {% if tem_perm('adicionar_atividade') %}
+          <button type="button" class="btn btn-sm btn-light" data-bs-toggle="modal" data-bs-target="#adicionarAtividadeModal">
+            <i class="bi bi-plus-circle"></i> Adicionar
+          </button>
+          {% endif %}
+        </div>
       </div>
       <div class="card-body">
         {% if projeto.atividades %}
         <div class="timeline">
           {% for atividade in projeto.atividades %}
-          <div style="margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid #f0f0f0; padding: 12px; background:{% if atividade.status == 'Concluída' %}#f0f5f0{% else %}#fafafa{% endif %}; border-radius: 8px;">
+          <div class="atividade-item" data-status="{{ atividade.status }}" style="margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid #f0f0f0; padding: 12px; background:{% if atividade.status == 'Concluída' %}#f0f5f0{% else %}#fafafa{% endif %}; border-radius: 8px; display: {% if atividade.status == 'Concluída' %}none{% endif %};">
             <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
               <div style="flex: 1; min-width: 0;">
                 <strong style="{% if atividade.status == 'Concluída' %}text-decoration: line-through; color: #999;{% endif %}">
@@ -676,4 +700,38 @@
 {% endfor %}
 {% endif %}
 
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Toggle para ocultar/mostrar Módulos Concluídos
+document.getElementById('showConcluiModulos')?.addEventListener('change', function() {
+  const rows = document.querySelectorAll('.modulo-row');
+  rows.forEach(row => {
+    if (row.dataset.status === 'Concluído') {
+      row.style.display = this.checked ? 'none' : 'table-row';
+    }
+  });
+});
+
+// Toggle para ocultar/mostrar Unidades Finalizadas
+document.getElementById('showConcluiUnidades')?.addEventListener('change', function() {
+  const rows = document.querySelectorAll('.unidade-row');
+  rows.forEach(row => {
+    if (row.dataset.status === 'Finalizado') {
+      row.style.display = this.checked ? 'none' : 'table-row';
+    }
+  });
+});
+
+// Toggle para ocultar/mostrar Atividades Concluídas
+document.getElementById('showConcluiAtividades')?.addEventListener('change', function() {
+  const items = document.querySelectorAll('.atividade-item');
+  items.forEach(item => {
+    if (item.dataset.status === 'Concluída') {
+      item.style.display = this.checked ? 'none' : 'block';
+    }
+  });
+});
+</script>
 {% endblock %}
