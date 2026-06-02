@@ -1683,7 +1683,7 @@ def novo_projeto():
             data_aceite = datetime.strptime(request.form.get('data_aceite', ''), '%Y-%m-%d').date()
         except ValueError:
             flash('Data de aceite inválida.', 'danger')
-            return render_template('projetos/novo_projeto.html', colaboradores=colaboradores)
+            return render_template('projetos/novo_projeto.html', colaboradores=colaboradores, modelos=PROJETO_MODELOS)
 
         # Data de conclusão é opcional
         data_conclusao_str = request.form.get('data_conclusao', '').strip()
@@ -1693,7 +1693,7 @@ def novo_projeto():
                 data_conclusao = datetime.strptime(data_conclusao_str, '%Y-%m-%d').date()
             except ValueError:
                 flash('Data de conclusão inválida.', 'danger')
-                return render_template('projetos/novo_projeto.html', colaboradores=colaboradores)
+                return render_template('projetos/novo_projeto.html', colaboradores=colaboradores, modelos=PROJETO_MODELOS)
 
         valor_str = request.form.get('valor_mensalidades', '0').replace(',', '.')
         try:
@@ -1716,19 +1716,20 @@ def novo_projeto():
 
         potencial_cliente = request.form.get('potencial_cliente', 'Médio')
         tipo_projeto = request.form.get('tipo_projeto', 'Novo')
+        modelo_projeto = request.form.get('modelo_projeto', 'Tradicional')
 
         # Validação básica
         if not nome:
             flash('Nome do projeto é obrigatório.', 'danger')
-            return render_template('projetos/novo_projeto.html', colaboradores=colaboradores)
+            return render_template('projetos/novo_projeto.html', colaboradores=colaboradores, modelos=PROJETO_MODELOS)
         if not responsavel_id:
             flash('Responsável (Coordenador) é obrigatório.', 'danger')
-            return render_template('projetos/novo_projeto.html', colaboradores=colaboradores)
+            return render_template('projetos/novo_projeto.html', colaboradores=colaboradores, modelos=PROJETO_MODELOS)
 
         # Verificar duplicata
         if ERPProjetoDB.query.filter_by(nome_projeto=nome).first():
             flash(f'Projeto com nome "{nome}" já existe.', 'danger')
-            return render_template('projetos/novo_projeto.html', colaboradores=colaboradores)
+            return render_template('projetos/novo_projeto.html', colaboradores=colaboradores, modelos=PROJETO_MODELOS)
 
         # Criar novo projeto
         novo = ERPProjetoDB(
@@ -1742,7 +1743,8 @@ def novo_projeto():
             percentual_conclusao=0,
             numero_unidades=numero_unidades,
             potencial_cliente=potencial_cliente,
-            tipo_projeto=tipo_projeto
+            tipo_projeto=tipo_projeto,
+            modelo_projeto=modelo_projeto
         )
         db.session.add(novo)
         db.session.commit()
@@ -1750,7 +1752,7 @@ def novo_projeto():
         flash(f'Projeto "{nome}" criado com sucesso!', 'success')
         return redirect(url_for('detalhe_projeto', pid=novo.id))
 
-    return render_template('projetos/novo_projeto.html', colaboradores=colaboradores)
+    return render_template('projetos/novo_projeto.html', colaboradores=colaboradores, modelos=PROJETO_MODELOS)
 
 @app.route('/projeto/<int:pid>')
 @login_required
@@ -1820,6 +1822,7 @@ def editar_projeto(pid):
 
         potencial_cliente = request.form.get('potencial_cliente', 'Médio')
         tipo_projeto = request.form.get('tipo_projeto', 'Novo')
+        modelo_projeto = request.form.get('modelo_projeto', 'Tradicional')
         ponto_atencao = bool(request.form.get('ponto_atencao'))
 
         # Validação
@@ -1843,6 +1846,7 @@ def editar_projeto(pid):
         p_db.numero_unidades = numero_unidades
         p_db.potencial_cliente = potencial_cliente
         p_db.tipo_projeto = tipo_projeto
+        p_db.modelo_projeto = modelo_projeto
         p_db.ponto_atencao = ponto_atencao
         db.session.commit()
 
@@ -1850,7 +1854,7 @@ def editar_projeto(pid):
         return redirect(url_for('detalhe_projeto', pid=pid))
 
     projeto = db_to_projeto(p_db)
-    return render_template('projetos/editar_projeto.html',
+    return render_template('projetos/editar_projeto.html', modelos=PROJETO_MODELOS,
                           projeto=projeto,
                           p_db=p_db,
                           colaboradores=colaboradores)
@@ -2146,7 +2150,8 @@ VISITA_CUSTO     = ['TEKNISA', 'CLIENTE', 'COMPARTILHADO']
 VISITA_CONTATOS  = ['Dono', 'Diretor', 'Supervisor']
 
 # Projeto status
-PROJETO_STATUS = ['Em andamento', 'Paralisado', 'Finalizado', 'Cancelado']
+PROJETO_STATUS  = ['Em andamento', 'Paralisado', 'Finalizado', 'Cancelado']
+PROJETO_MODELOS = ['Tradicional', 'Rollout', 'Treinamento']
 
 
 @app.route('/visitas')

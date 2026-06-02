@@ -83,6 +83,7 @@ class ERPProjetoDB(db.Model):
     numero_unidades     = db.Column(db.Integer, default=1)
     potencial_cliente   = db.Column(db.String(50), default='Médio')
     tipo_projeto        = db.Column(db.String(50), default='Novo')
+    modelo_projeto      = db.Column(db.String(50), default='Tradicional')  # Tradicional | Rollout | Treinamento
     ponto_atencao       = db.Column(db.Boolean, default=False)
     criado_em           = db.Column(db.DateTime, default=datetime.now)
     atualizado_em       = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)

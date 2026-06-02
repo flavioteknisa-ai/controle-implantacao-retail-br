@@ -100,6 +100,20 @@
             </div>
           </div>
 
+          <div class="row">
+            <div class="col-md-4">
+              <div class="mb-3">
+                <label for="modelo_projeto" class="form-label fw-semibold">Modelo de Projeto <span class="text-danger">*</span></label>
+                <select class="form-control" id="modelo_projeto" name="modelo_projeto" required>
+                  {% for m in modelos %}
+                  <option value="{{ m }}" {% if request.form.get('modelo_projeto', 'Tradicional') == m %}selected{% endif %}>{{ m }}</option>
+                  {% endfor %}
+                </select>
+                <small class="form-text text-muted">Tradicional, Rollout ou Treinamento</small>
+              </div>
+            </div>
+          </div>
+
           <div class="mb-3">
             <label for="descricao" class="form-label">Descrição</label>
             <textarea class="form-control" id="descricao" name="descricao" rows="4"
