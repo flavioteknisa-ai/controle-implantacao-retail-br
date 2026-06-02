@@ -1712,9 +1712,12 @@ def novo_projeto():
         potencial_cliente = request.form.get('potencial_cliente', 'Médio')
         tipo_projeto = request.form.get('tipo_projeto', 'Novo')
 
-        # Validação básica (sem exigir data_conclusao)
+        # Validação básica
         if not nome:
             flash('Nome do projeto é obrigatório.', 'danger')
+            return render_template('projetos/novo_projeto.html', colaboradores=colaboradores)
+        if not responsavel_id:
+            flash('Responsável (Coordenador) é obrigatório.', 'danger')
             return render_template('projetos/novo_projeto.html', colaboradores=colaboradores)
 
         # Verificar duplicata
@@ -1815,6 +1818,9 @@ def editar_projeto(pid):
         ponto_atencao = bool(request.form.get('ponto_atencao'))
 
         # Validação
+        if not responsavel_id:
+            flash('Responsável (Coordenador) é obrigatório.', 'danger')
+            return redirect(url_for('editar_projeto', pid=pid))
         valido, erro = ProjetoValidator.validar_projeto(nome, data_aceite, data_conclusao)
         if not valido:
             flash(f'Erro: {erro}', 'danger')
