@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+{% block title %}Importar do ClickUp · {{ super() }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.wizard-step { display:flex; gap:8px; align-items:center; margin-bottom:28px; flex-wrap:wrap; }
+.step-pill { padding:6px 16px; border-radius:20px; font-size:.78rem; font-weight:700;
+             border:2px solid #ddd; color:#999; background:#fff; }
+.step-pill.active { border-color:#808080; background:#808080; color:#fff; }
+.step-pill.done   { border-color:#2e7d32; background:#e8f5e9; color:#2e7d32; }
+.step-arrow { color:#ccc; font-size:.9rem; }
+.import-card { background:#fff; border-radius:14px; border:1px solid #eee;
+               box-shadow:0 2px 12px rgba(0,0,0,.06); overflow:hidden; }
+.task-row:hover { background:#f8f9ff; }
+.task-row td { padding:10px 14px; vertical-align:middle; }
+.badge-done       { background:#e8f5e9; color:#2e7d32; }
+.badge-andamento  { background:#e3f2fd; color:#0340AB; }
+.badge-paralisado { background:#fff3e0; color:#e65100; }
+.badge-cancelado  { background:#fce4ec; color:#b71c1c; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h2><i class="bi bi-cloud-download me-2"></i>Importar Projetos do ClickUp</h2>
+  <p>Importe tarefas do ClickUp diretamente para o sistema</p>
+</div>
+
+<!-- Wizard de passos -->
+<div class="wizard-step">
+  <span class="step-pill {% if step == '1' %}active{% elif step in ['2','3','4'] %}done{% endif %}">
+    <i class="bi bi-key me-1"></i>1. Token
+  </span>
+  <span class="step-arrow"><i class="bi bi-chevron-right"></i></span>
+  <span class="step-pill {% if step == '2' %}active{% elif step in ['3','4'] %}done{% endif %}">
+    <i class="bi bi-diagram-3 me-1"></i>2. Workspace
+  </span>
+  <span class="step-arrow"><i class="bi bi-chevron-right"></i></span>
+  <span class="step-pill {% if step == '3' %}active{% elif step == '4' %}done{% endif %}">
+    <i class="bi bi-list-task me-1"></i>3. Lista
+  </span>
+  <span class="step-arrow"><i class="bi bi-chevron-right"></i></span>
+  <span class="step-pill {% if step == '4' %}active{% endif %}">
+    <i class="bi bi-check2-all me-1"></i>4. Confirmar
+  </span>
+</div>
+
+<!-- ═══ STEP 1: Token ═══════════════════════════════════════════ -->
+{% if step == '1' %}
+<div class="import-card">
+  <div class="card-header dark"><i class="bi bi-key-fill me-2"></i>Token de Acesso ClickUp</div>
+  <div class="card-body">
+    <form method="POST" action="/admin/importar-clickup?step=1">
+      <div class="row g-3 align-items-end" style="max-width:580px;">
+        <div class="col-12">
+          <label class="form-label fw-semibold">Token pessoal da API</label>
+          <div class="input-group">
+            <span class="input-group-text bg-light"><i class="bi bi-shield-lock text-muted"></i></span>
+            <input type="password" class="form-control" name="token" id="tokenInput"
+                   placeholder="pk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" required autocomplete="off">
+            <button class="btn btn-outline-secondary" type="button"
+                    onclick="var i=document.getElementById('tokenInput'); i.type=i.type=='password'?'text':'password';">
+              <i class="bi bi-eye"></i>
+            </button>
+          </div>
+          <div class="form-text">
+            Para obter o token: no ClickUp acesse
+            <strong>Perfil → Apps → API Token → Generate</strong>
+            (gratuito, não expira)
+          </div>
+        </div>
+        <div class="col-12">
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-plug me-1"></i>Conectar ao ClickUp
+          </button>
+        </div>
+      </div>
+    </form>
+    <hr class="my-4">
+    <div class="alert alert-info py-2 mb-0 small">
+      <i class="bi bi-info-circle me-1"></i>
+      O token é usado apenas para buscar os dados agora e <strong>não é armazenado</strong> no sistema.
+    </div>
+  </div>
+</div>
+
+<!-- ═══ STEP 2: Workspace ════════════════════════════════════════ -->
+{% elif step == '2' %}
+<div class="import-card">
+  <div class="card-header dark"><i class="bi bi-diagram-3 me-2"></i>Selecione o Workspace</div>
+  <div class="card-body">
+    <form method="POST" action="/admin/importar-clickup?step=2">
+      <input type="hidden" name="token" value="{{ token }}">
+      <div style="max-width:480px;">
+        <label class="form-label fw-semibold">Workspace encontrado(s):</label>
+        {% for ws in workspaces %}
+        <div class="form-check mb-2 p-3" style="border:1px solid #eee;border-radius:10px;">
+          <input class="form-check-input" type="radio" name="workspace_id"
+                 id="ws_{{ ws.id }}" value="{{ ws.id }}" required
+                 {% if workspaces|length == 1 %}checked{% endif %}>
+          <label class="form-check-label fw-semibold ms-2" for="ws_{{ ws.id }}">
+            <i class="bi bi-building me-1 text-muted"></i>{{ ws.name }}
+            <small class="text-muted fw-normal">({{ ws.members|length if ws.members else 0 }} membros)</small>
+          </label>
+        </div>
+        {% endfor %}
+        <button type="submit" class="btn btn-primary mt-3">
+          <i class="bi bi-arrow-right me-1"></i>Buscar Listas
+        </button>
+        <a href="/admin/importar-clickup" class="btn btn-outline-secondary mt-3 ms-2">
+          <i class="bi bi-arrow-left me-1"></i>Voltar
+        </a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ═══ STEP 3: Lista ════════════════════════════════════════════ -->
+{% elif step == '3' %}
+<div class="import-card">
+  <div class="card-header dark"><i class="bi bi-list-task me-2"></i>Selecione a Lista de Projetos</div>
+  <div class="card-body">
+    <form method="POST" action="/admin/importar-clickup?step=3">
+      <input type="hidden" name="token" value="{{ token }}">
+      <input type="hidden" name="workspace_id" value="{{ workspace_id }}">
+      <div style="max-width:560px;">
+        <label class="form-label fw-semibold">Listas disponíveis ({{ listas|length }}):</label>
+        <div style="max-height:380px;overflow-y:auto;border:1px solid #eee;border-radius:10px;">
+          {% for lista in listas %}
+          <label class="d-flex align-items-center gap-2 px-3 py-2"
+                 style="border-bottom:1px solid #f5f5f5;cursor:pointer;"
+                 onmouseover="this.style.background='#f8f9ff'" onmouseout="this.style.background=''">
+            <input type="radio" name="list_id" value="{{ lista.id }}" required>
+            <div style="min-width:0;">
+              <div class="fw-semibold small">{{ lista.name }}</div>
+              <div class="text-muted" style="font-size:.72rem;">{{ lista.space }}</div>
+            </div>
+          </label>
+          {% endfor %}
+        </div>
+        <div class="d-flex gap-2 mt-3">
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-eye me-1"></i>Pré-visualizar Tarefas
+          </button>
+          <a href="/admin/importar-clickup" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i>Voltar
+          </a>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ═══ STEP 4: Preview e confirmação ═══════════════════════════ -->
+{% elif step == '4' %}
+<div class="import-card">
+  <div class="card-header dark d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-check2-all me-2"></i>Pré-visualização — {{ tarefas|length }} tarefa(s)</span>
+    <button type="button" class="btn btn-sm btn-light" id="btnSelecionarTodos">
+      <i class="bi bi-check-all me-1"></i>Selecionar Todos
+    </button>
+  </div>
+  <div class="card-body p-0">
+    <form method="POST" action="/admin/importar-clickup?step=4" id="formImportar">
+      <input type="hidden" name="token" value="{{ token }}">
+      <input type="hidden" name="list_id" value="{{ list_id }}">
+      <input type="hidden" name="workspace_id" value="{{ workspace_id }}">
+
+      <div class="table-responsive">
+        <table class="table mb-0" style="font-size:.84rem;">
+          <thead class="bg-light">
+            <tr>
+              <th style="width:44px;" class="ps-3">
+                <input type="checkbox" id="checkAll" class="form-check-input">
+              </th>
+              <th>Nome da Tarefa → Projeto</th>
+              <th>Status</th>
+              <th>Início</th>
+              <th>Conclusão</th>
+              <th>Responsável</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for t in tarefas %}
+            {% set status_sys = 'Finalizado' if t.status|lower in ['done','conclu','finaliz','completo','complete'] else
+                                'Cancelado' if t.status|lower in ['cancel'] else 'Em andamento' %}
+            <tr class="task-row">
+              <td class="ps-3">
+                <input type="checkbox" name="importar" value="{{ t.id }}"
+                       class="form-check-input task-check" checked>
+              </td>
+              <td class="fw-semibold">{{ t.nome }}</td>
+              <td>
+                <span class="status-badge badge-{{ 'concluida' if status_sys == 'Finalizado' else 'planejada' if status_sys == 'Em andamento' else 'cancelada' }}"
+                      style="font-size:.7rem;">
+                  {{ status_sys }}
+                </span>
+                <div class="text-muted" style="font-size:.7rem;">{{ t.status }}</div>
+              </td>
+              <td class="small">{{ t.data_inicio or '—' }}</td>
+              <td class="small">{{ t.data_fim or '—' }}</td>
+              <td class="small text-muted">{{ t.responsavel or '—' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="d-flex gap-2 p-3 border-top align-items-center">
+        <button type="submit" class="btn btn-primary">
+          <i class="bi bi-cloud-download me-1"></i>Importar Selecionados
+        </button>
+        <a href="/admin/importar-clickup" class="btn btn-outline-secondary">
+          <i class="bi bi-arrow-left me-1"></i>Recomeçar
+        </a>
+        <span class="text-muted small ms-2" id="countLabel"></span>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="alert alert-warning small mt-3 mb-0">
+  <i class="bi bi-exclamation-triangle me-1"></i>
+  Projetos com nome idêntico a um já existente serão ignorados (sem duplicatas).
+  Após importar, edite cada projeto para ajustar o coordenador responsável se necessário.
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Check-all
+const checkAll = document.getElementById('checkAll');
+if (checkAll) {
+  checkAll.addEventListener('change', function() {
+    document.querySelectorAll('.task-check').forEach(c => c.checked = this.checked);
+    updateCount();
+  });
+  document.querySelectorAll('.task-check').forEach(c => c.addEventListener('change', updateCount));
+  updateCount();
+}
+
+function updateCount() {
+  const total = document.querySelectorAll('.task-check').length;
+  const sel   = document.querySelectorAll('.task-check:checked').length;
+  const lbl   = document.getElementById('countLabel');
+  if (lbl) lbl.textContent = sel + ' de ' + total + ' selecionado(s)';
+}
+
+// Botão selecionar todos
+const btnTodos = document.getElementById('btnSelecionarTodos');
+if (btnTodos) btnTodos.addEventListener('click', function() {
+  const checks = document.querySelectorAll('.task-check');
+  const all = [...checks].every(c => c.checked);
+  checks.forEach(c => c.checked = !all);
+  if (checkAll) checkAll.checked = !all;
+  updateCount();
+});
+</script>
+{% endblock %}

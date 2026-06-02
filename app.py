@@ -3294,6 +3294,220 @@ def admin_configuracoes():
                            chave_configurada=bool(chave_atual))
 
 
+# ─── Importador ClickUp ───────────────────────────────────────────────────────
+
+def _clickup_get(path: str, token: str) -> dict:
+    """Faz GET na API do ClickUp e retorna JSON ou lança ValueError."""
+    import requests as _req
+    r = _req.get(
+        f'https://api.clickup.com/api/v2{path}',
+        headers={'Authorization': token},
+        timeout=10
+    )
+    if r.status_code == 401:
+        raise ValueError('Token inválido ou sem permissão.')
+    if r.status_code != 200:
+        raise ValueError(f'Erro API ClickUp ({r.status_code}): {r.text[:200]}')
+    return r.json()
+
+
+def _clickup_parse_date(ts) -> str:
+    """Converte timestamp ClickUp (ms) para YYYY-MM-DD."""
+    if not ts:
+        return ''
+    try:
+        from datetime import datetime
+        return datetime.utcfromtimestamp(int(ts) / 1000).strftime('%Y-%m-%d')
+    except Exception:
+        return ''
+
+
+def _clickup_map_status(status_name: str) -> str:
+    """Mapeia status do ClickUp para status do sistema."""
+    s = (status_name or '').lower()
+    if any(k in s for k in ['conclu', 'done', 'finaliz', 'completo', 'complete']):
+        return 'Finalizado'
+    if any(k in s for k in ['cancel', 'arquiv']):
+        return 'Cancelado'
+    if any(k in s for k in ['paralisa', 'parado', 'hold', 'blocked']):
+        return 'Paralisado'
+    return 'Em andamento'
+
+
+@app.route('/admin/importar-clickup', methods=['GET', 'POST'])
+@login_required
+@gestor_required
+def importar_clickup():
+    """Importador de projetos do ClickUp via API."""
+    import requests as _req
+
+    step      = request.args.get('step', '1')
+    token     = ''
+    workspaces = []
+    listas     = []
+    tarefas    = []
+    erros      = []
+
+    # ── STEP 1: listar workspaces ─────────────────────────────────
+    if request.method == 'POST' and step == '1':
+        token = request.form.get('token', '').strip()
+        if not token:
+            flash('Informe o token da API.', 'danger')
+        else:
+            try:
+                data = _clickup_get('/team', token)
+                workspaces = data.get('teams', [])
+                if not workspaces:
+                    flash('Nenhum workspace encontrado.', 'warning')
+                else:
+                    return render_template('admin/importar_clickup.html',
+                                           step='2', token=token,
+                                           workspaces=workspaces)
+            except ValueError as e:
+                flash(str(e), 'danger')
+
+    # ── STEP 2: listar listas do workspace escolhido ──────────────
+    elif request.method == 'POST' and step == '2':
+        token       = request.form.get('token', '').strip()
+        workspace_id = request.form.get('workspace_id', '')
+        try:
+            # Buscar spaces
+            spaces = _clickup_get(f'/team/{workspace_id}/space?archived=false', token).get('spaces', [])
+            for space in spaces:
+                # Buscar listas diretas do space
+                direct = _clickup_get(f'/space/{space["id"]}/list?archived=false', token).get('lists', [])
+                for l in direct:
+                    listas.append({'id': l['id'], 'name': l['name'], 'space': space['name']})
+                # Buscar pastas e suas listas
+                folders = _clickup_get(f'/space/{space["id"]}/folder?archived=false', token).get('folders', [])
+                for folder in folders:
+                    for l in folder.get('lists', []):
+                        listas.append({'id': l['id'], 'name': l['name'],
+                                       'space': space['name'] + ' / ' + folder['name']})
+            if not listas:
+                flash('Nenhuma lista encontrada no workspace.', 'warning')
+            else:
+                return render_template('admin/importar_clickup.html',
+                                       step='3', token=token,
+                                       workspace_id=workspace_id, listas=listas)
+        except ValueError as e:
+            flash(str(e), 'danger')
+
+    # ── STEP 3: preview das tarefas da lista ─────────────────────
+    elif request.method == 'POST' and step == '3':
+        token   = request.form.get('token', '').strip()
+        list_id = request.form.get('list_id', '')
+        workspace_id = request.form.get('workspace_id', '')
+        try:
+            raw = _clickup_get(f'/list/{list_id}/task?archived=false&include_closed=true&subtasks=false', token)
+            tasks = raw.get('tasks', [])
+            for t in tasks:
+                tarefas.append({
+                    'id':          t['id'],
+                    'nome':        t.get('name', ''),
+                    'status':      t.get('status', {}).get('status', ''),
+                    'data_inicio': _clickup_parse_date(t.get('start_date')),
+                    'data_fim':    _clickup_parse_date(t.get('due_date')),
+                    'responsavel': (t.get('assignees') or [{}])[0].get('username', '') if t.get('assignees') else '',
+                })
+            if not tarefas:
+                flash('Nenhuma tarefa encontrada na lista.', 'warning')
+            else:
+                return render_template('admin/importar_clickup.html',
+                                       step='4', token=token,
+                                       list_id=list_id, workspace_id=workspace_id,
+                                       tarefas=tarefas)
+        except ValueError as e:
+            flash(str(e), 'danger')
+
+    # ── STEP 4: confirmar importação ─────────────────────────────
+    elif request.method == 'POST' and step == '4':
+        token        = request.form.get('token', '').strip()
+        list_id      = request.form.get('list_id', '')
+        workspace_id = request.form.get('workspace_id', '')
+        selecionados = request.form.getlist('importar')
+
+        if not selecionados:
+            flash('Selecione ao menos uma tarefa para importar.', 'warning')
+            return redirect(url_for('importar_clickup'))
+
+        # Buscar novamente as tarefas para obter dados completos
+        try:
+            raw   = _clickup_get(f'/list/{list_id}/task?archived=false&include_closed=true&subtasks=false', token)
+            tasks = {t['id']: t for t in raw.get('tasks', [])}
+        except ValueError as e:
+            flash(str(e), 'danger')
+            return redirect(url_for('importar_clickup'))
+
+        # Obter coordenadores para tentar vincular por nome
+        colabs = ColaboradorDB.query.filter_by(ativo=True).all()
+        colab_map = {c.nome.lower(): c.id for c in colabs}
+
+        importados = 0
+        duplicados = 0
+        for task_id in selecionados:
+            t = tasks.get(task_id)
+            if not t:
+                continue
+            nome = t.get('name', '').strip()
+            if not nome:
+                continue
+
+            # Verificar duplicata
+            if ERPProjetoDB.query.filter_by(nome_projeto=nome).first():
+                duplicados += 1
+                continue
+
+            # Tentar vincular responsável
+            resp_id = None
+            assignees = t.get('assignees') or []
+            if assignees:
+                assignee_name = assignees[0].get('username', '').lower()
+                # Busca parcial no nome dos colaboradores
+                for colab_nome, colab_id in colab_map.items():
+                    if assignee_name in colab_nome or colab_nome in assignee_name:
+                        resp_id = colab_id
+                        break
+
+            data_inicio_str = _clickup_parse_date(t.get('start_date'))
+            data_fim_str    = _clickup_parse_date(t.get('due_date'))
+            try:
+                data_aceite   = datetime.strptime(data_inicio_str, '%Y-%m-%d').date() if data_inicio_str else date.today()
+                data_conclusao = datetime.strptime(data_fim_str, '%Y-%m-%d').date() if data_fim_str else None
+            except ValueError:
+                data_aceite   = date.today()
+                data_conclusao = None
+
+            status = _clickup_map_status(t.get('status', {}).get('status', ''))
+
+            novo = ERPProjetoDB(
+                nome_projeto=nome,
+                data_aceite=data_aceite,
+                data_conclusao=data_conclusao,
+                status=status,
+                responsavel_id=resp_id,
+                valor_mensalidades=0,
+                descricao=t.get('description', '') or '',
+                percentual_conclusao=0,
+                numero_unidades=1,
+                potencial_cliente='Médio',
+                tipo_projeto='Novo',
+            )
+            db.session.add(novo)
+            importados += 1
+
+        db.session.commit()
+
+        if importados:
+            flash(f'{importados} projeto(s) importado(s) com sucesso!', 'success')
+        if duplicados:
+            flash(f'{duplicados} tarefa(s) ignorada(s) por já existirem no sistema.', 'warning')
+        return redirect(url_for('listar_projetos'))
+
+    return render_template('admin/importar_clickup.html', step='1',
+                           token=token, workspaces=workspaces)
+
+
 # ─── Entry point ──────────────────────────────────────────────────────────────
 
 if __name__ == '__main__':
