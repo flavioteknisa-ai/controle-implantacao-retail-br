@@ -305,10 +305,17 @@
                   </button>
                 </form>
                 {% endif %}
-                <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal"
+                <button type="button" class="btn btn-sm btn-outline-primary me-1" data-bs-toggle="modal"
                         data-bs-target="#editarModuloModal{{ modulo.id }}" title="Editar">
                   <i class="bi bi-pencil"></i>
                 </button>
+                <form method="POST" action="/projeto/{{ projeto.id }}/modulo/{{ modulo.id }}/excluir"
+                      style="display:inline;"
+                      onsubmit="return confirm('Excluir o módulo \'{{ modulo.nome }}\'? Esta ação não pode ser desfeita.')">
+                  <button type="submit" class="btn btn-sm btn-outline-danger" title="Excluir módulo">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </form>
               </td>
               {% endif %}
             </tr>

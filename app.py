@@ -2073,6 +2073,19 @@ def atualizar_status_modulo(pid, mid):
     return redirect(url_for('detalhe_projeto', pid=pid))
 
 
+@app.route('/projeto/<int:pid>/modulo/<int:mid>/excluir', methods=['POST'])
+@login_required
+@permission_required('adicionar_modulo')
+def excluir_modulo(pid, mid):
+    """Exclui um módulo do projeto"""
+    modulo_db = ERPModuloDB.query.get_or_404(mid)
+    nome = modulo_db.modulo
+    db.session.delete(modulo_db)
+    db.session.commit()
+    flash(f'Módulo "{nome}" excluído.', 'success')
+    return redirect(url_for('detalhe_projeto', pid=pid))
+
+
 @app.route('/projeto/<int:pid>/editar-unidade/<int:uid>', methods=['POST'])
 @login_required
 @permission_required('adicionar_unidade')
