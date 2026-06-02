@@ -126,6 +126,7 @@ class ProjetoAnalytics:
         return {
             'total_projetos': len(self.projetos),
             'em_andamento': status_contagem['Em andamento'],
+            'paralisados': status_contagem.get('Paralisado', 0),
             'finalizados': status_contagem['Finalizado'],
             'cancelados': status_contagem['Cancelado'],
             'atrasados': len(atrasados),

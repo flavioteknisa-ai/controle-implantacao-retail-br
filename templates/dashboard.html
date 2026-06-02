@@ -38,6 +38,17 @@
     </div>
 
     <div class="col-6 col-md-3">
+      <a href="/projetos?status=Paralisado" style="text-decoration:none;color:inherit;">
+        <div class="stat-card" style="cursor:pointer;transition:box-shadow .15s;">
+          <div class="icon-bg" style="background:#7B1FA2;"></div>
+          <div class="stat-number" style="color:#7B1FA2;">{{ proj_resumo.paralisados or 0 }}</div>
+          <div class="stat-label"><i class="bi bi-pause-circle me-1"></i>Paralisados</div>
+          <div class="mt-2" style="font-size:.7rem;color:#6A1B9A;opacity:.8;">Ver projetos →</div>
+        </div>
+      </a>
+    </div>
+
+    <div class="col-6 col-md-3">
       <a href="/projetos?status=Finalizado" style="text-decoration:none;color:inherit;">
         <div class="stat-card" style="cursor:pointer;transition:box-shadow .15s;">
           <div class="icon-bg" style="background:#4CAF50;"></div>
