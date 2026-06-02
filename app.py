@@ -1697,7 +1697,7 @@ def novo_projeto():
     colaboradores = obter_coordenadores()
 
     if request.method == 'POST':
-        nome = request.form.get('nome', '').strip()
+        nome = request.form.get('nome', '').strip().upper()
         try:
             data_aceite = datetime.strptime(request.form.get('data_aceite', ''), '%Y-%m-%d').date()
         except ValueError:
@@ -1796,7 +1796,7 @@ def editar_projeto(pid):
     colaboradores = obter_coordenadores()
 
     if request.method == 'POST':
-        nome = request.form.get('nome', '').strip()
+        nome = request.form.get('nome', '').strip().upper()
         try:
             data_aceite = datetime.strptime(request.form.get('data_aceite', ''), '%Y-%m-%d').date()
         except ValueError:
@@ -1854,7 +1854,7 @@ def editar_projeto(pid):
             return redirect(url_for('editar_projeto', pid=pid))
 
         # Atualizar
-        p_db.nome_projeto = nome
+        p_db.nome_projeto = nome.upper()
         p_db.data_aceite = data_aceite
         p_db.data_conclusao = data_conclusao
         p_db.status = status
@@ -3434,7 +3434,7 @@ def importar_clickup():
         # ── Coluna 0 expandida em sub-campos ─────────────────────
         sub_extractors = [
             # (key, label, extrator)
-            ('nome_projeto',         'Nome do Projeto',        lambda s: _re.sub(r'\s*[-–]?\s*\d{1,3}\s*%.*$', '', _re.sub(r'\s*\d{2}[/.-]\d{2}[/.-]\d{4}.*$', '', str(s), flags=_re.DOTALL), flags=_re.DOTALL).strip(' -–')),
+            ('nome_projeto',         'Nome do Projeto',        lambda s: _re.sub(r'\s*[-–]?\s*\d{1,3}\s*%.*$', '', _re.sub(r'\s*\d{2}[/.-]\d{2}[/.-]\d{4}.*$', '', str(s), flags=_re.DOTALL), flags=_re.DOTALL).strip(' -–').upper()),
             ('data_aceite',          'Data de Aceite',         lambda s: (m := _re.search(r'(\d{2}/\d{2}/\d{4})', str(s))) and m.group(1) or ''),
             ('valor_mensalidades',   'Valor de Manutenção',    lambda s: (m := _re.search(r'(?:Manut|Valor|MANUTENCAO)[^:]*:?\s*R?\$?\s*([\d.]+,\d{2})', str(s), _re.I)) and m.group(1) or ''),
             ('numero_unidades',      'Número de Unidades',     lambda s: (m := _re.search(r'(\d+)\s*[Uu][Nn]', str(s))) and m.group(1) or ''),
@@ -3505,7 +3505,7 @@ def importar_clickup():
 
         # Funções de extração para virtual cols
         _extractors = {
-            'nome_projeto':         lambda s: _re.sub(r'\s*[-–]?\s*\d{1,3}\s*%.*$', '', _re.sub(r'\s*\d{2}[/.-]\d{2}[/.-]\d{4}.*$', '', str(s), flags=_re.DOTALL), flags=_re.DOTALL).strip(' -–'),
+            'nome_projeto':         lambda s: _re.sub(r'\s*[-–]?\s*\d{1,3}\s*%.*$', '', _re.sub(r'\s*\d{2}[/.-]\d{2}[/.-]\d{4}.*$', '', str(s), flags=_re.DOTALL), flags=_re.DOTALL).strip(' -–').upper(),
             'data_aceite':          lambda s: ((m := _re.search(r'(\d{2}/\d{2}/\d{4})', str(s))) and m.group(1)) or '',
             'valor_mensalidades':   lambda s: ((m := _re.search(r'(?:Manut|Valor|MANUTENCAO)[^:]*:?\s*R?\$?\s*([\d.]+,\d{2})', str(s), _re.I)) and m.group(1)) or '',
             'numero_unidades':      lambda s: ((m := _re.search(r'(\d+)\s*[Uu][Nn]', str(s))) and m.group(1)) or '',
@@ -3570,7 +3570,7 @@ def importar_clickup():
         colabs = ColaboradorDB.query.filter_by(ativo=True).all()
 
         _extractors = {
-            'nome_projeto':         lambda s: _re.sub(r'\s*[-–]?\s*\d{1,3}\s*%.*$', '', _re.sub(r'\s*\d{2}[/.-]\d{2}[/.-]\d{4}.*$', '', str(s), flags=_re.DOTALL), flags=_re.DOTALL).strip(' -–'),
+            'nome_projeto':         lambda s: _re.sub(r'\s*[-–]?\s*\d{1,3}\s*%.*$', '', _re.sub(r'\s*\d{2}[/.-]\d{2}[/.-]\d{4}.*$', '', str(s), flags=_re.DOTALL), flags=_re.DOTALL).strip(' -–').upper(),
             'data_aceite':          lambda s: ((m := _re.search(r'(\d{2}/\d{2}/\d{4})', str(s))) and m.group(1)) or '',
             'valor_mensalidades':   lambda s: ((m := _re.search(r'(?:Manut|Valor|MANUTENCAO)[^:]*:?\s*R?\$?\s*([\d.]+,\d{2})', str(s), _re.I)) and m.group(1)) or '',
             'numero_unidades':      lambda s: ((m := _re.search(r'(\d+)\s*[Uu][Nn]', str(s))) and m.group(1)) or '',
