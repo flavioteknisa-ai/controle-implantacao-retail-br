@@ -1815,7 +1815,7 @@ def editar_projeto(pid):
         ponto_atencao = bool(request.form.get('ponto_atencao'))
 
         # Validação
-        valido, erro = ProjetoValidator.validar_projeto(nome, data_aceite, data_conclusao, valor)
+        valido, erro = ProjetoValidator.validar_projeto(nome, data_aceite, data_conclusao)
         if not valido:
             flash(f'Erro: {erro}', 'danger')
             return redirect(url_for('editar_projeto', pid=pid))
