@@ -1577,11 +1577,12 @@ def listar_projetos():
     resumo['em_atencao']      = sum(1 for p in todos_projetos if p.ponto_atencao)
     resumo['longa_execucao']  = sum(1 for p in todos_projetos if p.alerta_longa_execucao)
 
-    # Obter nome do responsável se filtrado
+    # Obter lista de coordenadores para o filtro
+    coordenadores_filtro = obter_coordenadores()
     responsavel_nome = ''
     if responsavel_filtro:
         try:
-            colab_resp = ColaboradorDB.query.get(int(responsavel_filtro))
+            colab_resp = next((c for c in coordenadores_filtro if c.id == int(responsavel_filtro)), None)
             responsavel_nome = colab_resp.nome if colab_resp else ''
         except (ValueError, TypeError):
             pass
@@ -1589,8 +1590,10 @@ def listar_projetos():
     return render_template('projetos/lista_projetos.html',
                           projetos=projetos,
                           status_filtro=status_filtro,
+                          modelo_filtro=modelo_filtro,
                           responsavel_filtro=responsavel_filtro,
                           responsavel_nome=responsavel_nome,
+                          coordenadores=coordenadores_filtro,
                           resumo=resumo)
 
 @app.route('/dashboard-projetos')
