@@ -157,12 +157,13 @@
                 {{ c.cargo or '' }}{% if c.uf %} · {{ c.uf }}{% endif %}
               </div>
             </td>
-            <td class="small text-muted">{{ c.cargo or '—' }}<br>{{ c.uf or '—' }}</td>
+            <td class="small text-muted">{{ r.cargo or '—' }}<br>{{ r.uf or '—' }}</td>
             <td style="text-align:center;">
-              <div class="saldo-{{ r.status_saldo }}">{{ r.saldo }} dias</div>
+              {% set saldo_v = r.saldo if r.saldo is not none else 0 %}
+              <div class="saldo-{{ r.status_saldo }}">{{ saldo_v }} dias</div>
               <div class="progress-saldo mt-1">
                 <div class="progress-fill"
-                  style="width:{{ [r.saldo, 0]|max / 30 * 100 if r.saldo > 0 else 0 }}%;
+                  style="width:{{ [saldo_v, 0]|max / 30 * 100 if saldo_v > 0 else 0 }}%;
                          background:{% if r.status_saldo == 'critico' %}#b71c1c{% elif r.status_saldo == 'alerta' %}#f57f17{% else %}#2e7d32{% endif %};">
                 </div>
               </div>
@@ -193,7 +194,8 @@
               </span>
               <div class="text-muted small mt-1">
                 {{ r.proxima.dias }} dias ·
-                {% set dias_para = (r.proxima.data_inicio - hoje).days %}
+                {% set dt_ini = r.proxima.data_inicio.date() if r.proxima.data_inicio and r.proxima.data_inicio.__class__.__name__ == 'datetime' else r.proxima.data_inicio %}
+                {% set dias_para = (dt_ini - hoje).days if dt_ini else 0 %}
                 {% if dias_para <= 7 %}
                 <span class="text-danger fw-bold">em {{ dias_para }}d</span>
                 {% elif dias_para <= 30 %}

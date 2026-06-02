@@ -2448,12 +2448,14 @@ def ferias_consolidado():
     f_cargo = request.args.get('cargo', '')
     f_uf    = request.args.get('uf', '')
 
+    def _cargo(c): return parse_cargo_uf(c.time)[0] if c.time else ''
+    def _uf(c):    return parse_cargo_uf(c.time)[1] if c.time else ''
+
     colabs_filtrados = [c for c in colaboradores
-                        if (not f_cargo or c.cargo == f_cargo)
-                        and (not f_uf or c.uf == f_uf)]
+                        if (not f_cargo or _cargo(c) == f_cargo)
+                        and (not f_uf or _uf(c) == f_uf)]
 
     # Mapa rápido de férias por colaborador
-    ferias_map = defaultdict(list) if True else {}
     from collections import defaultdict as _dd
     ferias_por_colab = _dd(list)
     for f in ferias_real + ferias_plan:
@@ -2466,34 +2468,41 @@ def ferias_consolidado():
         fplan = [f for f in ferias_plan if f.colaborador_id == c.id]
         saldo = saldo_colab(c, freal, fplan)
 
-        # Próximas férias planejadas
+        # Próximas férias planejadas (normaliza datetime→date para comparação)
+        def _as_date(v):
+            if v is None: return None
+            return v.date() if hasattr(v, 'date') else v
+
         proximas = sorted([f for f in fplan
-                           if f.data_inicio and f.data_inicio >= hoje],
-                          key=lambda f: f.data_inicio)
+                           if f.data_inicio and _as_date(f.data_inicio) >= hoje],
+                          key=lambda f: _as_date(f.data_inicio))
         proxima  = proximas[0] if proximas else None
 
         # Férias em curso
         em_curso = next((f for f in fplan
                          if f.data_inicio and f.data_fim
-                         and f.data_inicio <= hoje <= f.data_fim), None)
+                         and _as_date(f.data_inicio) <= hoje <= _as_date(f.data_fim)), None)
 
         # Dias usados no ano corrente
         ano_atual = hoje.year
         dias_usados = sum(f.dias for f in freal
-                          if f.data_inicio and f.data_inicio.year == ano_atual)
+                          if f.data_inicio and _as_date(f.data_inicio).year == ano_atual)
 
-        status_saldo = ('critico' if saldo < 0 else
-                        'alerta'  if saldo < 10 else
+        saldo_num    = saldo if isinstance(saldo, (int, float)) else 0
+        status_saldo = ('critico' if saldo_num < 0 else
+                        'alerta'  if saldo_num < 10 else
                         'ok')
 
         registros.append({
-            'colab': c,
-            'saldo': saldo,
-            'status_saldo': status_saldo,
-            'proxima': proxima,
-            'em_curso': em_curso,
+            'colab':          c,
+            'cargo':          _cargo(c),
+            'uf':             _uf(c),
+            'saldo':          saldo_num,
+            'status_saldo':   status_saldo,
+            'proxima':        proxima,
+            'em_curso':       em_curso,
             'dias_usados_ano': dias_usados,
-            'pendentes': sum(1 for f in fplan if getattr(f, 'status', '') == 'Pendente'),
+            'pendentes':      sum(1 for f in fplan if getattr(f, 'status', '') == 'Pendente'),
         })
 
     # Totais para KPIs
@@ -2503,16 +2512,16 @@ def ferias_consolidado():
     saldo_alerta     = sum(1 for r in registros if r['status_saldo'] == 'alerta')
     pendentes_total  = sum(r['pendentes'] for r in registros)
     proximos_30      = sum(1 for r in registros
-                           if r['proxima'] and
-                           (r['proxima'].data_inicio - hoje).days <= 30)
+                           if r['proxima'] and r['proxima'].data_inicio and
+                           (_as_date(r['proxima'].data_inicio) - hoje).days <= 30)
 
     # Ordenar: críticos primeiro, depois alerta, depois OK
     ordem = {'critico': 0, 'alerta': 1, 'ok': 2}
     registros.sort(key=lambda r: (ordem[r['status_saldo']], r['colab'].nome))
 
     # Opções de filtro
-    cargos_opts = sorted({c.cargo for c in colaboradores if c.cargo})
-    ufs_opts    = sorted({c.uf for c in colaboradores if c.uf})
+    cargos_opts = sorted({_cargo(c) for c in colaboradores if _cargo(c)})
+    ufs_opts    = sorted({_uf(c) for c in colaboradores if _uf(c)})
 
     return render_template('ferias/consolidado.html',
         registros=registros, hoje=hoje,
