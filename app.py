@@ -1996,6 +1996,23 @@ def editar_modulo(mid, mid_id):
     flash('Módulo atualizado!', 'success')
     return redirect(url_for('detalhe_projeto', pid=mid))
 
+@app.route('/projeto/<int:pid>/modulo/<int:mid>/status', methods=['POST'])
+@login_required
+@permission_required('adicionar_modulo')
+def atualizar_status_modulo(pid, mid):
+    """Marca módulo como Concluído ou reabre"""
+    modulo_db = ERPModuloDB.query.get_or_404(mid)
+    novo_status = request.form.get('status', 'Planejado').strip()
+    if novo_status not in ['Planejado', 'Em Progresso', 'Concluído', 'Atrasado']:
+        novo_status = 'Planejado'
+    modulo_db.status_modulo = novo_status
+    if novo_status == 'Concluído':
+        modulo_db.percentual_conclusao = 100
+    db.session.commit()
+    flash(f'Módulo "{modulo_db.modulo}" marcado como "{novo_status}"!', 'success')
+    return redirect(url_for('detalhe_projeto', pid=pid))
+
+
 @app.route('/projeto/<int:pid>/editar-unidade/<int:uid>', methods=['POST'])
 @login_required
 @permission_required('adicionar_unidade')
