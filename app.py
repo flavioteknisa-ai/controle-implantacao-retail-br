@@ -3395,67 +3395,134 @@ def importar_clickup():
         file_b64  = base64.b64encode(raw_bytes).decode()
         df = pd.read_excel(io.BytesIO(raw_bytes), header=None, dtype=str).fillna('')
 
-        colunas = []
-        for idx in range(len(df.columns)):
-            samples = [str(v)[:80] for v in df[idx].head(5).tolist() if str(v).strip() not in ('', 'nan', 'NaN')]
-            colunas.append({'idx': idx, 'samples': samples[:3]})
+        import re as _re
 
-        sugestoes = {c['idx']: 'ignorar' for c in colunas}
-        sugestoes[0] = 'nome_projeto'
-        sugestoes[1] = 'descricao'
-        sugestoes[2] = 'responsavel'
-        sugestoes[7] = 'status'
+        def _non_empty(series):
+            return series.apply(lambda x: str(x).strip() not in ('', 'nan', 'NaN', 'null')).sum()
+
+        colunas = []
+
+        # ── Coluna 0 expandida em sub-campos ─────────────────────
+        sub_extractors = [
+            # (key, label, extrator)
+            ('nome_projeto',         'Nome do Projeto',        lambda s: _re.sub(r'\s*[-–]?\s*\d{1,3}\s*%.*$', '', _re.sub(r'\s*\d{2}[/.-]\d{2}[/.-]\d{4}.*$', '', str(s), flags=_re.DOTALL), flags=_re.DOTALL).strip(' -–')),
+            ('data_aceite',          'Data de Aceite',         lambda s: (m := _re.search(r'(\d{2}/\d{2}/\d{4})', str(s))) and m.group(1) or ''),
+            ('valor_mensalidades',   'Valor de Manutenção',    lambda s: (m := _re.search(r'(?:Manut|Valor|MANUTENCAO)[^:]*:?\s*R?\$?\s*([\d.]+,\d{2})', str(s), _re.I)) and m.group(1) or ''),
+            ('numero_unidades',      'Número de Unidades',     lambda s: (m := _re.search(r'(\d+)\s*[Uu][Nn]', str(s))) and m.group(1) or ''),
+            ('percentual_conclusao', '% de Conclusão',         lambda s: (m := _re.search(r'(\d{1,3})\s*%', str(s))) and m.group(1) or ''),
+        ]
+        col0_vals = df[0].head(5).tolist()
+        for sub_key, sub_label, extractor in sub_extractors:
+            samples = []
+            for v in col0_vals:
+                extracted = extractor(str(v))
+                if extracted and str(extracted).strip() not in ('', 'None', 'False'):
+                    samples.append(str(extracted)[:60])
+            if samples:  # só mostra se conseguiu extrair algum valor
+                colunas.append({
+                    'idx':     f'0:{sub_key}',   # virtual index
+                    'label':   f'Coluna 1 → {sub_label}',
+                    'samples': samples[:3],
+                    'default': sub_key,
+                    'virtual': True,
+                })
+
+        # ── Demais colunas — apenas as explicitamente úteis ────────
+        useful_cols = {
+            1: ('descricao',  'Descrição / Detalhes'),
+            2: ('responsavel','Responsável'),
+            7: ('status',     'Status / Tags'),
+        }
+        for idx, (default, lbl) in useful_cols.items():
+            if idx >= len(df.columns):
+                continue
+            if _non_empty(df[idx]) < 5:
+                continue
+            samples = [str(v)[:70] for v in df[idx].head(5).tolist()
+                       if str(v).strip() not in ('', 'nan', 'NaN', 'null', '[]', '""', ' ""')]
+            if not samples:
+                continue
+            colunas.append({
+                'idx':     idx,
+                'label':   f'Coluna {idx+1} ({lbl})',
+                'samples': samples[:3],
+                'default': default,
+                'virtual': False,
+            })
 
         return render_template('admin/importar_clickup.html',
                                step='3', file_b64=file_b64,
-                               colunas=colunas, sugestoes=sugestoes,
+                               colunas=colunas,
                                import_fields=IMPORT_FIELDS)
 
     elif step == '3':
+        import re as _re
         file_b64 = request.form.get('file_b64', '')
         if not file_b64:
             flash('Sessão expirada. Envie o arquivo novamente.', 'danger')
             return render_template('admin/importar_clickup.html', step='1')
 
-        mapeamento = {}
+        # Mapeamento: chave pode ser "0:nome_projeto" (virtual) ou "7" (normal)
+        mapeamento = {}   # key -> campo_sistema
         for k, v in request.form.items():
-            if k.startswith('map_col_'):
-                mapeamento[int(k.replace('map_col_', ''))] = v
+            if k.startswith('map_col_') and v != 'ignorar':
+                raw_key = k.replace('map_col_', '')
+                mapeamento[raw_key] = v  # e.g. "0:nome_projeto" -> "nome_projeto"
 
         raw_bytes = base64.b64decode(file_b64)
         df = pd.read_excel(io.BytesIO(raw_bytes), header=None, dtype=str).fillna('')
         colabs = ColaboradorDB.query.filter_by(ativo=True).all()
         colab_map_id = {c.id: c.nome for c in colabs}
 
+        # Funções de extração para virtual cols
+        _extractors = {
+            'nome_projeto':         lambda s: _re.sub(r'\s*[-–]?\s*\d{1,3}\s*%.*$', '', _re.sub(r'\s*\d{2}[/.-]\d{2}[/.-]\d{4}.*$', '', str(s), flags=_re.DOTALL), flags=_re.DOTALL).strip(' -–'),
+            'data_aceite':          lambda s: ((m := _re.search(r'(\d{2}/\d{2}/\d{4})', str(s))) and m.group(1)) or '',
+            'valor_mensalidades':   lambda s: ((m := _re.search(r'(?:Manut|Valor|MANUTENCAO)[^:]*:?\s*R?\$?\s*([\d.]+,\d{2})', str(s), _re.I)) and m.group(1)) or '',
+            'numero_unidades':      lambda s: ((m := _re.search(r'(\d+)\s*[Uu][Nn]', str(s))) and m.group(1)) or '',
+            'percentual_conclusao': lambda s: ((m := _re.search(r'(\d{1,3})\s*%', str(s))) and m.group(1)) or '',
+        }
+
         previews = []
         for i, (_, row) in enumerate(df.iterrows()):
             p = {'_row': i}
-            for idx, campo in mapeamento.items():
-                if campo == 'ignorar' or idx >= len(row):
+            for map_key, campo in mapeamento.items():
+                if ':' in str(map_key):
+                    # Virtual col: "0:nome_projeto" -> col 0, extract nome_projeto
+                    col_idx = int(map_key.split(':')[0])
+                    extract_type = map_key.split(':')[1]
+                    if col_idx >= len(row):
+                        continue
+                    raw_val = str(row[col_idx]).strip()
+                    extractor = _extractors.get(extract_type)
+                    val = extractor(raw_val) if extractor else raw_val
+                else:
+                    # Normal col
+                    col_idx = int(map_key)
+                    if col_idx >= len(row):
+                        continue
+                    val = str(row[col_idx]).strip()
+
+                if not val or val in ('', 'nan', 'NaN', 'null', 'None', 'False'):
                     continue
-                val = str(row[idx]).strip()
-                if campo == 'nome_projeto':
-                    extras = _extract_from_raw(val)
-                    p['nome_projeto'] = _parse_nome_projeto(val)
-                    for k, v in extras.items():
-                        if not p.get(k):
-                            p[k] = v
-                elif campo == 'status':
+
+                if campo == 'status':
                     p['status'] = _map_status_clickup(val)
                 elif campo == 'responsavel':
                     rid = _find_responsavel(val, colabs)
                     p['responsavel'] = colab_map_id.get(rid, val) if rid else val
                     p['_resp_id'] = rid
                 else:
-                    p[campo] = val
+                    if not p.get(campo):
+                        p[campo] = val
 
-            if p.get('nome_projeto'):
+            if p.get('nome_projeto') and str(p['nome_projeto']).strip():
                 previews.append(p)
 
+        map_json = json.dumps(mapeamento)
         return render_template('admin/importar_clickup.html',
                                step='4', file_b64=file_b64,
-                               map_json=json.dumps(mapeamento),
-                               previews=previews)
+                               map_json=map_json, previews=previews)
 
     elif step == '4':
         import json
@@ -3467,31 +3534,46 @@ def importar_clickup():
             flash('Selecione ao menos um projeto.', 'warning')
             return redirect(url_for('importar_clickup'))
 
-        mapeamento = {int(k): v for k, v in json.loads(map_json).items()}
-        raw_bytes  = base64.b64decode(file_b64)
+        import re as _re
+        mapeamento   = json.loads(map_json)   # keys are strings: "0:nome_projeto" or "7"
+        raw_bytes    = base64.b64decode(file_b64)
         df = pd.read_excel(io.BytesIO(raw_bytes), header=None, dtype=str).fillna('')
         colabs = ColaboradorDB.query.filter_by(ativo=True).all()
+
+        _extractors = {
+            'nome_projeto':         lambda s: _re.sub(r'\s*[-–]?\s*\d{1,3}\s*%.*$', '', _re.sub(r'\s*\d{2}[/.-]\d{2}[/.-]\d{4}.*$', '', str(s), flags=_re.DOTALL), flags=_re.DOTALL).strip(' -–'),
+            'data_aceite':          lambda s: ((m := _re.search(r'(\d{2}/\d{2}/\d{4})', str(s))) and m.group(1)) or '',
+            'valor_mensalidades':   lambda s: ((m := _re.search(r'(?:Manut|Valor|MANUTENCAO)[^:]*:?\s*R?\$?\s*([\d.]+,\d{2})', str(s), _re.I)) and m.group(1)) or '',
+            'numero_unidades':      lambda s: ((m := _re.search(r'(\d+)\s*[Uu][Nn]', str(s))) and m.group(1)) or '',
+            'percentual_conclusao': lambda s: ((m := _re.search(r'(\d{1,3})\s*%', str(s))) and m.group(1)) or '',
+        }
 
         importados = duplicados = erros = 0
         for i, (_, row) in enumerate(df.iterrows()):
             if str(i) not in selecionados:
                 continue
             dados = {}
-            for idx, campo in mapeamento.items():
-                if campo == 'ignorar' or idx >= len(row):
+            for map_key, campo in mapeamento.items():
+                if ':' in str(map_key):
+                    col_idx = int(map_key.split(':')[0])
+                    extract_type = map_key.split(':')[1]
+                    if col_idx >= len(row): continue
+                    raw_val = str(row[col_idx]).strip()
+                    extractor = _extractors.get(extract_type)
+                    val = extractor(raw_val) if extractor else raw_val
+                else:
+                    col_idx = int(map_key)
+                    if col_idx >= len(row): continue
+                    val = str(row[col_idx]).strip()
+
+                if not val or val in ('', 'nan', 'NaN', 'null', 'None', 'False'):
                     continue
-                val = str(row[idx]).strip()
-                if campo == 'nome_projeto':
-                    extras = _extract_from_raw(val)
-                    dados['nome_projeto'] = _parse_nome_projeto(val)
-                    for k, v in extras.items():
-                        if k not in dados:
-                            dados[k] = v
-                elif campo == 'status':
+
+                if campo == 'status':
                     dados['status'] = _map_status_clickup(val)
                 elif campo == 'responsavel':
                     dados['_resp_id'] = _find_responsavel(val, colabs)
-                else:
+                elif not dados.get(campo):
                     dados[campo] = val
 
             nome = dados.get('nome_projeto', '').strip()
