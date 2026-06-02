@@ -1614,6 +1614,11 @@ def dashboard_projetos():
         coordenadores_resumo[resp]['valor_total'] += p.valor_mensalidades
 
     coordenadores_resumo = list(coordenadores_resumo.values())
+    # Remove "Sem atribuição" se não tiver projetos ativos (em andamento ou atrasados)
+    coordenadores_resumo = [
+        c for c in coordenadores_resumo
+        if c['nome'] != 'Sem atribuição' or c['em_andamento'] > 0 or c['atrasados'] > 0
+    ]
     coordenadores_resumo.sort(key=lambda x: x['projetos_total'], reverse=True)
 
     # Resumo por potencial
