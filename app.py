@@ -2390,6 +2390,22 @@ def dashboard_visitas():
         'data':   [contato_count.get(k, 0) for k in contato_labels],
     }
 
+    # ── Lista de clientes por tipo de contato ────────────────────
+    from collections import defaultdict
+    clientes_por_contato = defaultdict(list)
+    for v in visitas:
+        tipo = v.contato or 'Não informado'
+        clientes_por_contato[tipo].append({
+            'cliente':    v.cliente,
+            'colab':      v.colaborador_nome or (v.colaborador.nome if v.colaborador else '—'),
+            'data':       v.data_visita.strftime('%d/%m/%Y'),
+            'status':     v.status,
+            'id':         v.id,
+        })
+    # Ordenar cada lista por data desc
+    for tipo in clientes_por_contato:
+        clientes_por_contato[tipo].sort(key=lambda x: x['data'], reverse=True)
+
     # ── Top 10 clientes ──────────────────────────────────────────
     cliente_count = Counter(v.cliente for v in visitas)
     top_clientes  = cliente_count.most_common(10)
@@ -2406,6 +2422,7 @@ def dashboard_visitas():
         chart_colab=chart_colab, chart_mes=chart_mes, chart_motivo=chart_motivo,
         chart_regiao=chart_regiao, chart_cda=chart_cda, chart_evolucao=chart_evolucao,
         chart_contato=chart_contato,
+        clientes_por_contato=clientes_por_contato,
         top_clientes=top_clientes,
         anos=anos_disponiveis, ano_sel=ano_sel,
         regioes=VISITA_REGIOES, regiao_sel=regiao_sel,

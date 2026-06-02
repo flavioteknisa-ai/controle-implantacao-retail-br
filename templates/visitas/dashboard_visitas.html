@@ -174,7 +174,7 @@
         <i class="bi bi-person-badge-fill text-primary"></i>
         Pessoa de Contato
       </div>
-      <!-- KPI cards por tipo de contato -->
+      <!-- KPI cards clicáveis por tipo de contato -->
       <div class="row g-2 mb-3">
         {% for lbl in ['Dono','Diretor','Supervisor'] %}
           {% set idx = chart_contato.labels.index(lbl) if lbl in chart_contato.labels else -1 %}
@@ -183,10 +183,17 @@
           {% elif lbl == 'Diretor' %}{% set icon = 'bi-person-badge-fill' %}{% set color = '#0340AB' %}
           {% else %}{% set icon = 'bi-person-check-fill' %}{% set color = '#2e7d32' %}{% endif %}
           <div class="col-4">
-            <div style="background:#f8f9fa; border-radius:10px; padding:12px 10px; text-align:center; border-left:4px solid {{ color }};">
+            <div data-bs-toggle="modal" data-bs-target="#modalContato{{ lbl }}"
+                 style="background:#f8f9fa; border-radius:10px; padding:12px 10px; text-align:center;
+                        border-left:4px solid {{ color }}; cursor:pointer; transition:all .15s;"
+                 onmouseover="this.style.background='#eee';this.style.transform='translateY(-2px)'"
+                 onmouseout="this.style.background='#f8f9fa';this.style.transform='translateY(0)'">
               <i class="bi {{ icon }} mb-1 d-block" style="font-size:1.4rem;color:{{ color }};"></i>
               <div style="font-size:1.6rem;font-weight:800;line-height:1;color:{{ color }};">{{ qtd }}</div>
               <div style="font-size:.7rem;color:#888;text-transform:uppercase;letter-spacing:.6px;margin-top:3px;">{{ lbl }}</div>
+              {% if qtd > 0 %}
+              <div style="font-size:.65rem;color:{{ color }};margin-top:4px;"><i class="bi bi-eye me-1"></i>Ver clientes</div>
+              {% endif %}
             </div>
           </div>
         {% endfor %}
@@ -363,4 +370,74 @@ new Chart(document.getElementById('chartCda'), {
   }
 });
 </script>
+
+<!-- Modais: Clientes por Tipo de Contato -->
+{% for lbl in ['Dono','Diretor','Supervisor'] %}
+  {% if lbl == 'Dono' %}{% set color = '#f57f17' %}{% set icon = 'bi-star-fill' %}
+  {% elif lbl == 'Diretor' %}{% set color = '#0340AB' %}{% set icon = 'bi-person-badge-fill' %}
+  {% else %}{% set color = '#2e7d32' %}{% set icon = 'bi-person-check-fill' %}{% endif %}
+  {% set clientes = clientes_por_contato.get(lbl, []) %}
+
+<div class="modal fade" id="modalContato{{ lbl }}" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header" style="border-left:5px solid {{ color }};">
+        <h5 class="modal-title">
+          <i class="bi {{ icon }} me-2" style="color:{{ color }};"></i>
+          Visitas com contato: <strong>{{ lbl }}</strong>
+          <span class="badge ms-2" style="background:{{ color }};font-size:.75rem;">{{ clientes|length }}</span>
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-0">
+        {% if clientes %}
+        <table class="table table-hover mb-0" style="font-size:.85rem;">
+          <thead class="bg-light">
+            <tr>
+              <th class="ps-3">Cliente</th>
+              <th>Colaborador</th>
+              <th>Data</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for c in clientes %}
+            <tr>
+              <td class="ps-3 fw-semibold">{{ c.cliente }}</td>
+              <td class="text-muted small">{{ c.colab }}</td>
+              <td class="small">{{ c.data }}</td>
+              <td>
+                {% if c.status == 'CONCLUIDA' %}
+                <span class="badge" style="background:#e8f5e9;color:#2e7d32;font-size:.7rem;">Concluída</span>
+                {% else %}
+                <span class="badge" style="background:#e3f2fd;color:#0340AB;font-size:.7rem;">Planejada</span>
+                {% endif %}
+              </td>
+              <td>
+                <a href="/editar-visita/{{ c.id }}" class="btn btn-sm btn-outline-secondary" title="Ver visita">
+                  <i class="bi bi-arrow-right"></i>
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="text-center text-muted py-5">
+          <i class="bi bi-inbox" style="font-size:2rem;opacity:.3;"></i>
+          <p class="mt-2 small">Nenhuma visita com contato {{ lbl }} no período.</p>
+        </div>
+        {% endif %}
+      </div>
+      <div class="modal-footer">
+        <a href="/visitas?ano={{ ano_sel }}" class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-list-ul me-1"></i>Ver lista completa
+        </a>
+        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Fechar</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endfor %}
 {% endblock %}
