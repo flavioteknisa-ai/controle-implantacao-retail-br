@@ -71,6 +71,30 @@
     </div>
   </div>
 
+  <!-- Cards por Modelo de Projeto -->
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+      <a href="/projetos?modelo=Tradicional" style="text-decoration:none;color:inherit;">
+        <div class="stat-card" style="cursor:pointer;transition:box-shadow .15s;border-left:4px solid #0277BD;">
+          <div class="icon-bg" style="background:#0277BD;"></div>
+          <div class="stat-number" style="color:#0277BD;">{{ proj_tradicional }}</div>
+          <div class="stat-label"><i class="bi bi-building me-1"></i>Projetos Tradicionais</div>
+          <div class="mt-2" style="font-size:.7rem;color:#01579B;opacity:.8;">Implantações ativas →</div>
+        </div>
+      </a>
+    </div>
+    <div class="col-6 col-md-3">
+      <a href="/projetos?modelo=Treinamento" style="text-decoration:none;color:inherit;">
+        <div class="stat-card" style="cursor:pointer;transition:box-shadow .15s;border-left:4px solid #00897B;">
+          <div class="icon-bg" style="background:#00897B;"></div>
+          <div class="stat-number" style="color:#00897B;">{{ proj_treino_roll }}</div>
+          <div class="stat-label"><i class="bi bi-mortarboard-fill me-1"></i>Treinamento / Rollout</div>
+          <div class="mt-2" style="font-size:.7rem;color:#00695C;opacity:.8;">Ver projetos →</div>
+        </div>
+      </a>
+    </div>
+  </div>
+
   {% if proj_criticos %}
   <div class="alert alert-warning fade-in mb-3" role="alert">
     <i class="bi bi-exclamation-triangle-fill me-2"></i>

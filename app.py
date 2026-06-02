@@ -335,6 +335,7 @@ def db_to_projeto(p: ERPProjetoDB) -> Projeto:
         numero_unidades=p.numero_unidades or 1,
         potencial_cliente=p.potencial_cliente or 'Médio',
         tipo_projeto=p.tipo_projeto or 'Novo',
+        modelo_projeto=p.modelo_projeto or 'Tradicional',
         ponto_atencao=bool(p.ponto_atencao),
     )
 
@@ -409,6 +410,7 @@ def db_to_projeto_lite(p: ERPProjetoDB, responsaveis_map: dict = None) -> Projet
         numero_unidades=p.numero_unidades or 1,
         potencial_cliente=p.potencial_cliente or 'Médio',
         tipo_projeto=p.tipo_projeto or 'Novo',
+        modelo_projeto=p.modelo_projeto or 'Tradicional',
         ponto_atencao=bool(p.ponto_atencao),
         percentual_conclusao_db=p.percentual_conclusao or 0,
     )
@@ -797,6 +799,11 @@ def index():
     proj_resumo = proj_analytics.resumo_geral()
     proj_criticos = proj_analytics.projetos_criticos()
 
+    # Contagem por modelo (apenas ativos: Em andamento + Paralisado)
+    ativos = [p for p in projetos_db if p.status in ('Em andamento', 'Paralisado')]
+    proj_tradicional  = sum(1 for p in ativos if (p.modelo_projeto or 'Tradicional') == 'Tradicional')
+    proj_treino_roll  = sum(1 for p in ativos if (p.modelo_projeto or '') in ('Treinamento', 'Rollout'))
+
     return render_template('dashboard.html',
         hoje=hoje, ano=ano, mes=mes,
         mes_nome=meses_pt[mes], mes_anterior=mes_anterior, mes_proximo=mes_proximo,
@@ -811,6 +818,8 @@ def index():
         proj_resumo=proj_resumo,
         proj_criticos=proj_criticos,
         projetos=projetos,
+        proj_tradicional=proj_tradicional,
+        proj_treino_roll=proj_treino_roll,
     )
 
 # ─── Rota: Timeline ───────────────────────────────────────────────────────────
@@ -1525,6 +1534,16 @@ def listar_projetos():
             todos_projetos = [p for p in todos_projetos if p.responsavel_id == responsavel_id]
         except (ValueError, TypeError):
             pass
+
+    # Filtro por modelo de projeto
+    modelo_filtro = request.args.get('modelo', '')
+    if modelo_filtro == 'Treinamento':
+        # Agrupa Treinamento + Rollout juntos
+        todos_projetos = [p for p in todos_projetos
+                          if getattr(p, 'modelo_projeto', 'Tradicional') in ('Treinamento', 'Rollout')]
+    elif modelo_filtro:
+        todos_projetos = [p for p in todos_projetos
+                          if getattr(p, 'modelo_projeto', 'Tradicional') == modelo_filtro]
 
     # Filtros de status
     status_filtro = request.args.get('status', 'todos')
