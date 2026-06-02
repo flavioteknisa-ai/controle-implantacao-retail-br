@@ -120,7 +120,7 @@
       <div class="stat-number" style="color:#9C27B0;">
         {% set dias = projeto.dias_restantes() %}
         {% if dias < 0 %}
-        <span class="text-danger">{{ abs(dias) }}</span>
+        <span class="text-danger">{{ (dias * -1) }}</span>
         {% else %}
         {{ dias }}
         {% endif %}
@@ -280,7 +280,7 @@
                   {{ modulo.data_conclusao.strftime('%d/%m/%Y') }}<br>
                   {% set dias_restantes = modulo.dias_restantes() %}
                   {% if dias_restantes < 0 %}
-                    <small class="text-danger">{{ abs(dias_restantes) }} dias atrás</small>
+                    <small class="text-danger">{{ (dias_restantes * -1) }} dias atrás</small>
                   {% else %}
                     <small>{{ dias_restantes }} dias</small>
                   {% endif %}

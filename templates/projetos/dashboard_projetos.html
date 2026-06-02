@@ -133,7 +133,7 @@
   {% for proj in projetos_atrasados %}
   <div style="font-size:.85rem; margin-top:4px;">
     <a href="/projeto/{{ proj.id }}" style="color:#c62828; font-weight:600;">{{ proj.nome }}</a>
-    <span style="color:#888;">· {{ abs(proj.dias_restantes()) }} dias em atraso</span>
+    <span style="color:#888;">· {{ (proj.dias_restantes() * -1) }} dias em atraso</span>
     {% if proj.responsavel %}<span style="color:#888;">· {{ proj.responsavel }}</span>{% endif %}
   </div>
   {% endfor %}
@@ -214,7 +214,7 @@
                 {%- elif proj.dias_restantes() <= 30 %}#FF9800
                 {%- else %}#999{%- endif %};">
                 {% if proj.esta_atrasado() %}
-                  {{ abs(proj.dias_restantes()) }}d atraso
+                  {{ (proj.dias_restantes() * -1) }}d atraso
                 {% else %}
                   {{ proj.dias_restantes() }}d
                 {% endif %}
