@@ -1618,7 +1618,9 @@ def dashboard_projetos():
         'finalizados': sum(1 for p in projetos if p.status == 'Finalizado'),
         'atrasados': sum(1 for p in projetos if p.esta_atrasado()),
         'progresso_medio': analytics.percentual_conclusao_geral(),
-        'valor_total_em_andamento': sum(p.valor_mensalidades for p in projetos if p.status == 'Em andamento')
+        'valor_total_em_andamento': sum(p.valor_mensalidades for p in projetos if p.status == 'Em andamento'),
+        'tradicionais': sum(1 for p in projetos_db if (p.modelo_projeto or 'Tradicional') == 'Tradicional'),
+        'treino_rollout': sum(1 for p in projetos_db if (p.modelo_projeto or '') in ('Treinamento', 'Rollout')),
     }
 
     # Projetos atrasados

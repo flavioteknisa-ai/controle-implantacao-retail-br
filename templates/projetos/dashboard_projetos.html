@@ -116,6 +116,18 @@
     <div class="summary-label">Atrasados</div>
   </div>
   <div class="summary-item">
+    <a href="/projetos?modelo=Tradicional" style="text-decoration:none;color:inherit;">
+      <div class="summary-num" style="color:#0277BD;">{{ stats.tradicionais or 0 }}</div>
+      <div class="summary-label">Tradicionais</div>
+    </a>
+  </div>
+  <div class="summary-item">
+    <a href="/projetos?modelo=Treinamento" style="text-decoration:none;color:inherit;">
+      <div class="summary-num" style="color:#00897B;">{{ stats.treino_rollout or 0 }}</div>
+      <div class="summary-label">Treino / Rollout</div>
+    </a>
+  </div>
+  <div class="summary-item">
     <div class="summary-num" style="color:#2196F3; font-size:1.4rem;">{{ stats.progresso_medio|int }}%</div>
     <div class="summary-label">Progresso Médio</div>
   </div>
