@@ -230,6 +230,7 @@ PERMISSOES_CATALOG = OrderedDict([
     ('ver_projetos',             ('Projetos',        'Ver lista e detalhes de projetos')),
     ('criar_projeto',            ('Projetos',        'Criar novos projetos')),
     ('editar_projeto',           ('Projetos',        'Editar dados do projeto')),
+    ('excluir_projeto',          ('Projetos',        'Excluir projetos permanentemente')),
     ('finalizar_projeto',        ('Projetos',        'Finalizar / Paralisar / Reativar projeto')),
     ('adicionar_modulo',         ('Projetos',        'Adicionar e editar módulos')),
     ('adicionar_unidade',        ('Projetos',        'Adicionar e editar unidades')),
@@ -1951,6 +1952,25 @@ def paralisar_projeto(pid):
     else:
         flash('Apenas projetos em andamento podem ser paralisados.', 'warning')
     return redirect(url_for('detalhe_projeto', pid=pid))
+
+
+@app.route('/projeto/<int:pid>/excluir', methods=['POST'])
+@login_required
+@permission_required('excluir_projeto')
+def excluir_projeto(pid):
+    """Exclui um projeto e todos os seus módulos, unidades e atividades."""
+    p_db = ERPProjetoDB.query.get_or_404(pid)
+    nome = p_db.nome_projeto
+
+    # Excluir registros filhos primeiro (cascata manual)
+    ERPAtividadeDB.query.filter_by(projeto_id=pid).delete()
+    ERPUnidadeDB.query.filter_by(projeto_id=pid).delete()
+    ERPModuloDB.query.filter_by(projeto_id=pid).delete()
+    db.session.delete(p_db)
+    db.session.commit()
+
+    flash(f'Projeto "{nome}" excluído permanentemente.', 'success')
+    return redirect(url_for('listar_projetos'))
 
 
 @app.route('/projeto/<int:pid>/toggle-atencao', methods=['POST'])

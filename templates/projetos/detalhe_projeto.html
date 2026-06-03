@@ -91,6 +91,15 @@
         </form>
         {% endif %}
       {% endif %}
+
+      {% if tem_perm('excluir_projeto') %}
+      <form method="POST" action="/projeto/{{ projeto.id }}/excluir" style="display:inline;"
+            onsubmit="return confirm('⚠️ ATENÇÃO: Excluir permanentemente o projeto \"{{ projeto.nome }}\"?\n\nIsso removerá também todos os módulos, unidades e atividades vinculados.\n\nEsta ação não pode ser desfeita!');">
+        <button type="submit" class="btn btn-danger btn-sm" title="Excluir projeto permanentemente">
+          <i class="bi bi-trash3"></i> Excluir
+        </button>
+      </form>
+      {% endif %}
     </div>
   </div>
 </div>
