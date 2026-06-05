@@ -29,6 +29,8 @@
   .ac-item i { color:#808080; font-size:.9rem; flex-shrink:0; }
   .ac-item mark { background:transparent; color:#0340AB; font-weight:700; padding:0; }
   .ac-empty { padding:12px 14px; color:#aaa; font-size:.84rem; text-align:center; }
+  .ac-new   { background:#f1f8f1 !important; color:#2e7d32 !important; font-size:.84rem; }
+  .ac-new:hover, .ac-new.ac-active { background:#e0f2e0 !important; }
 </style>
 {% endblock %}
 
@@ -294,26 +296,44 @@
   }
 
   function showDropdown(query) {
-    const q = query.trim().toLowerCase();
-    let matches = q
+    const q      = query.trim().toLowerCase();
+    const typed  = query.trim();
+    let matches  = q
       ? projetos.filter(p => p.toLowerCase().includes(q)).slice(0, 12)
       : projetos.slice(0, 12);
 
     dropdown.innerHTML = '';
     activeIdx = -1;
 
-    if (matches.length === 0) {
-      dropdown.innerHTML = '<div class="ac-empty"><i class="bi bi-search me-1"></i>Nenhum projeto encontrado — será salvo como nome livre</div>';
-    } else {
-      matches.forEach((p, i) => {
-        const div = document.createElement('div');
-        div.className = 'ac-item';
-        div.innerHTML = '<i class="bi bi-building"></i><span>' + highlight(p, query.trim()) + '</span>';
-        div.addEventListener('mousedown', () => { input.value = p; hideDropdown(); });
-        dropdown.appendChild(div);
-      });
+    // Projetos existentes
+    matches.forEach(p => {
+      const div = document.createElement('div');
+      div.className = 'ac-item';
+      div.innerHTML = '<i class="bi bi-building"></i><span>' + highlight(p, typed) + '</span>';
+      div.addEventListener('mousedown', () => { input.value = p; hideDropdown(); });
+      dropdown.appendChild(div);
+    });
+
+    // Opção "novo cliente" — exibe sempre que há texto digitado e não é match exato
+    const exactMatch = projetos.some(p => p.toLowerCase() === q);
+    if (typed && !exactMatch) {
+      const sep = document.createElement('div');
+      sep.style.cssText = 'border-top:1px solid #e8e8e8; margin:2px 0;';
+      dropdown.appendChild(sep);
+
+      const addBtn = document.createElement('div');
+      addBtn.className = 'ac-item ac-new';
+      addBtn.innerHTML = '<i class="bi bi-plus-circle-fill" style="color:#2e7d32;"></i>'
+                        + '<span>Usar <strong>&ldquo;' + typed + '&rdquo;</strong> como novo cliente</span>';
+      addBtn.addEventListener('mousedown', () => { input.value = typed; hideDropdown(); });
+      dropdown.appendChild(addBtn);
     }
-    dropdown.style.display = 'block';
+
+    if (dropdown.children.length > 0) {
+      dropdown.style.display = 'block';
+    } else {
+      hideDropdown();
+    }
   }
 
   function hideDropdown() { dropdown.style.display = 'none'; activeIdx = -1; }
