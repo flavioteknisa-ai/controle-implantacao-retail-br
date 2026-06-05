@@ -20,6 +20,15 @@
                 cursor:pointer; transition:all .15s; background:#fff; }
   .quick-chip:hover  { border-color:#808080; background:#f5f5f5; }
   .quick-chip.active { border-color:#808080; background:#808080; color:#fff; }
+
+  /* Autocomplete cliente */
+  .ac-item { padding:9px 14px; cursor:pointer; font-size:.86rem; border-bottom:1px solid #f5f5f5;
+             display:flex; align-items:center; gap:8px; }
+  .ac-item:last-child { border-bottom:none; }
+  .ac-item:hover, .ac-item.ac-active { background:#f0f4ff; }
+  .ac-item i { color:#808080; font-size:.9rem; flex-shrink:0; }
+  .ac-item mark { background:transparent; color:#0340AB; font-weight:700; padding:0; }
+  .ac-empty { padding:12px 14px; color:#aaa; font-size:.84rem; text-align:center; }
 </style>
 {% endblock %}
 
@@ -44,16 +53,26 @@
           <div class="row g-3">
             <div class="col-md-8">
               <label class="form-label">Cliente <span class="text-danger">*</span></label>
-              <input type="text" class="form-control" name="cliente" required
-                     value="{{ visita.cliente if visita else '' }}"
-                     placeholder="Digite ou selecione um projeto..."
-                     list="listaProjetos" autocomplete="off">
-              <datalist id="listaProjetos">
-                {% for nome in projetos_nomes %}
-                <option value="{{ nome }}">
-                {% endfor %}
-              </datalist>
-              <div class="form-text"><i class="bi bi-search me-1"></i>Escolha um projeto cadastrado ou digite um nome livre</div>
+              <div class="position-relative" id="clienteWrap">
+                <div class="input-group">
+                  <span class="input-group-text bg-light"><i class="bi bi-search text-muted"></i></span>
+                  <input type="text" class="form-control" id="clienteInput" name="cliente" required
+                         value="{{ visita.cliente if visita else '' }}"
+                         placeholder="Digite para buscar um projeto ou nome livre..."
+                         autocomplete="off">
+                </div>
+                <div id="clienteDropdown"
+                     style="display:none; position:absolute; top:100%; left:0; right:0; z-index:1050;
+                            background:#fff; border:1px solid #ddd; border-radius:0 0 8px 8px;
+                            box-shadow:0 4px 16px rgba(0,0,0,.12); max-height:220px; overflow-y:auto;">
+                </div>
+              </div>
+              <div class="form-text mt-1"><i class="bi bi-building me-1"></i>Selecione um projeto ou escreva o nome do cliente</div>
+
+              {# Lista de projetos passada ao JS #}
+              <script>
+                window._projetos = {{ projetos_nomes | tojson }};
+              </script>
             </div>
             <div class="col-md-4">
               <label class="form-label">Data da Visita <span class="text-danger">*</span></label>
@@ -259,6 +278,67 @@
 
 {% block extra_js %}
 <script>
+// ── Autocomplete de Cliente ──────────────────────────────────────────
+(function() {
+  const input    = document.getElementById('clienteInput');
+  const dropdown = document.getElementById('clienteDropdown');
+  if (!input || !dropdown) return;
+
+  const projetos = window._projetos || [];
+  let activeIdx  = -1;
+
+  function highlight(text, query) {
+    if (!query) return text;
+    const re = new RegExp('(' + query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
+    return text.replace(re, '<mark>$1</mark>');
+  }
+
+  function showDropdown(query) {
+    const q = query.trim().toLowerCase();
+    let matches = q
+      ? projetos.filter(p => p.toLowerCase().includes(q)).slice(0, 12)
+      : projetos.slice(0, 12);
+
+    dropdown.innerHTML = '';
+    activeIdx = -1;
+
+    if (matches.length === 0) {
+      dropdown.innerHTML = '<div class="ac-empty"><i class="bi bi-search me-1"></i>Nenhum projeto encontrado — será salvo como nome livre</div>';
+    } else {
+      matches.forEach((p, i) => {
+        const div = document.createElement('div');
+        div.className = 'ac-item';
+        div.innerHTML = '<i class="bi bi-building"></i><span>' + highlight(p, query.trim()) + '</span>';
+        div.addEventListener('mousedown', () => { input.value = p; hideDropdown(); });
+        dropdown.appendChild(div);
+      });
+    }
+    dropdown.style.display = 'block';
+  }
+
+  function hideDropdown() { dropdown.style.display = 'none'; activeIdx = -1; }
+
+  function navigateItems(dir) {
+    const items = dropdown.querySelectorAll('.ac-item');
+    if (!items.length) return;
+    items.forEach(i => i.classList.remove('ac-active'));
+    activeIdx = (activeIdx + dir + items.length) % items.length;
+    items[activeIdx].classList.add('ac-active');
+    input.value = items[activeIdx].textContent.trim();
+  }
+
+  input.addEventListener('input',   () => showDropdown(input.value));
+  input.addEventListener('focus',   () => showDropdown(input.value));
+  input.addEventListener('blur',    () => setTimeout(hideDropdown, 150));
+  input.addEventListener('keydown', e => {
+    if (dropdown.style.display === 'none') return;
+    if (e.key === 'ArrowDown')  { e.preventDefault(); navigateItems(1); }
+    if (e.key === 'ArrowUp')    { e.preventDefault(); navigateItems(-1); }
+    if (e.key === 'Enter')      { if (activeIdx >= 0) { e.preventDefault(); hideDropdown(); } }
+    if (e.key === 'Escape')     { hideDropdown(); }
+  });
+})();
+
 // Status selector
 function selectStatus(el) {
   document.querySelectorAll('#statusBtns .btn-status').forEach(b => {
