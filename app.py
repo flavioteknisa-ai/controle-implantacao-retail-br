@@ -2293,6 +2293,11 @@ def listar_visitas():
 @permission_required('criar_visita')
 def nova_visita():
     colaboradores = ColaboradorDB.query.filter_by(ativo=True).order_by(ColaboradorDB.nome).all()
+    # Projetos para autocomplete no campo cliente
+    projetos_nomes = [p.nome_projeto for p in
+                      ERPProjetoDB.query.order_by(ERPProjetoDB.nome_projeto).all()]
+    # Pré-selecionar colaborador do usuário logado
+    colab_id_logado = current_user.colaborador_id if current_user.colaborador_id else ''
 
     if request.method == 'POST':
         cliente      = request.form.get('cliente', '').strip()
@@ -2320,7 +2325,9 @@ def nova_visita():
                                    colaboradores=colaboradores, regioes=VISITA_REGIOES,
                                    motivos=VISITA_MOTIVOS, status_opts=VISITA_STATUS,
                                    cda_opts=VISITA_CDA, custo_opts=VISITA_CUSTO,
-                                   contato_opts=VISITA_CONTATOS)
+                                   contato_opts=VISITA_CONTATOS,
+                                   projetos_nomes=projetos_nomes,
+                                   colab_id_logado=colab_id_logado)
         try:
             data_visita = datetime.strptime(data_str, '%Y-%m-%d').date()
         except ValueError:
@@ -2329,7 +2336,9 @@ def nova_visita():
                                    colaboradores=colaboradores, regioes=VISITA_REGIOES,
                                    motivos=VISITA_MOTIVOS, status_opts=VISITA_STATUS,
                                    cda_opts=VISITA_CDA, custo_opts=VISITA_CUSTO,
-                                   contato_opts=VISITA_CONTATOS)
+                                   contato_opts=VISITA_CONTATOS,
+                                   projetos_nomes=projetos_nomes,
+                                   colab_id_logado=colab_id_logado)
 
         v = VisitaDB(
             regiao=regiao, colaborador_id=colaborador_id,
@@ -2347,7 +2356,9 @@ def nova_visita():
                            colaboradores=colaboradores, regioes=VISITA_REGIOES,
                            motivos=VISITA_MOTIVOS, status_opts=VISITA_STATUS,
                            cda_opts=VISITA_CDA, custo_opts=VISITA_CUSTO,
-                           contato_opts=VISITA_CONTATOS, visita=None)
+                           contato_opts=VISITA_CONTATOS, visita=None,
+                           projetos_nomes=projetos_nomes,
+                           colab_id_logado=colab_id_logado)
 
 
 @app.route('/editar-visita/<int:vid>', methods=['GET', 'POST'])

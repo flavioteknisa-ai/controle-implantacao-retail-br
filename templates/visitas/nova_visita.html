@@ -46,7 +46,14 @@
               <label class="form-label">Cliente <span class="text-danger">*</span></label>
               <input type="text" class="form-control" name="cliente" required
                      value="{{ visita.cliente if visita else '' }}"
-                     placeholder="Nome do cliente / estabelecimento">
+                     placeholder="Digite ou selecione um projeto..."
+                     list="listaProjetos" autocomplete="off">
+              <datalist id="listaProjetos">
+                {% for nome in projetos_nomes %}
+                <option value="{{ nome }}">
+                {% endfor %}
+              </datalist>
+              <div class="form-text"><i class="bi bi-search me-1"></i>Escolha um projeto cadastrado ou digite um nome livre</div>
             </div>
             <div class="col-md-4">
               <label class="form-label">Data da Visita <span class="text-danger">*</span></label>
@@ -74,12 +81,14 @@
                 <option value="">-- Selecionar --</option>
                 {% for c in colaboradores %}
                 <option value="{{ c.id }}"
-                  {% if visita and visita.colaborador_id == c.id %}selected{% endif %}>
+                  {% if visita and visita.colaborador_id == c.id %}selected
+                  {% elif not visita and colab_id_logado and c.id == colab_id_logado|int %}selected
+                  {% endif %}>
                   {{ c.nome }}
                 </option>
                 {% endfor %}
               </select>
-              <div class="form-text">Ou informe manualmente abaixo</div>
+              <div class="form-text">Pré-selecionado com seu usuário — altere se necessário</div>
             </div>
             <div class="col-md-6">
               <label class="form-label">Nome manual (se não cadastrado)</label>
