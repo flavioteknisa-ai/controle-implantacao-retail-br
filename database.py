@@ -92,7 +92,9 @@ class ERPProjetoDB(db.Model):
     nome_cliente        = db.Column(db.String(250))
     razao_social        = db.Column(db.String(250))
     cnpj                = db.Column(db.String(20))
-    local_cliente       = db.Column(db.String(120))                          # cidade/UF
+    local_cliente       = db.Column(db.String(120))                          # cidade/UF (legado; considerar usar cidade+estado)
+    cidade              = db.Column(db.String(100))
+    estado              = db.Column(db.String(2))
     numero_proposta     = db.Column(db.String(50))
     coordenador_cliente = db.Column(db.String(150))
     sponsor             = db.Column(db.String(150))
