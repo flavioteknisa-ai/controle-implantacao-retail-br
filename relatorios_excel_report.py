@@ -250,32 +250,6 @@ def create_final_report(filtered_data, coordinator_name, period, output_path, co
         cell_tot.border        = total_border
         cell_tot.number_format = '#,##0.00'
         cell_tot.alignment     = Alignment(horizontal='right', vertical='center')
-        row_num += 1
-
-        # Linha Comissão Gerente (60% do total)
-        ger_fill   = PatternFill(start_color="2E75B6", end_color="2E75B6", fill_type="solid")
-        ger_font   = Font(name='Arial', size=10, bold=True, color="FFFFFF")
-        ger_border = Border(
-            left=Side(style='medium'), right=Side(style='medium'),
-            top=Side(style='thin'),    bottom=Side(style='medium')
-        )
-        ws.merge_cells(start_row=row_num, start_column=1,
-                       end_row=row_num, end_column=comissao_col_out - 1)
-        cell_gl = ws.cell(row_num, 1)
-        cell_gl.value     = "Comissão Gerente (60%)"
-        cell_gl.font      = ger_font
-        cell_gl.fill      = ger_fill
-        cell_gl.border    = ger_border
-        cell_gl.alignment = Alignment(horizontal='right', vertical='center')
-
-        cell_gv = ws.cell(row_num, comissao_col_out)
-        cell_gv.value         = total_valor * 0.60
-        cell_gv.font          = ger_font
-        cell_gv.fill          = ger_fill
-        cell_gv.border        = ger_border
-        cell_gv.number_format = '#,##0.00'
-        cell_gv.alignment     = Alignment(horizontal='right', vertical='center')
-
         row_num += 2  # linha em branco após bloco de totais
 
     # Larguras de coluna
@@ -431,17 +405,7 @@ def create_consolidated_report(all_filtered_data, period, output_path, commissio
         c.alignment = Alignment(horizontal='right', vertical='center')
 
     def _ger_row(row, com_total):
-        ws.merge_cells(start_row=row, start_column=1,
-                       end_row=row, end_column=num_cols - 1)
-        cgl = ws.cell(row, 1)
-        cgl.value = "Comissão Gerente (60%)"; cgl.font = ger_font
-        cgl.fill = ger_fill; cgl.border = ger_border
-        cgl.alignment = Alignment(horizontal='right', vertical='center')
-        cgv = ws.cell(row, num_cols)
-        cgv.value = com_total * 0.60; cgv.font = ger_font
-        cgv.fill = ger_fill; cgv.border = ger_border
-        cgv.number_format = '#,##0.00'
-        cgv.alignment = Alignment(horizontal='right', vertical='center')
+        pass  # Linha Comissão Gerente removida conforme solicitado
 
     # Cabeçalhos de colunas reutilizados
     col_hdrs  = ['Aba'] + g_del + ['Comissão do Mês']
@@ -509,8 +473,6 @@ def create_consolidated_report(all_filtered_data, period, output_path, commissio
                    total_fill, total_font)
         row_num += 1
 
-        # Comissão Gerente (60%)
-        _ger_row(row_num, coord_com_total)
         row_num += 2   # linha em branco após bloco
 
     # ── Resumo Geral ─────────────────────────────────────────────
@@ -542,22 +504,6 @@ def create_consolidated_report(all_filtered_data, period, output_path, commissio
     gt_com = sum(v['commission'] for v in grand_summary.values())
     _total_row(row_num, "TOTAL GERAL", gt_del, gt_com, grand_fill, grand_font)
     row_num += 1
-
-    # Comissão Gerente (60% total geral)
-    ger_font_g   = Font(name='Arial', size=11, bold=True, color="FFFFFF")
-    ger_border_g = Border(left=Side(style='medium'), right=Side(style='medium'),
-                          top=Side(style='thin'),    bottom=Side(style='medium'))
-    ws.merge_cells(start_row=row_num, start_column=1,
-                   end_row=row_num, end_column=num_cols - 1)
-    cgl = ws.cell(row_num, 1)
-    cgl.value = "Comissão Gerente (60%)"; cgl.font = ger_font_g
-    cgl.fill = ger_fill; cgl.border = ger_border_g
-    cgl.alignment = Alignment(horizontal='right', vertical='center')
-    cgv = ws.cell(row_num, num_cols)
-    cgv.value = gt_com * 0.60; cgv.font = ger_font_g
-    cgv.fill = ger_fill; cgv.border = ger_border_g
-    cgv.number_format = '#,##0.00'
-    cgv.alignment = Alignment(horizontal='right', vertical='center')
 
     # Larguras
     ws.column_dimensions['A'].width = 36
