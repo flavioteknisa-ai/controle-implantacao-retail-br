@@ -1479,17 +1479,19 @@ def editar_comissionamento(cid):
     return render_template('comissionamentos/editar_comissionamento.html',
                           comissao=comissao_db, colaboradores=colaboradores)
 
-@app.route('/deletar-comissionamento/<int:cid>', methods=['POST'])
+@app.route('/deletar-comissionamento/<int:cid>', methods=['GET', 'POST'])
 @login_required
 @permission_required('editar_comissionamento')
 def deletar_comissionamento(cid):
     """Deleta comissionamento manual"""
+    if request.method == 'GET':
+        return redirect(url_for('listar_comissionamentos'))
     comissao_db = ComissionamentoDB.query.get_or_404(cid)
     cliente = comissao_db.cliente
     db.session.delete(comissao_db)
     db.session.commit()
 
-    flash(f'Comissionamento "{cliente}" deletado!', 'success')
+    flash(f'Comissão "{cliente}" excluída!', 'success')
     return redirect(url_for('listar_comissionamentos'))
 
 @app.route('/comissionamentos/exportar-excel')
