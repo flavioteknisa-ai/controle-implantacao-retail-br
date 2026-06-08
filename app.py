@@ -1375,27 +1375,28 @@ def listar_comissionamentos():
 def novo_comissionamento():
     """Cria novo comissionamento manual"""
     colaboradores = ColaboradorDB.query.filter_by(ativo=True).order_by(ColaboradorDB.nome).all()
+    periodos, _ = _gerar_periodos_comissao()
 
     if request.method == 'POST':
-        consultor_id = request.form.get('consultor_id')
-        cliente = request.form.get('cliente', '').strip()
-        data_str = request.form.get('data_comissao', '')
-        horas_str = request.form.get('horas_comissionadas', '0')
+        consultor_id     = request.form.get('consultor_id')
+        cliente          = request.form.get('cliente', '').strip()
+        data_str         = request.form.get('data_comissao', '')
+        horas_str        = request.form.get('horas_comissionadas', '0')
         hora_fora_estado = request.form.get('hora_fora_estado', '').strip()
-        motivo = request.form.get('motivo', '').strip()
+        motivo           = request.form.get('motivo', '').strip()
+        periodo_ini_str  = request.form.get('periodo_ini', '')
+        periodo_fim_str  = request.form.get('periodo_fim', '')
 
-        # Validações básicas
         if not cliente:
             flash('Cliente é obrigatório.', 'danger')
             return render_template('comissionamentos/novo_comissionamento.html',
-                                   colaboradores=colaboradores)
-
+                                   colaboradores=colaboradores, periodos=periodos)
         try:
             data_comissao = datetime.strptime(data_str, '%Y-%m-%d').date()
         except ValueError:
             flash('Data inválida.', 'danger')
             return render_template('comissionamentos/novo_comissionamento.html',
-                                   colaboradores=colaboradores)
+                                   colaboradores=colaboradores, periodos=periodos)
 
         try:
             horas = float(horas_str.replace(',', '.')) if horas_str else 0
@@ -1408,16 +1409,18 @@ def novo_comissionamento():
             data_comissao=data_comissao,
             horas_comissionadas=horas,
             hora_fora_estado=hora_fora_estado,
-            motivo=motivo
+            motivo=motivo,
+            periodo_inicio=_parse_date_br(periodo_ini_str.replace('-', '/').replace('-','/')) if periodo_ini_str else None,
+            periodo_fim=_parse_date_br(periodo_fim_str.replace('-','/')) if periodo_fim_str else None,
         )
         db.session.add(novo)
         db.session.commit()
 
-        flash(f'Comissionamento "{cliente}" adicionado!', 'success')
+        flash(f'Comissão "{cliente}" adicionada!', 'success')
         return redirect(url_for('listar_comissionamentos'))
 
     return render_template('comissionamentos/novo_comissionamento.html',
-                          colaboradores=colaboradores)
+                          colaboradores=colaboradores, periodos=periodos)
 
 @app.route('/editar-comissionamento/<int:cid>', methods=['GET', 'POST'])
 @login_required

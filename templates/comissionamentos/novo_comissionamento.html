@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Novo Comissionamento - {{ super() }}{% endblock %}
+{% block title %}Nova Comissão - {{ super() }}{% endblock %}
 
 {% block content %}
 <div class="page-header">
@@ -9,7 +9,7 @@
       <i class="bi bi-arrow-left"></i> Voltar
     </a>
     <div>
-      <h2><i class="bi bi-plus-circle" style="margin-right:8px;"></i>Novo Comissionamento</h2>
+      <h2><i class="bi bi-plus-circle" style="margin-right:8px;"></i>Nova Comissão</h2>
       <p>Registre horas extras e comissões de consultores</p>
     </div>
   </div>
@@ -42,20 +42,36 @@
           </div>
 
           <div class="row">
-            <div class="col-md-4">
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label for="periodo_sel" class="form-label">Período de Comissão <span class="text-danger">*</span></label>
+                <select class="form-select" id="periodo_sel" name="periodo_ini" required onchange="syncPeriodo(this)">
+                  <option value="">-- Selecione o período --</option>
+                  {% for p in periodos %}
+                  <option value="{{ p.ini }}" data-fim="{{ p.fim }}"
+                    {% if loop.first %}selected{% endif %}>{{ p.label }}</option>
+                  {% endfor %}
+                </select>
+                <input type="hidden" name="periodo_fim" id="periodoFim">
+              </div>
+            </div>
+            <div class="col-md-6">
               <div class="mb-3">
                 <label for="data_comissao" class="form-label">Data <span class="text-danger">*</span></label>
                 <input type="date" class="form-control" id="data_comissao" name="data_comissao" required>
               </div>
             </div>
-            <div class="col-md-4">
+          </div>
+
+          <div class="row">
+            <div class="col-md-6">
               <div class="mb-3">
                 <label for="horas_comissionadas" class="form-label">Horas Comissionadas</label>
                 <input type="number" class="form-control" id="horas_comissionadas" name="horas_comissionadas"
                        step="0.5" placeholder="Ex: 8.00" value="0">
               </div>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-6">
               <div class="mb-3">
                 <label for="hora_fora_estado" class="form-label">Hora Fora do Estado</label>
                 <input type="time" class="form-control" id="hora_fora_estado" name="hora_fora_estado">
@@ -72,7 +88,7 @@
           <div class="d-grid gap-2 d-sm-flex justify-content-sm-end">
             <a href="/comissionamentos" class="btn btn-sm btn-outline-secondary">Cancelar</a>
             <button type="submit" class="btn btn-sm btn-primary">
-              <i class="bi bi-check-circle"></i> Registrar Comissionamento
+              <i class="bi bi-check-circle"></i> Registrar Comissão
             </button>
           </div>
         </form>
@@ -96,5 +112,17 @@
     </div>
   </div>
 </div>
+{% endblock %}
 
+{% block extra_js %}
+<script>
+function syncPeriodo(sel) {
+  const opt = sel.options[sel.selectedIndex];
+  document.getElementById('periodoFim').value = opt.dataset.fim || '';
+}
+(function() {
+  const sel = document.getElementById('periodo_sel');
+  if (sel && sel.options.length > 1) { syncPeriodo(sel); }
+})();
+</script>
 {% endblock %}
