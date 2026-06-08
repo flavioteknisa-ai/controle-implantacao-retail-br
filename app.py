@@ -1344,16 +1344,16 @@ def listar_comissionamentos():
         except Exception:
             f_fim_str = f_ini_str
 
-    # Filtrar registros pelo período_inicio/fim cadastrado no lançamento
+    # Filtrar por data_comissao dentro do período selecionado
     query = ComissionamentoDB.query
     if f_ini_str:
         try:
-            query = query.filter(ComissionamentoDB.periodo_inicio >= date.fromisoformat(f_ini_str))
+            query = query.filter(ComissionamentoDB.data_comissao >= date.fromisoformat(f_ini_str))
         except Exception:
             pass
     if f_fim_str:
         try:
-            query = query.filter(ComissionamentoDB.periodo_inicio <= date.fromisoformat(f_fim_str))
+            query = query.filter(ComissionamentoDB.data_comissao <= date.fromisoformat(f_fim_str))
         except Exception:
             pass
 
@@ -1421,8 +1421,8 @@ def novo_comissionamento():
             horas_comissionadas=horas,
             hora_fora_estado=hora_fora_estado,
             motivo=motivo,
-            periodo_inicio=_parse_date_br(periodo_ini_str.replace('-', '/').replace('-','/')) if periodo_ini_str else None,
-            periodo_fim=_parse_date_br(periodo_fim_str.replace('-','/')) if periodo_fim_str else None,
+            periodo_inicio=(date.fromisoformat(periodo_ini_str) if periodo_ini_str else None),
+            periodo_fim=(date.fromisoformat(periodo_fim_str) if periodo_fim_str else None),
         )
         db.session.add(novo)
         db.session.commit()
@@ -1499,12 +1499,12 @@ def exportar_comissionamentos_excel():
     query = ComissionamentoDB.query
     if f_ini_str:
         try:
-            query = query.filter(ComissionamentoDB.periodo_inicio >= date.fromisoformat(f_ini_str))
+            query = query.filter(ComissionamentoDB.data_comissao >= date.fromisoformat(f_ini_str))
         except Exception:
             pass
     if f_fim_str:
         try:
-            query = query.filter(ComissionamentoDB.periodo_inicio <= date.fromisoformat(f_fim_str))
+            query = query.filter(ComissionamentoDB.data_comissao <= date.fromisoformat(f_fim_str))
         except Exception:
             pass
     comissions = query.all()
