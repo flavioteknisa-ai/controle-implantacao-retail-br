@@ -1535,7 +1535,7 @@ def exportar_comissionamentos_excel():
     right_al  = Alignment(horizontal='right',  vertical='center')
 
     # Linha de título com o período
-    periodo_titulo = f"Comissão Coordenadores  |  Período: {f_ini_str} a {f_fim_str}" if f_ini_str else "Comissão Coordenadores  |  Todos os períodos"
+    periodo_titulo = f"Comissionamento Manual  |  Período: {f_ini_str} a {f_fim_str}" if f_ini_str else "Comissionamento Manual  |  Todos os períodos"
     ws.merge_cells('A1:F1')
     titulo_cell = ws['A1']
     titulo_cell.value     = periodo_titulo
@@ -1616,7 +1616,7 @@ def exportar_comissionamentos_excel():
         output,
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         as_attachment=True,
-        download_name=f'comissionamentos_{f_ini_str or date.today().strftime("%Y%m%d")}.xlsx'
+        download_name=f'Comissao_Coordenadores_{f_ini_str or date.today().strftime("%Y%m%d")}.xlsx'
     )
 
 # ─── Rotas: projetos ERP ──────────────────────────────────────────────────────
