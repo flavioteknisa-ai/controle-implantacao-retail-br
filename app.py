@@ -1294,27 +1294,33 @@ def aprovar_conflito(fid):
 
 # ─── Rotas: comissionamento manual ─────────────────────────────────────────────
 
-def _gerar_periodos_comissao(n_futuros=3, n_passados=18):
-    """Gera lista de períodos 21/mm a 20/mm+1 centrados no mês atual."""
+def _gerar_periodos_comissao():
+    """Gera lista de períodos 21/mm a 20/mm+1 a partir de 21/05/2026."""
     from dateutil.relativedelta import relativedelta as _rd
+    INICIO_FIXO = date(2026, 5, 21)   # primeiro período do sistema
+
+    # Calcular período atual (para default do filtro)
     hoje = date.today()
-    # Início do período atual: 21 do mês anterior ou do próprio mês
     if hoje.day >= 21:
-        inicio_base = date(hoje.year, hoje.month, 21)
+        periodo_atual = date(hoje.year, hoje.month, 21)
     else:
         base = date(hoje.year, hoje.month, 1) - timedelta(days=1)
-        inicio_base = date(base.year, base.month, 21)
+        periodo_atual = date(base.year, base.month, 21)
 
+    # Gerar da data fixa até 6 meses no futuro
     periodos = []
-    for i in range(-n_passados, n_futuros + 1):
-        ini = inicio_base + _rd(months=i)
-        fim = ini + _rd(months=1) - timedelta(days=1)  # 20 do mês seguinte
+    ini = INICIO_FIXO
+    limite = periodo_atual + _rd(months=6)
+    while ini <= limite:
+        fim = ini + _rd(months=1) - timedelta(days=1)
         periodos.append({
             'label': f"{ini.strftime('%d/%m/%Y')} a {fim.strftime('%d/%m/%Y')}",
             'ini':   ini.isoformat(),
             'fim':   fim.isoformat(),
         })
-    return periodos, inicio_base
+        ini = ini + _rd(months=1)
+
+    return periodos, periodo_atual
 
 
 @app.route('/comissionamentos')
