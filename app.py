@@ -1369,9 +1369,23 @@ def listar_comissionamentos():
                           periodo_fim=f_fim_str,
                           periodo_label=periodo_label)
 
+def _hhmm_to_float(s: str) -> float:
+    """Converte 'HH:MM' para float. Ex: '08:30' -> 8.5"""
+    try:
+        s = str(s).strip()
+        if ':' in s:
+            h, m = s.split(':', 1)
+            return int(h) + int(m) / 60
+        return float(s.replace(',', '.'))
+    except Exception:
+        return 0.0
+
+
 @app.route('/novo-comissionamento', methods=['GET', 'POST'])
 @login_required
 @permission_required('criar_comissionamento')
+
+
 def novo_comissionamento():
     """Cria novo comissionamento manual"""
     colaboradores = ColaboradorDB.query.filter_by(ativo=True).order_by(ColaboradorDB.nome).all()
@@ -1398,10 +1412,7 @@ def novo_comissionamento():
             return render_template('comissionamentos/novo_comissionamento.html',
                                    colaboradores=colaboradores, periodos=periodos)
 
-        try:
-            horas = float(horas_str.replace(',', '.')) if horas_str else 0
-        except ValueError:
-            horas = 0
+        horas = _hhmm_to_float(horas_str)
 
         novo = ComissionamentoDB(
             consultor_id=int(consultor_id) if consultor_id else None,
@@ -1448,10 +1459,7 @@ def editar_comissionamento(cid):
             flash('Data inválida.', 'danger')
             return redirect(url_for('editar_comissionamento', cid=cid))
 
-        try:
-            horas = float(horas_str.replace(',', '.')) if horas_str else 0
-        except ValueError:
-            horas = 0
+        horas = _hhmm_to_float(horas_str)
 
         comissao_db.consultor_id = int(consultor_id) if consultor_id else None
         comissao_db.cliente = cliente
