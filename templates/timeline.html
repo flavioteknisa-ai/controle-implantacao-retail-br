@@ -5,6 +5,41 @@
 <style>
   .modal-btn-dias { font-size:.8rem; font-weight:700; border-radius:7px; transition:all .15s; }
   .modal-btn-ativo { background:#808080 !important; color:#fff !important; border-color:#808080 !important; }
+
+  /* Listras diagonais para férias não confirmadas */
+  .tl-nao-confirmado::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 4px;
+    background: repeating-linear-gradient(
+      -45deg,
+      transparent,
+      transparent 4px,
+      rgba(255,255,255,0.35) 4px,
+      rgba(255,255,255,0.35) 7px
+    );
+    pointer-events: none;
+    z-index: 3;
+  }
+  /* Ícone de alerta para Solicitado */
+  .tl-solicitado-badge {
+    position: absolute;
+    top: -6px;
+    right: -4px;
+    font-size: .62rem;
+    background: #f57f17;
+    color: #fff;
+    border-radius: 50%;
+    width: 14px;
+    height: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 5;
+    pointer-events: none;
+    box-shadow: 0 1px 3px rgba(0,0,0,.3);
+  }
 </style>
 {% endblock %}
 
@@ -41,14 +76,25 @@
 </div>
 
 <!-- Legenda -->
-<div class="d-flex gap-4 mb-3 fade-in" style="font-size:.78rem;">
+<div class="d-flex flex-wrap gap-3 mb-3 fade-in" style="font-size:.78rem;">
   <div class="d-flex align-items-center gap-1">
-    <div style="width:28px;height:12px;border-radius:3px;background:#A0A0A0;opacity:1;"></div>
+    <div style="width:28px;height:12px;border-radius:3px;background:#A0A0A0;"></div>
     <span class="text-muted">Confirmado</span>
   </div>
   <div class="d-flex align-items-center gap-1">
-    <div style="width:28px;height:12px;border-radius:3px;background:#A0A0A0;opacity:.5;"></div>
-    <span class="text-muted">Planejado</span>
+    <div style="width:28px;height:12px;border-radius:3px;background:#A0A0A0;opacity:.55;
+                border:2px dashed rgba(100,100,100,.5);
+                background-image:repeating-linear-gradient(-45deg,transparent,transparent 3px,rgba(255,255,255,.4) 3px,rgba(255,255,255,.4) 6px);"></div>
+    <span class="text-muted">Planejado <span style="color:#f57f17;">(não confirmado)</span></span>
+  </div>
+  <div class="d-flex align-items-center gap-1">
+    <div style="width:28px;height:12px;border-radius:3px;background:#A0A0A0;
+                border:2px dashed rgba(100,100,100,.5);
+                background-image:repeating-linear-gradient(-45deg,transparent,transparent 3px,rgba(255,255,255,.4) 3px,rgba(255,255,255,.4) 6px);
+                position:relative;">
+      <span style="position:absolute;top:-5px;right:-4px;font-size:.55rem;background:#f57f17;color:#fff;border-radius:50%;width:12px;height:12px;display:flex;align-items:center;justify-content:center;font-weight:900;">!</span>
+    </div>
+    <span class="text-muted">Solicitado <span style="color:#f57f17;">(aguardando aprovação)</span></span>
   </div>
   <div class="d-flex align-items-center gap-1">
     <div style="width:2px;height:14px;background:#e53935;"></div>
@@ -57,10 +103,6 @@
   <div class="d-flex align-items-center gap-1">
     <i class="bi bi-pencil-square text-muted" style="font-size:.85rem;"></i>
     <span class="text-muted">Clique na barra para editar</span>
-  </div>
-  <div class="d-flex align-items-center gap-1">
-    <i class="bi bi-plus-circle text-muted" style="font-size:.85rem;"></i>
-    <span class="text-muted">Clique na faixa vazia para adicionar</span>
   </div>
 </div>
 
@@ -156,17 +198,19 @@
 
             {% for seg in row.segmentos %}
             <!-- Segmento: clicável → editar -->
-            <div class="tl-seg"
+            {% set nao_confirmado = seg.status in ('Planejado', 'Solicitado') %}
+            <div class="tl-seg {% if nao_confirmado %}tl-nao-confirmado{% endif %}"
                  style="position:absolute;left:{{ seg.left }}%;width:{{ seg.width }}%;top:0;bottom:0;
                         background:{{ row.cor }};border-radius:4px;opacity:{{ seg.opacity }};
                         display:flex;align-items:center;padding:0 6px;overflow:hidden;z-index:2;
-                        cursor:pointer;transition:filter .15s;"
+                        cursor:pointer;transition:filter .15s;
+                        {% if nao_confirmado %}border: 2px dashed rgba(255,255,255,0.7);{% endif %}"
                  data-fid="{{ seg.fid }}"
                  data-ini="{{ seg.data_inicio_real }}"
                  data-fim="{{ seg.data_fim_real }}"
                  data-status="{{ seg.status }}"
                  data-bs-toggle="tooltip"
-                 title="{{ seg.label }}"
+                 title="{{ seg.label }} {% if nao_confirmado %}· ⚠ Não confirmada{% endif %}"
                  onclick="segClick(event, this)"
                  onmouseenter="this.style.filter='brightness(1.15)'"
                  onmouseleave="this.style.filter=''">
@@ -174,6 +218,9 @@
               <span style="font-size:.65rem;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;pointer-events:none;">
                 {{ seg.dias }}d
               </span>
+              {% endif %}
+              {% if seg.status == 'Solicitado' and seg.width > 3 %}
+              <span class="tl-solicitado-badge" title="Aguardando aprovação">!</span>
               {% endif %}
             </div>
             {% endfor %}
