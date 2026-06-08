@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import os
 import sys
+import json
 import socket
 import calendar
 from datetime import datetime, timedelta, date
@@ -3618,6 +3619,216 @@ def integracao_testar():
         flash(f'Erro ao conectar: {e}', 'danger')
 
     return redirect(url_for('integracao_config'))
+
+
+def _sync_buscar_e_classificar():
+    """Etapa comum (§6.1): busca projetos na API e classifica novos/alterados/inalterados.
+    Lança ApiConfigError / ApiAuthError em caso de falha de configuração/autenticação."""
+    import api_integracao as ai
+
+    api_key  = AppConfig.get('INTEGRACAO_API_KEY', '')
+    base_url = AppConfig.get('INTEGRACAO_BASE_URL', '')
+    ultimo_sync = AppConfig.get('INTEGRACAO_ULTIMO_SYNC', '') or None
+
+    projetos, erros, chamadas = ai.buscar_projetos_api(api_key, base_url, criado_apos=ultimo_sync)
+    classes = ai.classificar_projetos(projetos)
+    return projetos, classes, erros, chamadas
+
+
+def _sync_enfileirar_pendentes(novos, alterados):
+    """Grava novos/alterados na fila de revisão, substituindo pendências antigas
+    dos mesmos projetos (caso uma sincronização anterior já os tenha enfileirado)."""
+    from database import IntegracaoSyncPendente
+
+    ext_ids = [api.get('id') for api in novos] + [local.external_id for local, _, _ in alterados]
+    if ext_ids:
+        IntegracaoSyncPendente.query.filter(
+            IntegracaoSyncPendente.external_id.in_(ext_ids),
+            IntegracaoSyncPendente.status == 'pendente'
+        ).delete(synchronize_session=False)
+
+    for api in novos:
+        db.session.add(IntegracaoSyncPendente(
+            external_id=api.get('id'),
+            nome=(api.get('nome') or '').strip().upper(),
+            tipo_mudanca='novo',
+            payload=json.dumps(api, ensure_ascii=False, default=str),
+        ))
+
+    for local, api, diff in alterados:
+        db.session.add(IntegracaoSyncPendente(
+            external_id=api.get('id'),
+            nome=local.nome_projeto,
+            tipo_mudanca='alterado',
+            payload=json.dumps(api, ensure_ascii=False, default=str),
+            diff=json.dumps(diff, ensure_ascii=False, default=str),
+            projeto_id=local.id,
+        ))
+
+
+def _sync_registrar_log(tipo, total, novos, alterados, inalterados, erros):
+    from database import IntegracaoSyncLog
+    db.session.add(IntegracaoSyncLog(
+        tipo=tipo,
+        total_api=total,
+        novos=novos,
+        alterados=alterados,
+        inalterados=inalterados,
+        erros=len(erros),
+        mensagem='; '.join(erros[:5]) if erros else None,
+    ))
+
+
+@app.route('/admin/integracao/sincronizar', methods=['POST'])
+@login_required
+@permission_required('gerenciar_integracao')
+def integracao_sincronizar():
+    """Dispara a sincronização manual: busca, classifica e enfileira p/ revisão."""
+    import api_integracao as ai
+
+    try:
+        projetos, classes, erros, chamadas = _sync_buscar_e_classificar()
+    except ai.ApiConfigError as e:
+        flash(f'Configuração incompleta: {e}', 'danger')
+        return redirect(url_for('integracao_config'))
+    except ai.ApiAuthError as e:
+        flash(f'Falha de autenticação: {e} — verifique a chave de API.', 'danger')
+        return redirect(url_for('integracao_config'))
+    except Exception as e:
+        flash(f'Erro ao sincronizar: {e}', 'danger')
+        return redirect(url_for('integracao_config'))
+
+    novos, alterados = classes['novos'], classes['alterados']
+    _sync_enfileirar_pendentes(novos, alterados)
+    _sync_registrar_log('manual', len(projetos), len(novos), len(alterados),
+                        classes['inalterados'], erros)
+    db.session.commit()
+
+    if not novos and not alterados:
+        flash(f'Sincronização concluída: nenhuma novidade ({classes["inalterados"]} '
+              f'projeto(s) inalterado(s)).', 'success')
+        return redirect(url_for('integracao_config'))
+
+    flash(f'Sincronização concluída: {len(novos)} novo(s) e {len(alterados)} '
+          f'alterado(s) aguardando revisão.', 'info')
+    return redirect(url_for('integracao_revisao'))
+
+
+@app.route('/admin/integracao/revisao', methods=['GET'])
+@login_required
+@permission_required('gerenciar_integracao')
+def integracao_revisao():
+    """Tela de reconciliação: lista projetos novos e alterados pendentes de revisão."""
+    import api_integracao as ai
+    from database import IntegracaoSyncPendente
+
+    pendentes = (IntegracaoSyncPendente.query
+                 .filter_by(status='pendente')
+                 .order_by(IntegracaoSyncPendente.detectado_em.desc())
+                 .all())
+
+    novos, alterados = [], []
+    for p in pendentes:
+        try:
+            payload = json.loads(p.payload)
+        except Exception:
+            payload = {}
+        if p.tipo_mudanca == 'novo':
+            novos.append({'item': p, 'payload': payload})
+        else:
+            try:
+                diff = json.loads(p.diff) if p.diff else {}
+            except Exception:
+                diff = {}
+            alterados.append({'item': p, 'payload': payload, 'diff': diff})
+
+    return render_template('admin/integracao_revisao.html',
+                           novos=novos,
+                           alterados=alterados,
+                           rotulos_campos=ai.ROTULOS_CAMPOS)
+
+
+@app.route('/admin/integracao/revisao/aplicar', methods=['POST'])
+@login_required
+@permission_required('gerenciar_integracao')
+def integracao_revisao_aplicar():
+    """Aplica as decisões marcadas pelo usuário na tela de revisão (§6.4)."""
+    import api_integracao as ai
+    from database import IntegracaoSyncPendente
+
+    pendentes = IntegracaoSyncPendente.query.filter_by(status='pendente').all()
+    aplicados = ignorados = 0
+
+    for p in pendentes:
+        decisao = request.form.get(f'decisao_{p.id}', 'ignorar')
+        try:
+            api = json.loads(p.payload)
+        except Exception:
+            api = None
+
+        if decisao == 'aceitar' and api is not None:
+            if p.tipo_mudanca == 'novo':
+                ai.aplicar_novo(api)
+            else:
+                projeto = ERPProjetoDB.query.get(p.projeto_id)
+                if projeto:
+                    diff = json.loads(p.diff) if p.diff else {}
+                    campos_aceitos = [campo for campo in diff
+                                      if request.form.get(f'campo_{p.id}_{campo}') == 'atualizar']
+                    ai.aplicar_alteracao(projeto, api, campos_aceitos)
+            p.status = 'aplicado'
+            aplicados += 1
+        else:
+            p.status = 'ignorado'
+            ignorados += 1
+
+        p.resolvido_em = datetime.now()
+        p.resolvido_por = current_user.nome
+
+    AppConfig.set('INTEGRACAO_ULTIMO_SYNC', datetime.now().strftime('%Y-%m-%d'))
+    db.session.commit()
+
+    flash(f'Revisão concluída: {aplicados} aplicado(s), {ignorados} ignorado(s).', 'success')
+    return redirect(url_for('integracao_config'))
+
+
+@app.route('/api/cron/sincronizar-projetos', methods=['GET'])
+def integracao_cron_sincronizar():
+    """Endpoint do cron (Vercel): busca, aplica novos automaticamente e
+    enfileira alterados para revisão manual (§6.3). Protegido por token."""
+    import api_integracao as ai
+
+    token = request.args.get('token', '')
+    cron_secret = AppConfig.get('INTEGRACAO_CRON_SECRET', '')
+    if not cron_secret or token != cron_secret:
+        return jsonify({'erro': 'Token inválido.'}), 401
+
+    try:
+        projetos, classes, erros, chamadas = _sync_buscar_e_classificar()
+    except (ai.ApiConfigError, ai.ApiAuthError) as e:
+        return jsonify({'erro': str(e)}), 400
+    except Exception as e:
+        return jsonify({'erro': str(e)}), 500
+
+    novos, alterados = classes['novos'], classes['alterados']
+
+    for api in novos:
+        ai.aplicar_novo(api)
+
+    _sync_enfileirar_pendentes([], alterados)
+    _sync_registrar_log('automatico', len(projetos), len(novos), len(alterados),
+                        classes['inalterados'], erros)
+    AppConfig.set('INTEGRACAO_ULTIMO_SYNC', datetime.now().strftime('%Y-%m-%d'))
+    db.session.commit()
+
+    return jsonify({
+        'total_api': len(projetos),
+        'novos_inseridos': len(novos),
+        'alterados_enfileirados': len(alterados),
+        'inalterados': classes['inalterados'],
+        'chamadas': chamadas,
+        'erros': erros,
+    })
 
 
 # ─── Importador ClickUp (via planilha Excel) ─────────────────────────────────

@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+{% block title %}Revisão da Integração · {{ super() }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h2><i class="bi bi-list-check me-2"></i>Revisão de Sincronização</h2>
+  <p>Confira os projetos novos e alterados antes de aplicar à base local</p>
+</div>
+
+{% if not novos and not alterados %}
+<div class="card">
+  <div class="card-body text-center text-muted py-5">
+    <i class="bi bi-check2-circle" style="font-size:2rem;opacity:.3;"></i>
+    <p class="mt-2 mb-0">Nada aguardando revisão no momento.</p>
+    <a href="{{ url_for('integracao_config') }}" class="btn btn-outline-primary btn-sm mt-3">
+      <i class="bi bi-arrow-left me-1"></i>Voltar para Integração
+    </a>
+  </div>
+</div>
+{% else %}
+<form method="POST" action="{{ url_for('integracao_revisao_aplicar') }}">
+
+  {% if novos %}
+  <div class="card mb-3">
+    <div class="card-header dark">
+      <i class="bi bi-plus-circle me-2"></i>Novos projetos
+      <span class="badge bg-success ms-1">{{ novos|length }}</span>
+    </div>
+    <div class="card-body">
+      <p class="text-muted small">Marque os que deseja importar para a base local.</p>
+      {% for n in novos %}
+      {% set p = n.item %}
+      {% set api = n.payload %}
+      <div class="border rounded p-2 mb-2">
+        <div class="form-check">
+          <input class="form-check-input" type="radio" name="decisao_{{ p.id }}"
+                 id="aceitar_{{ p.id }}" value="aceitar" checked>
+          <label class="form-check-label fw-semibold" for="aceitar_{{ p.id }}">
+            Importar — {{ p.nome }}
+          </label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="radio" name="decisao_{{ p.id }}"
+                 id="ignorar_{{ p.id }}" value="ignorar">
+          <label class="form-check-label text-muted" for="ignorar_{{ p.id }}">Ignorar</label>
+        </div>
+        <div class="small text-muted mt-1 ms-4">
+          Cliente: {{ api.nome_cliente or '—' }} ·
+          Coordenador: {{ api._colaborador_nome or api.coordenador_teknisa or '—' }} ·
+          Status: {{ api.status or '—' }} ·
+          % Conclusão: {{ api.cronograma_pct or 0 }}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if alterados %}
+  <div class="card mb-3">
+    <div class="card-header dark">
+      <i class="bi bi-pencil-square me-2"></i>Projetos alterados
+      <span class="badge bg-warning text-dark ms-1">{{ alterados|length }}</span>
+    </div>
+    <div class="card-body">
+      <p class="text-muted small">
+        Para cada campo alterado, escolha se deseja atualizar com o valor da API
+        ou manter o valor local. Use os botões rápidos para agilizar.
+      </p>
+      {% for a in alterados %}
+      {% set p = a.item %}
+      <div class="border rounded p-2 mb-3" id="bloco_{{ p.id }}">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+          <div class="form-check">
+            <input class="form-check-input decisao-radio" type="radio" name="decisao_{{ p.id }}"
+                   id="aceitar_alt_{{ p.id }}" value="aceitar" data-id="{{ p.id }}" checked>
+            <label class="form-check-label fw-semibold" for="aceitar_alt_{{ p.id }}">
+              Aplicar alterações — {{ p.nome }}
+            </label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input decisao-radio" type="radio" name="decisao_{{ p.id }}"
+                   id="ignorar_alt_{{ p.id }}" value="ignorar" data-id="{{ p.id }}">
+            <label class="form-check-label text-muted" for="ignorar_alt_{{ p.id }}">Ignorar</label>
+          </div>
+          <div>
+            <button type="button" class="btn btn-sm btn-outline-success btn-aceitar-tudo" data-id="{{ p.id }}">Aceitar tudo</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary btn-manter-tudo" data-id="{{ p.id }}">Manter tudo</button>
+          </div>
+        </div>
+
+        <table class="table table-sm mt-2 mb-0 campos-diff" data-id="{{ p.id }}" style="font-size:.84rem;">
+          <thead class="bg-light">
+            <tr>
+              <th>Campo</th>
+              <th>Valor atual (local)</th>
+              <th>Valor da API</th>
+              <th class="text-center">Ação</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for campo, valores in a.diff.items() %}
+            <tr>
+              <td>{{ rotulos_campos.get(campo, campo) }}</td>
+              <td class="text-muted">{{ valores[0] }}</td>
+              <td>{{ valores[1] }}</td>
+              <td class="text-center">
+                <div class="btn-group btn-group-sm" role="group">
+                  <input type="radio" class="btn-check campo-radio" name="campo_{{ p.id }}_{{ campo }}"
+                         id="upd_{{ p.id }}_{{ campo }}" value="atualizar" autocomplete="off" checked>
+                  <label class="btn btn-outline-primary" for="upd_{{ p.id }}_{{ campo }}">Atualizar</label>
+
+                  <input type="radio" class="btn-check campo-radio" name="campo_{{ p.id }}_{{ campo }}"
+                         id="man_{{ p.id }}_{{ campo }}" value="manter" autocomplete="off">
+                  <label class="btn btn-outline-secondary" for="man_{{ p.id }}_{{ campo }}">Manter</label>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <button type="submit" class="btn btn-success">
+    <i class="bi bi-check2-circle me-1"></i>Aplicar selecionados
+  </button>
+  <a href="{{ url_for('integracao_config') }}" class="btn btn-outline-secondary ms-2">Cancelar</a>
+</form>
+{% endif %}
+
+<script>
+document.querySelectorAll('.btn-aceitar-tudo').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    var id = btn.dataset.id;
+    document.getElementById('aceitar_alt_' + id).checked = true;
+    document.querySelectorAll('input.campo-radio[name^="campo_' + id + '_"][value="atualizar"]')
+      .forEach(function (r) { r.checked = true; });
+  });
+});
+document.querySelectorAll('.btn-manter-tudo').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    var id = btn.dataset.id;
+    document.getElementById('aceitar_alt_' + id).checked = true;
+    document.querySelectorAll('input.campo-radio[name^="campo_' + id + '_"][value="manter"]')
+      .forEach(function (r) { r.checked = true; });
+  });
+});
+</script>
+{% endblock %}
