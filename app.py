@@ -3769,7 +3769,18 @@ def integracao_revisao_aplicar():
         except Exception:
             api = None
 
-        if decisao == 'aceitar' and api is not None:
+        if decisao == 'vincular' and api is not None and p.tipo_mudanca == 'novo':
+            vinc_id = request.form.get(f'vincular_projeto_{p.id}', type=int)
+            projeto = ERPProjetoDB.query.get(vinc_id) if vinc_id else None
+            if projeto and projeto.external_id is None:
+                ai.vincular_projeto_existente(projeto, api)
+                p.projeto_id = projeto.id
+                p.status = 'aplicado'
+                aplicados += 1
+            else:
+                p.status = 'ignorado'
+                ignorados += 1
+        elif decisao == 'aceitar' and api is not None:
             if p.tipo_mudanca == 'novo':
                 ai.aplicar_novo(api)
             else:

@@ -302,7 +302,8 @@ def classificar_projetos(projetos_api: list) -> dict:
         if local is None:
             duplicatas = encontrar_possiveis_duplicatas(api, sem_vinculo)
             if duplicatas:
-                api['_possiveis_duplicatas'] = [d.nome_projeto for d in duplicatas]
+                api['_possiveis_duplicatas'] = [{'id': d.id, 'nome': d.nome_projeto}
+                                                 for d in duplicatas]
             novos.append(api)
         else:
             if local.payload_hash == _payload_hash(api):
@@ -367,3 +368,19 @@ def aplicar_alteracao(projeto: ERPProjetoDB, api: dict, campos_aceitos: list):
     projeto.payload_hash    = _payload_hash(api)
     projeto.sincronizado_em = datetime.now()
     projeto.origem          = 'api'
+
+
+def vincular_projeto_existente(projeto: ERPProjetoDB, api: dict) -> ERPProjetoDB:
+    """Vincula um projeto cadastrado manualmente (sem external_id) a um
+    projeto 'novo' vindo da API — evita criar um registro duplicado.
+    Define o external_id e atualiza TODOS os campos sincronizáveis (e os
+    módulos) com os valores da API, passando o projeto a ser de origem='api'."""
+    campos = mapear_campos(api)
+    for c, v in campos.items():
+        setattr(projeto, c, v)
+    projeto.external_id     = api.get('id')
+    projeto.origem          = 'api'
+    projeto.payload_hash    = _payload_hash(api)
+    projeto.sincronizado_em = datetime.now()
+    _sync_modulos(projeto.id, api)
+    return projeto

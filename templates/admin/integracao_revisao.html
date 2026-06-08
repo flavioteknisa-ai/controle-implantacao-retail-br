@@ -37,20 +37,37 @@
         <div class="alert alert-warning py-1 px-2 small mb-2">
           <i class="bi bi-exclamation-triangle-fill me-1"></i>
           Pode já existir na base local como
-          <strong>{{ duplicatas|join(' / ') }}</strong> (cadastro manual,
-          sem vínculo com a API). Confira antes de importar para não duplicar.
+          <strong>{{ duplicatas|map(attribute='nome')|join(' / ') }}</strong>
+          (cadastro manual, sem vínculo com a API).
+          {% if duplicatas|length == 1 %}
+            Em vez de importar como novo, você pode <em>vincular e atualizar</em>
+            o cadastro existente com os dados da API.
+          {% else %}
+            Há mais de um candidato — confira manualmente antes de decidir.
+          {% endif %}
         </div>
         {% endif %}
         <div class="form-check">
           <input class="form-check-input" type="radio" name="decisao_{{ p.id }}"
                  id="aceitar_{{ p.id }}" value="aceitar" {% if not duplicatas %}checked{% endif %}>
           <label class="form-check-label fw-semibold" for="aceitar_{{ p.id }}">
-            Importar — {{ p.nome }}
+            Importar como novo — {{ p.nome }}
           </label>
         </div>
+        {% if duplicatas|length == 1 %}
         <div class="form-check">
           <input class="form-check-input" type="radio" name="decisao_{{ p.id }}"
-                 id="ignorar_{{ p.id }}" value="ignorar" {% if duplicatas %}checked{% endif %}>
+                 id="vincular_{{ p.id }}" value="vincular" checked>
+          <input type="hidden" name="vincular_projeto_{{ p.id }}" value="{{ duplicatas[0].id }}">
+          <label class="form-check-label fw-semibold text-success" for="vincular_{{ p.id }}">
+            Vincular e atualizar — {{ duplicatas[0].nome }}
+          </label>
+        </div>
+        {% endif %}
+        <div class="form-check">
+          <input class="form-check-input" type="radio" name="decisao_{{ p.id }}"
+                 id="ignorar_{{ p.id }}" value="ignorar"
+                 {% if duplicatas|length > 1 %}checked{% endif %}>
           <label class="form-check-label text-muted" for="ignorar_{{ p.id }}">Ignorar</label>
         </div>
         <div class="small text-muted mt-1 ms-4">
