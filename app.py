@@ -252,6 +252,8 @@ PERMISSOES_CATALOG = OrderedDict([
     ('ver_visitas',              ('Visitas',         'Ver lista e detalhes de visitas')),
     ('criar_visita',             ('Visitas',         'Registrar nova visita')),
     ('editar_visita',            ('Visitas',         'Editar e excluir visitas')),
+    # ── Integração API ───────────────────────────────────────────
+    ('gerenciar_integracao',     ('Integração',      'Configurar e sincronizar projetos da API externa')),
 ])
 
 # Permissões padrão por perfil (usadas enquanto a tabela DB estiver vazia)
@@ -2333,7 +2335,7 @@ VISITA_CONTATOS  = ['Dono', 'Diretor', 'Supervisor']
 
 # Projeto status
 PROJETO_STATUS  = ['Em andamento', 'Paralisado', 'Finalizado', 'Cancelado']
-PROJETO_MODELOS = ['Tradicional', 'Rollout', 'Treinamento']
+PROJETO_MODELOS = ['Tradicional', 'Rollout', 'Treinamento', 'Demanda Avulsa']
 
 
 @app.route('/visitas')

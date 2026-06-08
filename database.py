@@ -46,6 +46,7 @@ class ColaboradorDB(db.Model):
     data_admissao = db.Column(db.Date, nullable=False)
     time          = db.Column(db.String(100), default='')
     cidade        = db.Column(db.String(100), default='')
+    email         = db.Column(db.String(150), index=True)  # usado p/ vínculo na integração API
     ativo         = db.Column(db.Boolean, default=True)
 
 
@@ -83,8 +84,21 @@ class ERPProjetoDB(db.Model):
     numero_unidades     = db.Column(db.Integer, default=1)
     potencial_cliente   = db.Column(db.String(50), default='Médio')
     tipo_projeto        = db.Column(db.String(50), default='Novo')
-    modelo_projeto      = db.Column(db.String(50), default='Tradicional')  # Tradicional | Rollout | Treinamento
+    modelo_projeto      = db.Column(db.String(50), default='Tradicional')  # Tradicional | Rollout | Treinamento | Demanda Avulsa
     ponto_atencao       = db.Column(db.Boolean, default=False)
+    # ── Integração com API externa (Controle Implantação Teknisa) ──
+    external_id         = db.Column(db.String(64), unique=True, index=True)  # UUID da API origem
+    origem              = db.Column(db.String(20), default='manual')         # 'manual' | 'api'
+    nome_cliente        = db.Column(db.String(250))
+    razao_social        = db.Column(db.String(250))
+    cnpj                = db.Column(db.String(20))
+    local_cliente       = db.Column(db.String(120))                          # cidade/UF
+    numero_proposta     = db.Column(db.String(50))
+    coordenador_cliente = db.Column(db.String(150))
+    sponsor             = db.Column(db.String(150))
+    coordenador_origem  = db.Column(db.String(150))                          # nome cru vindo da API
+    sincronizado_em     = db.Column(db.DateTime)
+    payload_hash        = db.Column(db.String(64))                           # detecta mudança
     criado_em           = db.Column(db.DateTime, default=datetime.now)
     atualizado_em       = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
 
@@ -229,3 +243,39 @@ class PermissaoPerfil(db.Model):
     __table_args__ = (
         db.UniqueConstraint('perfil', 'codigo', name='uq_permissao_perfil_codigo'),
     )
+
+
+# ─────────────────────────────────────────────────────────────────
+# TABELAS: Integração API de Projetos (Controle Implantação Teknisa)
+# ─────────────────────────────────────────────────────────────────
+
+class IntegracaoSyncPendente(db.Model):
+    """Fila de revisão: projetos vindos da API aguardando decisão do usuário."""
+    __tablename__ = 'integracao_sync_pendente'
+
+    id            = db.Column(db.Integer, primary_key=True)
+    external_id   = db.Column(db.String(64), nullable=False, index=True)
+    nome          = db.Column(db.String(250))                # para exibição
+    tipo_mudanca  = db.Column(db.String(20), nullable=False) # 'novo' | 'alterado'
+    payload       = db.Column(db.Text, nullable=False)       # JSON completo da API
+    diff          = db.Column(db.Text)                       # JSON {campo: [local, api]}
+    projeto_id    = db.Column(db.Integer, db.ForeignKey('erp_projetos.id'), nullable=True)
+    detectado_em  = db.Column(db.DateTime, default=datetime.now)
+    status        = db.Column(db.String(20), default='pendente', index=True)  # pendente|aplicado|ignorado
+    resolvido_em  = db.Column(db.DateTime)
+    resolvido_por = db.Column(db.String(80))
+
+
+class IntegracaoSyncLog(db.Model):
+    """Log de auditoria de cada execução de sincronização."""
+    __tablename__ = 'integracao_sync_log'
+
+    id           = db.Column(db.Integer, primary_key=True)
+    executado_em = db.Column(db.DateTime, default=datetime.now)
+    tipo         = db.Column(db.String(20))   # 'manual' | 'automatico'
+    total_api    = db.Column(db.Integer, default=0)
+    novos        = db.Column(db.Integer, default=0)
+    alterados    = db.Column(db.Integer, default=0)
+    inalterados  = db.Column(db.Integer, default=0)
+    erros        = db.Column(db.Integer, default=0)
+    mensagem     = db.Column(db.Text)
