@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% block title %}Integração de Projetos · {{ super() }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h2><i class="bi bi-arrow-repeat me-2"></i>Integração de Projetos</h2>
+  <p>Sincronização com a API do sistema Controle de Implantação Teknisa</p>
+</div>
+
+<div class="row g-3">
+  <!-- Coluna esquerda: configuração -->
+  <div class="col-lg-7">
+    <div class="card mb-3">
+      <div class="card-header dark"><i class="bi bi-key-fill me-2"></i>Credenciais da API</div>
+      <div class="card-body">
+        <form method="POST" action="/admin/integracao/config">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Chave de API (Bearer token)</label>
+            {% if chave_configurada %}
+            <div class="alert alert-success py-2 small mb-2">
+              <i class="bi bi-check-circle-fill me-1"></i>
+              Configurada: <code>{{ chave_mascarada }}</code>
+            </div>
+            {% endif %}
+            <div class="input-group">
+              <span class="input-group-text bg-light"><i class="bi bi-shield-lock text-muted"></i></span>
+              <input type="password" class="form-control" name="api_key" id="apiKey"
+                     placeholder="{% if chave_configurada %}Deixe em branco para manter a atual{% else %}tek_...{% endif %}"
+                     autocomplete="off">
+              <button class="btn btn-outline-secondary" type="button"
+                      onclick="var i=document.getElementById('apiKey');i.type=i.type=='password'?'text':'password';">
+                <i class="bi bi-eye"></i>
+              </button>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold">URL base da API</label>
+            <input type="url" class="form-control" name="base_url"
+                   value="{{ base_url }}"
+                   placeholder="https://controle-implantacao-teknisa.vercel.app">
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Token do Cron (segurança do agendamento)</label>
+            <input type="text" class="form-control" name="cron_secret"
+                   placeholder="Deixe em branco para manter o atual">
+            <div class="form-text">Usado para proteger o endpoint de sincronização automática.</div>
+          </div>
+
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-save me-1"></i>Salvar
+          </button>
+        </form>
+
+        <hr class="my-3">
+
+        <form method="POST" action="/admin/integracao/testar">
+          <button type="submit" class="btn btn-outline-primary" {% if not chave_configurada %}disabled{% endif %}>
+            <i class="bi bi-plug me-1"></i>Testar conexão
+          </button>
+          <span class="text-muted small ms-2">Faz uma consulta real à API e mostra o total de projetos.</span>
+        </form>
+      </div>
+    </div>
+
+    <!-- Ações de sincronização -->
+    <div class="card mb-3">
+      <div class="card-header dark"><i class="bi bi-cloud-download me-2"></i>Sincronização</div>
+      <div class="card-body">
+        {% if com_email == 0 %}
+        <div class="alert alert-warning py-2 small mb-3">
+          <i class="bi bi-exclamation-triangle me-1"></i>
+          Nenhum colaborador tem e-mail cadastrado. A sincronização usa o e-mail
+          do coordenador para vincular os projetos. Cadastre os e-mails em
+          <a href="/colaboradores" class="alert-link">Colaboradores</a>.
+        </div>
+        {% endif %}
+
+        <form method="POST" action="/admin/integracao/sincronizar" class="d-inline">
+          <button type="submit" class="btn btn-success"
+                  {% if not chave_configurada or com_email == 0 %}disabled{% endif %}>
+            <i class="bi bi-arrow-repeat me-1"></i>Sincronizar agora
+          </button>
+        </form>
+
+        {% if pendentes > 0 %}
+        <a href="/admin/integracao/revisao" class="btn btn-warning ms-2">
+          <i class="bi bi-list-check me-1"></i>Revisar pendentes
+          <span class="badge bg-dark ms-1">{{ pendentes }}</span>
+        </a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Coluna direita: status -->
+  <div class="col-lg-5">
+    <div class="card mb-3">
+      <div class="card-header dark"><i class="bi bi-info-circle me-2"></i>Status</div>
+      <div class="card-body">
+        <table class="table table-sm mb-0" style="font-size:.86rem;">
+          <tr>
+            <td class="text-muted">Chave de API</td>
+            <td class="text-end fw-semibold">
+              {% if chave_configurada %}<span class="text-success">Configurada</span>
+              {% else %}<span class="text-danger">Não configurada</span>{% endif %}
+            </td>
+          </tr>
+          <tr>
+            <td class="text-muted">Colaboradores c/ e-mail</td>
+            <td class="text-end fw-semibold">{{ com_email }} de {{ total_colabs }}</td>
+          </tr>
+          <tr>
+            <td class="text-muted">Aguardando revisão</td>
+            <td class="text-end fw-semibold">
+              {% if pendentes > 0 %}<span class="text-warning">{{ pendentes }}</span>
+              {% else %}0{% endif %}
+            </td>
+          </tr>
+          <tr>
+            <td class="text-muted">Último sync</td>
+            <td class="text-end fw-semibold">{{ ultimo_sync or '—' }}</td>
+          </tr>
+        </table>
+      </div>
+    </div>
+
+    <!-- Histórico -->
+    <div class="card">
+      <div class="card-header dark"><i class="bi bi-clock-history me-2"></i>Últimas execuções</div>
+      <div class="card-body p-0">
+        {% if ultimos_logs %}
+        <table class="table table-sm mb-0" style="font-size:.78rem;">
+          <thead class="bg-light">
+            <tr><th class="ps-3">Quando</th><th>Tipo</th><th>Novos</th><th>Alt.</th><th>Erros</th></tr>
+          </thead>
+          <tbody>
+            {% for log in ultimos_logs %}
+            <tr>
+              <td class="ps-3">{{ log.executado_em.strftime('%d/%m %H:%M') if log.executado_em else '—' }}</td>
+              <td>
+                {% if log.tipo == 'automatico' %}<i class="bi bi-robot" title="Automático"></i>
+                {% else %}<i class="bi bi-hand-index" title="Manual"></i>{% endif %}
+              </td>
+              <td>{{ log.novos }}</td>
+              <td>{{ log.alterados }}</td>
+              <td>{% if log.erros %}<span class="text-danger">{{ log.erros }}</span>{% else %}0{% endif %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="text-center text-muted py-4 small">
+          <i class="bi bi-inbox" style="font-size:1.6rem;opacity:.3;"></i>
+          <p class="mt-2 mb-0">Nenhuma sincronização ainda</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

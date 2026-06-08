@@ -275,6 +275,13 @@
   <a href="/admin/importar-clickup" class="nav-link {% if '/importar-clickup' in request.path %}active{% endif %}">
     <i class="bi bi-cloud-download"></i><span>Importar ClickUp</span>
   </a>
+  <a href="/admin/integracao" class="nav-link {% if '/admin/integracao' in request.path %}active{% endif %}">
+    <i class="bi bi-arrow-repeat"></i><span>Integração API
+      {% if integracao_pendentes and integracao_pendentes > 0 %}
+      <span class="badge bg-warning text-dark ms-1">{{ integracao_pendentes }}</span>
+      {% endif %}
+    </span>
+  </a>
   {% endif %}
   </div>
 

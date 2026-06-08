@@ -57,11 +57,20 @@
           </div>
 
           <!-- Cidade -->
-          <div class="mb-4">
+          <div class="mb-3">
             <label class="form-label fw-semibold small">Cidade</label>
             <input type="text" class="form-control" name="cidade"
                    placeholder="Ex: São Paulo, Curitiba…"
                    value="{{ form_cidade or '' }}">
+          </div>
+
+          <!-- E-mail -->
+          <div class="mb-4">
+            <label class="form-label fw-semibold small">E-mail</label>
+            <input type="email" class="form-control" name="email"
+                   placeholder="nome@teknisa.com"
+                   value="{{ form_email or '' }}">
+            <div class="form-text">Usado para vincular projetos na integração com a API externa.</div>
           </div>
 
           <div class="d-flex gap-2">

@@ -206,6 +206,23 @@ def inject_permissions():
     """Injeta tem_perm em todos os templates."""
     return {'tem_perm': tem_permissao}
 
+
+@app.context_processor
+def inject_integracao_badge():
+    """Conta de projetos aguardando revisão (badge no menu). Cacheado 60s,
+    só consulta para usuários gestores."""
+    try:
+        if not current_user.is_authenticated or not current_user.is_gestor:
+            return {'integracao_pendentes': 0}
+        n = cache.get('integracao_pendentes')
+        if n is None:
+            from database import IntegracaoSyncPendente
+            n = IntegracaoSyncPendente.query.filter_by(status='pendente').count()
+            cache.set('integracao_pendentes', n, timeout=60)
+        return {'integracao_pendentes': n}
+    except Exception:
+        return {'integracao_pendentes': 0}
+
 # ─── Constantes ───────────────────────────────────────────────────────────────
 
 CORES = [
@@ -310,6 +327,7 @@ def db_to_colab(c: ColaboradorDB) -> Colaborador:
         time=c.time or '',
         ativo=c.ativo,
         cidade=c.cidade or '',
+        email=c.email or '',
     )
 
 def db_to_ferias(f: FeriasDB) -> Ferias:
@@ -999,19 +1017,20 @@ def novo_colaborador():
         tipo      = request.form.get('tipo', 'Consultor').strip()
         uf_form   = request.form.get('uf', '').strip().upper()
         cidade    = request.form.get('cidade', '').strip()
+        email     = request.form.get('email', '').strip()
         time_full = f"{tipo} - {uf_form}" if uf_form else tipo
         try:
             data_admissao = datetime.strptime(data_str, '%Y-%m-%d')
         except ValueError:
             return render_template('novo_colaborador.html', erro='Data de admissão inválida.',
-                                   form_nome=nome, form_uf=uf_form, form_cidade=cidade)
+                                   form_nome=nome, form_uf=uf_form, form_cidade=cidade, form_email=email)
         valido, erro = FeriasValidator.validar_novo_colaborador(nome, data_admissao)
         if not valido:
             return render_template('novo_colaborador.html', erro=erro,
                                    form_nome=nome, form_data=data_str,
-                                   form_uf=uf_form, form_cidade=cidade)
+                                   form_uf=uf_form, form_cidade=cidade, form_email=email)
         novo = ColaboradorDB(nome=nome, data_admissao=data_admissao.date(),
-                             time=time_full, cidade=cidade)
+                             time=time_full, cidade=cidade, email=email or None)
         db.session.add(novo)
         db.session.commit()
         flash(f'Colaborador "{nome}" adicionado com sucesso!', 'success')
@@ -1034,6 +1053,7 @@ def editar_colaborador(cid):
         tipo      = request.form.get('tipo', 'Consultor').strip()
         uf_form   = request.form.get('uf', '').strip().upper()
         cidade    = request.form.get('cidade', '').strip()
+        email     = request.form.get('email', '').strip()
         time_full = f"{tipo} - {uf_form}" if uf_form else tipo
         try:
             data_admissao = datetime.strptime(data_str, '%Y-%m-%d')
@@ -1051,6 +1071,7 @@ def editar_colaborador(cid):
         c_db.data_admissao = data_admissao.date()
         c_db.time          = time_full
         c_db.cidade        = cidade
+        c_db.email         = email or None
         db.session.commit()
         flash(f'Dados de "{nome}" atualizados!', 'success')
         return redirect(url_for('listar_colaboradores'))
@@ -3506,6 +3527,97 @@ def admin_configuracoes():
     return render_template('admin/configuracoes.html',
                            chave_mascarada=chave_mascarada,
                            chave_configurada=bool(chave_atual))
+
+
+# ─── Integração API de Projetos (Controle Implantação Teknisa) ───────────────
+
+def _mascarar_chave(valor: str) -> str:
+    if not valor:
+        return ''
+    if len(valor) > 16:
+        return valor[:8] + '•' * max(0, len(valor) - 12) + valor[-4:]
+    return '••••••••'
+
+
+@app.route('/admin/integracao', methods=['GET'])
+@login_required
+@permission_required('gerenciar_integracao')
+def integracao_config():
+    """Painel de configuração e status da integração com a API externa."""
+    from database import IntegracaoSyncLog, IntegracaoSyncPendente
+
+    api_key  = AppConfig.get('INTEGRACAO_API_KEY', '')
+    base_url = AppConfig.get('INTEGRACAO_BASE_URL', '')
+    ultimo_sync = AppConfig.get('INTEGRACAO_ULTIMO_SYNC', '')
+
+    # Quantos colaboradores têm e-mail (necessário p/ sync)
+    total_colabs = ColaboradorDB.query.filter_by(ativo=True).count()
+    com_email = (ColaboradorDB.query.filter_by(ativo=True)
+                 .filter(ColaboradorDB.email.isnot(None))
+                 .filter(ColaboradorDB.email != '').count())
+
+    pendentes = IntegracaoSyncPendente.query.filter_by(status='pendente').count()
+    ultimos_logs = (IntegracaoSyncLog.query
+                    .order_by(IntegracaoSyncLog.executado_em.desc())
+                    .limit(10).all())
+
+    return render_template('admin/integracao.html',
+                           chave_mascarada=_mascarar_chave(api_key),
+                           chave_configurada=bool(api_key),
+                           base_url=base_url,
+                           ultimo_sync=ultimo_sync,
+                           total_colabs=total_colabs,
+                           com_email=com_email,
+                           pendentes=pendentes,
+                           ultimos_logs=ultimos_logs)
+
+
+@app.route('/admin/integracao/config', methods=['POST'])
+@login_required
+@permission_required('gerenciar_integracao')
+def integracao_salvar_config():
+    """Salva chave/URL/secret da integração no AppConfig."""
+    api_key  = request.form.get('api_key', '').strip()
+    base_url = request.form.get('base_url', '').strip()
+    cron_secret = request.form.get('cron_secret', '').strip()
+
+    if api_key:
+        AppConfig.set('INTEGRACAO_API_KEY', api_key)
+    if base_url:
+        AppConfig.set('INTEGRACAO_BASE_URL', base_url.rstrip('/'))
+    if cron_secret:
+        AppConfig.set('INTEGRACAO_CRON_SECRET', cron_secret)
+
+    flash('Configurações da integração salvas!', 'success')
+    return redirect(url_for('integracao_config'))
+
+
+@app.route('/admin/integracao/testar', methods=['POST'])
+@login_required
+@permission_required('gerenciar_integracao')
+def integracao_testar():
+    """Testa a conexão com a API externa (1 requisição por coordenador c/ e-mail)."""
+    import api_integracao as ai
+
+    api_key  = AppConfig.get('INTEGRACAO_API_KEY', '')
+    base_url = AppConfig.get('INTEGRACAO_BASE_URL', '')
+
+    try:
+        projetos, erros, chamadas = ai.buscar_projetos_api(api_key, base_url)
+        msg = f'Conexão OK! {chamadas} consulta(s) feita(s), {len(projetos)} projeto(s) retornado(s).'
+        if erros:
+            msg += f' {len(erros)} aviso(s): ' + '; '.join(erros[:3])
+            flash(msg, 'warning')
+        else:
+            flash(msg, 'success')
+    except ai.ApiConfigError as e:
+        flash(f'Configuração incompleta: {e}', 'danger')
+    except ai.ApiAuthError as e:
+        flash(f'Falha de autenticação: {e} — verifique a chave de API.', 'danger')
+    except Exception as e:
+        flash(f'Erro ao conectar: {e}', 'danger')
+
+    return redirect(url_for('integracao_config'))
 
 
 # ─── Importador ClickUp (via planilha Excel) ─────────────────────────────────
