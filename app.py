@@ -1407,8 +1407,10 @@ def novo_comissionamento():
                                    colaboradores=colaboradores, periodos=periodos)
         try:
             data_comissao = datetime.strptime(data_str, '%Y-%m-%d').date()
+            if data_comissao.year < 2020 or data_comissao.year > 2100:
+                raise ValueError('Ano inválido')
         except ValueError:
-            flash('Data inválida.', 'danger')
+            flash('Data inválida. Verifique o ano informado.', 'danger')
             return render_template('comissionamentos/novo_comissionamento.html',
                                    colaboradores=colaboradores, periodos=periodos)
 
@@ -1455,8 +1457,10 @@ def editar_comissionamento(cid):
 
         try:
             data_comissao = datetime.strptime(data_str, '%Y-%m-%d').date()
+            if data_comissao.year < 2020 or data_comissao.year > 2100:
+                raise ValueError('Ano inválido')
         except ValueError:
-            flash('Data inválida.', 'danger')
+            flash('Data inválida. Verifique o ano informado.', 'danger')
             return redirect(url_for('editar_comissionamento', cid=cid))
 
         horas = _hhmm_to_float(horas_str)
