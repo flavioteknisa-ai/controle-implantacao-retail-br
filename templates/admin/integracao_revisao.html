@@ -31,17 +31,26 @@
       {% for n in novos %}
       {% set p = n.item %}
       {% set api = n.payload %}
-      <div class="border rounded p-2 mb-2">
+      {% set duplicatas = api._possiveis_duplicatas or [] %}
+      <div class="border rounded p-2 mb-2 {% if duplicatas %}border-warning{% endif %}">
+        {% if duplicatas %}
+        <div class="alert alert-warning py-1 px-2 small mb-2">
+          <i class="bi bi-exclamation-triangle-fill me-1"></i>
+          Pode já existir na base local como
+          <strong>{{ duplicatas|join(' / ') }}</strong> (cadastro manual,
+          sem vínculo com a API). Confira antes de importar para não duplicar.
+        </div>
+        {% endif %}
         <div class="form-check">
           <input class="form-check-input" type="radio" name="decisao_{{ p.id }}"
-                 id="aceitar_{{ p.id }}" value="aceitar" checked>
+                 id="aceitar_{{ p.id }}" value="aceitar" {% if not duplicatas %}checked{% endif %}>
           <label class="form-check-label fw-semibold" for="aceitar_{{ p.id }}">
             Importar — {{ p.nome }}
           </label>
         </div>
         <div class="form-check">
           <input class="form-check-input" type="radio" name="decisao_{{ p.id }}"
-                 id="ignorar_{{ p.id }}" value="ignorar">
+                 id="ignorar_{{ p.id }}" value="ignorar" {% if duplicatas %}checked{% endif %}>
           <label class="form-check-label text-muted" for="ignorar_{{ p.id }}">Ignorar</label>
         </div>
         <div class="small text-muted mt-1 ms-4">

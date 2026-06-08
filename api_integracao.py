@@ -9,7 +9,9 @@ aplica as decisões do usuário.
 Veja a especificação completa em ESPEC-INTEGRACAO-API.md.
 """
 import json
+import re
 import hashlib
+import unicodedata
 from datetime import datetime, date
 
 from database import db, ERPProjetoDB, ERPModuloDB, ColaboradorDB
@@ -107,6 +109,40 @@ def _norm(v):
     if isinstance(v, int):
         return str(v)
     return str(v).strip()
+
+
+def _normalizar_nome(s):
+    """Maiúsculas, sem acentos, só letras/números/espaços — para comparação tolerante."""
+    s = unicodedata.normalize('NFKD', (s or '').upper()).encode('ascii', 'ignore').decode('ascii')
+    s = re.sub(r'[^A-Z0-9 ]', ' ', s)
+    return re.sub(r'\s+', ' ', s).strip()
+
+
+def _nome_core(nome_projeto):
+    """Nome local sem o sufixo entre parênteses (cidade/UF), normalizado.
+    Ex.: 'GOOD STOP (MOGI MIRIM/SP)' → 'GOOD STOP'."""
+    sem_sufixo = re.sub(r'\(.*?\)\s*$', '', nome_projeto or '')
+    return _normalizar_nome(sem_sufixo)
+
+
+def encontrar_possiveis_duplicatas(api: dict, candidatos: list):
+    """Heurística para apontar projetos locais (sem external_id, cadastrados
+    manualmente) que provavelmente já correspondem a este projeto da API —
+    evita reimportar como duplicata. Compara o nome do cliente da API com o
+    'núcleo' do nome do projeto local (sem sufixo de cidade/UF), em ambas as
+    direções de contenção. Retorna a lista de ERPProjetoDB encontrados
+    (geralmente 0 ou 1 — mais de um indica cadastro local duplicado)."""
+    cliente = _normalizar_nome(api.get('nome_cliente'))
+    if len(cliente) < 3:
+        return []
+    achados = []
+    for c in candidatos:
+        core = _nome_core(c.nome_projeto)
+        if len(core) < 3:
+            continue
+        if cliente in core or core in cliente:
+            achados.append(c)
+    return achados
 
 
 def _modulos_api(api: dict) -> list:
@@ -253,11 +289,20 @@ def classificar_projetos(projetos_api: list) -> dict:
         for pr in ERPProjetoDB.query.filter(ERPProjetoDB.external_id.in_(ext_ids)).all():
             existentes[pr.external_id] = pr
 
+    # Projetos cadastrados manualmente (sem vínculo com a API) — candidatos a
+    # já serem o mesmo projeto que está chegando como "novo".
+    sem_vinculo = (ERPProjetoDB.query
+                   .filter(ERPProjetoDB.external_id.is_(None))
+                   .all())
+
     novos, alterados, inalterados = [], [], 0
     for api in projetos_api:
         ext = api.get('id')
         local = existentes.get(ext)
         if local is None:
+            duplicatas = encontrar_possiveis_duplicatas(api, sem_vinculo)
+            if duplicatas:
+                api['_possiveis_duplicatas'] = [d.nome_projeto for d in duplicatas]
             novos.append(api)
         else:
             if local.payload_hash == _payload_hash(api):
