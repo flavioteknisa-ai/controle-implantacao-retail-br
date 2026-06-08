@@ -3628,9 +3628,12 @@ def _sync_buscar_e_classificar():
 
     api_key  = AppConfig.get('INTEGRACAO_API_KEY', '')
     base_url = AppConfig.get('INTEGRACAO_BASE_URL', '')
-    ultimo_sync = AppConfig.get('INTEGRACAO_ULTIMO_SYNC', '') or None
 
-    projetos, erros, chamadas = ai.buscar_projetos_api(api_key, base_url, criado_apos=ultimo_sync)
+    # Não filtramos por 'criado_apos': esse filtro é por DATA DE CRIAÇÃO do
+    # projeto, não de alteração — usá-lo faria a API parar de devolver projetos
+    # antigos, impedindo a detecção de mudanças neles (a comparação de hash
+    # local já cuida de pular os que estão inalterados).
+    projetos, erros, chamadas = ai.buscar_projetos_api(api_key, base_url)
     classes = ai.classificar_projetos(projetos)
     return projetos, classes, erros, chamadas
 
