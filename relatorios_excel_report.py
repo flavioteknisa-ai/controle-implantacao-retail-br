@@ -505,6 +505,29 @@ def create_consolidated_report(all_filtered_data, period, output_path, commissio
     _total_row(row_num, "TOTAL GERAL", gt_del, gt_com, grand_fill, grand_font)
     row_num += 1
 
+    # COMISSÃO GERENTE (60% do total geral de todos os coordenadores)
+    ger_fill_g   = PatternFill(start_color="1a3a6e", end_color="1a3a6e", fill_type="solid")
+    ger_font_g   = Font(name='Arial', size=11, bold=True, color="FFFFFF")
+    ger_border_g = Border(left=Side(style='medium'), right=Side(style='medium'),
+                          top=Side(style='thin'),    bottom=Side(style='medium'))
+    ws.merge_cells(start_row=row_num, start_column=1,
+                   end_row=row_num, end_column=num_cols - 1)
+    cgl = ws.cell(row_num, 1)
+    cgl.value     = "Comissão Gerente (60%)"
+    cgl.font      = ger_font_g
+    cgl.fill      = ger_fill_g
+    cgl.border    = ger_border_g
+    cgl.alignment = Alignment(horizontal='right', vertical='center')
+    cgv = ws.cell(row_num, num_cols)
+    cgv.value         = gt_com * 0.60
+    cgv.font          = ger_font_g
+    cgv.fill          = ger_fill_g
+    cgv.border        = ger_border_g
+    cgv.number_format = '#,##0.00'
+    cgv.alignment     = Alignment(horizontal='right', vertical='center')
+    ws.row_dimensions[row_num].height = 18
+    row_num += 1
+
     # Larguras
     ws.column_dimensions['A'].width = 36
     ws.column_dimensions['B'].width = 9
