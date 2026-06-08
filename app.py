@@ -1535,7 +1535,7 @@ def exportar_comissionamentos_excel():
     right_al  = Alignment(horizontal='right',  vertical='center')
 
     # Linha de título com o período
-    periodo_titulo = f"Período: {f_ini_str} a {f_fim_str}" if f_ini_str else "Todos os períodos"
+    periodo_titulo = f"Comissão Coordenadores  |  Período: {f_ini_str} a {f_fim_str}" if f_ini_str else "Comissão Coordenadores  |  Todos os períodos"
     ws.merge_cells('A1:F1')
     titulo_cell = ws['A1']
     titulo_cell.value     = periodo_titulo

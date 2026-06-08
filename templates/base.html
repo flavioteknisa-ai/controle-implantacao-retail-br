@@ -227,9 +227,9 @@
   {% endif %}
 
   {% if current_user.is_authenticated and current_user.can_manage %}
-  <div class="nav-section">Comissão Coordenadores</div>
+  <div class="nav-section">Comissionamento Manual</div>
   <a href="/comissionamentos" class="nav-link {% if request.path == '/comissionamentos' or request.path.startswith('/comissionamento') %}active{% endif %}">
-    <i class="bi bi-briefcase"></i><span>Comissão Coordenadores</span>
+    <i class="bi bi-briefcase"></i><span>Comissionamento Manual</span>
   </a>
   <a href="/novo-comissionamento" class="nav-link {% if request.path == '/novo-comissionamento' %}active{% endif %}">
     <i class="bi bi-plus-circle"></i><span>Novo</span>
