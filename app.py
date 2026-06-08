@@ -1294,15 +1294,74 @@ def aprovar_conflito(fid):
 
 # ─── Rotas: comissionamento manual ─────────────────────────────────────────────
 
+def _gerar_periodos_comissao(n_futuros=3, n_passados=18):
+    """Gera lista de períodos 21/mm a 20/mm+1 centrados no mês atual."""
+    from dateutil.relativedelta import relativedelta as _rd
+    hoje = date.today()
+    # Início do período atual: 21 do mês anterior ou do próprio mês
+    if hoje.day >= 21:
+        inicio_base = date(hoje.year, hoje.month, 21)
+    else:
+        base = date(hoje.year, hoje.month, 1) - timedelta(days=1)
+        inicio_base = date(base.year, base.month, 21)
+
+    periodos = []
+    for i in range(-n_passados, n_futuros + 1):
+        ini = inicio_base + _rd(months=i)
+        fim = ini + _rd(months=1) - timedelta(days=1)  # 20 do mês seguinte
+        periodos.append({
+            'label': f"{ini.strftime('%d/%m/%Y')} a {fim.strftime('%d/%m/%Y')}",
+            'ini':   ini.isoformat(),
+            'fim':   fim.isoformat(),
+        })
+    return periodos, inicio_base
+
+
 @app.route('/comissionamentos')
 @login_required
 @permission_required('ver_comissionamentos')
 def listar_comissionamentos():
-    """Lista comissionamentos manuais"""
-    comissions_db = ComissionamentoDB.query.order_by(ComissionamentoDB.data_comissao.desc()).all()
+    """Lista comissionamentos manuais com filtro de período"""
+    periodos, periodo_atual_ini = _gerar_periodos_comissao()
+
+    # Filtro de período selecionado
+    f_ini_str = request.args.get('periodo_ini', periodo_atual_ini.isoformat())
+    f_fim_str = request.args.get('periodo_fim', '')
+
+    # Calcular fim a partir do início se não informado
+    if not f_fim_str and f_ini_str:
+        try:
+            from dateutil.relativedelta import relativedelta as _rd
+            f_ini_d = date.fromisoformat(f_ini_str)
+            f_fim_d = f_ini_d + _rd(months=1) - timedelta(days=1)
+            f_fim_str = f_fim_d.isoformat()
+        except Exception:
+            f_fim_str = f_ini_str
+
+    # Filtrar registros pelo período_inicio/fim cadastrado no lançamento
+    query = ComissionamentoDB.query
+    if f_ini_str:
+        try:
+            query = query.filter(ComissionamentoDB.periodo_inicio >= date.fromisoformat(f_ini_str))
+        except Exception:
+            pass
+    if f_fim_str:
+        try:
+            query = query.filter(ComissionamentoDB.periodo_inicio <= date.fromisoformat(f_fim_str))
+        except Exception:
+            pass
+
+    comissions_db = query.order_by(ComissionamentoDB.data_comissao.desc()).all()
+
+    # Label do período selecionado
+    periodo_label = next((p['label'] for p in periodos if p['ini'] == f_ini_str), f_ini_str)
 
     return render_template('comissionamentos/lista_comissionamentos.html',
-                          comissionamentos=comissions_db)
+                          comissionamentos=comissions_db,
+                          periodos=periodos,
+                          periodo_ini=f_ini_str,
+                          periodo_fim=f_fim_str,
+                          periodo_label=periodo_label)
 
 @app.route('/novo-comissionamento', methods=['GET', 'POST'])
 @login_required
@@ -1416,8 +1475,22 @@ def deletar_comissionamento(cid):
 @login_required
 @permission_required('exportar_comissionamentos')
 def exportar_comissionamentos_excel():
-    """Exporta comissionamentos agrupados por colaborador para Excel"""
-    comissions = ComissionamentoDB.query.all()
+    """Exporta comissionamentos agrupados por colaborador para Excel (período filtrado)"""
+    f_ini_str = request.args.get('periodo_ini', '')
+    f_fim_str = request.args.get('periodo_fim', '')
+
+    query = ComissionamentoDB.query
+    if f_ini_str:
+        try:
+            query = query.filter(ComissionamentoDB.periodo_inicio >= date.fromisoformat(f_ini_str))
+        except Exception:
+            pass
+    if f_fim_str:
+        try:
+            query = query.filter(ComissionamentoDB.periodo_inicio <= date.fromisoformat(f_fim_str))
+        except Exception:
+            pass
+    comissions = query.all()
 
     # Agrupar por colaborador
     por_colaborador = {}
@@ -1439,84 +1512,90 @@ def exportar_comissionamentos_excel():
     ws.title = 'Comissionamentos'
 
     # Estilos
-    header_fill = PatternFill(start_color='1a237e', end_color='1a237e', fill_type='solid')
-    header_font = Font(bold=True, color='FFFFFF', size=11)
-    total_fill = PatternFill(start_color='E8F4F8', end_color='E8F4F8', fill_type='solid')
-    total_font = Font(bold=True, size=10)
+    header_fill  = PatternFill(start_color='1a237e', end_color='1a237e', fill_type='solid')
+    header_font  = Font(bold=True, color='FFFFFF', size=11)
+    subtot_fill  = PatternFill(start_color='D9EAD3', end_color='D9EAD3', fill_type='solid')
+    subtot_font  = Font(bold=True, size=10, color='1c4a1c')
+    data_font    = Font(size=10)
     border = Border(
-        left=Side(style='thin'),
-        right=Side(style='thin'),
-        top=Side(style='thin'),
-        bottom=Side(style='thin')
+        left=Side(style='thin'), right=Side(style='thin'),
+        top=Side(style='thin'),  bottom=Side(style='thin')
     )
+    horas_fmt = '#,##0.00'          # formato numérico com 2 casas decimais
+    center    = Alignment(horizontal='center', vertical='center')
+    right_al  = Alignment(horizontal='right',  vertical='center')
+
+    # Linha de título com o período
+    periodo_titulo = f"Período: {f_ini_str} a {f_fim_str}" if f_ini_str else "Todos os períodos"
+    ws.merge_cells('A1:F1')
+    titulo_cell = ws['A1']
+    titulo_cell.value     = periodo_titulo
+    titulo_cell.font      = Font(bold=True, size=12, color='1a237e')
+    titulo_cell.alignment = center
 
     # Cabeçalho
-    headers = ['Colaborador', 'Cliente', 'Data', 'Horas', 'Hora Fora', 'Motivo']
+    headers = ['Colaborador', 'Cliente', 'Data', 'Horas Comissionadas', 'Hora Fora Estado', 'Motivo']
     for col_num, header in enumerate(headers, 1):
-        cell = ws.cell(row=1, column=col_num)
-        cell.value = header
-        cell.fill = header_fill
-        cell.font = header_font
-        cell.border = border
-        cell.alignment = Alignment(horizontal='center', vertical='center')
+        cell = ws.cell(row=2, column=col_num)
+        cell.value     = header
+        cell.fill      = header_fill
+        cell.font      = header_font
+        cell.border    = border
+        cell.alignment = center
 
     # Dados por colaborador
-    row = 2
-    geral_total_horas = 0
-    geral_total_registros = 0
-
+    row = 3
     for nome_colab in sorted(por_colaborador.keys()):
-        grupo = por_colaborador[nome_colab]
+        grupo    = por_colaborador[nome_colab]
         primeiro = True
+        row_ini  = row
 
         for com in grupo['registros']:
             ws.cell(row=row, column=1).value = nome_colab if primeiro else ''
             ws.cell(row=row, column=2).value = com.cliente
             ws.cell(row=row, column=3).value = com.data_comissao.strftime('%d/%m/%Y')
-            ws.cell(row=row, column=4).value = com.horas_comissionadas
+
+            # Horas: valor numérico com formato decimal
+            hc = ws.cell(row=row, column=4)
+            hc.value           = com.horas_comissionadas or 0
+            hc.number_format   = horas_fmt
+            hc.alignment       = right_al
+
             ws.cell(row=row, column=5).value = com.hora_fora_estado or ''
             ws.cell(row=row, column=6).value = com.motivo or ''
 
             for col in range(1, 7):
+                ws.cell(row=row, column=col).font   = data_font
                 ws.cell(row=row, column=col).border = border
-            ws.cell(row=row, column=4).alignment = Alignment(horizontal='right')
 
             primeiro = False
             row += 1
 
-        # Subtotal do colaborador
-        ws.cell(row=row, column=1).value = f'SUBTOTAL {nome_colab}'
-        ws.cell(row=row, column=4).value = grupo['total_horas']
-        ws.cell(row=row, column=2).value = f"{grupo['total_registros']} registro(s)"
+        # Subtotal por colaborador (fórmula SUM sobre as linhas do grupo)
+        ws.cell(row=row, column=1).value = f'Total — {nome_colab}'
+        ws.cell(row=row, column=2).value = f"{grupo['total_registros']} lançamento(s)"
+
+        subtot = ws.cell(row=row, column=4)
+        subtot.value         = f'=SUM(D{row_ini}:D{row - 1})'
+        subtot.number_format = horas_fmt
+        subtot.alignment     = right_al
 
         for col in range(1, 7):
-            ws.cell(row=row, column=col).fill = total_fill
-            ws.cell(row=row, column=col).font = total_font
+            ws.cell(row=row, column=col).fill   = subtot_fill
+            ws.cell(row=row, column=col).font   = subtot_font
             ws.cell(row=row, column=col).border = border
-        ws.cell(row=row, column=4).alignment = Alignment(horizontal='right')
 
-        geral_total_horas += grupo['total_horas']
-        geral_total_registros += grupo['total_registros']
-        row += 2
-
-    # Total geral
-    ws.cell(row=row, column=1).value = 'TOTAL GERAL'
-    ws.cell(row=row, column=2).value = f'{geral_total_registros} registro(s)'
-    ws.cell(row=row, column=4).value = geral_total_horas
-
-    for col in range(1, 7):
-        ws.cell(row=row, column=col).fill = PatternFill(start_color='1a237e', end_color='1a237e', fill_type='solid')
-        ws.cell(row=row, column=col).font = Font(bold=True, color='FFFFFF', size=11)
-        ws.cell(row=row, column=col).border = border
-    ws.cell(row=row, column=4).alignment = Alignment(horizontal='right')
+        row += 2  # linha em branco entre colaboradores
 
     # Ajustar largura das colunas
-    ws.column_dimensions['A'].width = 20
-    ws.column_dimensions['B'].width = 20
-    ws.column_dimensions['C'].width = 12
-    ws.column_dimensions['D'].width = 10
-    ws.column_dimensions['E'].width = 15
-    ws.column_dimensions['F'].width = 30
+    ws.column_dimensions['A'].width = 25
+    ws.column_dimensions['B'].width = 25
+    ws.column_dimensions['C'].width = 14
+    ws.column_dimensions['D'].width = 20
+    ws.column_dimensions['E'].width = 18
+    ws.column_dimensions['F'].width = 35
+    ws.row_dimensions[1].height = 22
+    ws.row_dimensions[2].height = 18
 
     # Salvar em memória
     output = BytesIO()
@@ -1528,7 +1607,7 @@ def exportar_comissionamentos_excel():
         output,
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         as_attachment=True,
-        download_name=f'comissionamentos_{date.today().strftime("%Y%m%d")}.xlsx'
+        download_name=f'comissionamentos_{f_ini_str or date.today().strftime("%Y%m%d")}.xlsx'
     )
 
 # ─── Rotas: projetos ERP ──────────────────────────────────────────────────────
