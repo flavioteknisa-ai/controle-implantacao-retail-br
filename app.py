@@ -1616,7 +1616,7 @@ def exportar_comissionamentos_excel():
         output,
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         as_attachment=True,
-        download_name=f'Comissao_Coordenadores_{f_ini_str or date.today().strftime("%Y%m%d")}.xlsx'
+        download_name=f'Comissionamento_Manual_{f_ini_str or date.today().strftime("%Y%m%d")}.xlsx'
     )
 
 # ─── Rotas: projetos ERP ──────────────────────────────────────────────────────
