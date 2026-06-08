@@ -143,9 +143,11 @@ def mapear_campos(api: dict) -> dict:
 
 def buscar_projetos_api(api_key: str, base_url: str, criado_apos: str = None):
     """
-    Consulta a API uma vez por coordenador ativo COM e-mail preenchido,
-    filtrando por ?coordenador=<email>. Atribui cada projeto ao colaborador
-    consultado (vínculo confiável).
+    Consulta a API uma vez por coordenador ativo COM e-mail preenchido
+    (e-mail = critério local de elegibilidade p/ sync), filtrando por
+    ?coordenador=<nome> — a API casa esse parâmetro com coordenador_teknisa,
+    não com o e-mail. Atribui cada projeto ao colaborador consultado
+    (vínculo confiável por nome exato).
 
     Retorna (projetos, erros, num_chamadas).
       - projetos: lista de dicts da API + '_colaborador_id' + '_colaborador_nome'
@@ -174,7 +176,10 @@ def buscar_projetos_api(api_key: str, base_url: str, criado_apos: str = None):
     vistos = set()  # dedup por external_id
 
     for c in coords:
-        params = {'coordenador': c.email}
+        # A API filtra pelo NOME do coordenador (campo coordenador_teknisa),
+        # não pelo e-mail — apesar do e-mail ser o critério de elegibilidade
+        # local (vínculo confiável de responsavel_id).
+        params = {'coordenador': c.nome}
         if criado_apos:
             params['criado_apos'] = criado_apos
         try:
