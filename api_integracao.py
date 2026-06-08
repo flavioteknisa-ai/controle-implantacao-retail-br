@@ -46,6 +46,7 @@ _TIPO_MAP = {
 CAMPOS_SYNC = [
     'nome_projeto', 'status', 'modelo_projeto', 'percentual_conclusao',
     'nome_cliente', 'razao_social', 'cnpj', 'local_cliente',
+    'cidade', 'estado',
     'numero_proposta', 'coordenador_cliente', 'sponsor',
     'responsavel_id', 'coordenador_origem',
 ]
@@ -59,7 +60,9 @@ ROTULOS_CAMPOS = {
     'nome_cliente':         'Cliente',
     'razao_social':         'Razão Social',
     'cnpj':                 'CNPJ',
-    'local_cliente':        'Local',
+    'local_cliente':        'Local (legado)',
+    'cidade':               'Cidade',
+    'estado':               'Estado (UF)',
     'numero_proposta':      'Nº Proposta',
     'coordenador_cliente':  'Coord. Cliente',
     'sponsor':              'Sponsor',
@@ -145,6 +148,17 @@ def encontrar_possiveis_duplicatas(api: dict, candidatos: list):
     return achados
 
 
+def _extrair_cidade_estado(local_str):
+    """Extrai (cidade, estado) de uma string no formato 'CIDADE/UF'.
+    Retorna (cidade_str, uf_str) ou (None, None) se não conseguir parser."""
+    if not local_str:
+        return None, None
+    match = re.match(r'^([^/]+)/([A-Z]{2})$', (local_str or '').strip())
+    if match:
+        return match.group(1).strip() or None, match.group(2).strip() or None
+    return None, None
+
+
 def _modulos_api(api: dict) -> list:
     """Lista de nomes de módulos vindos da API (quantidade ignorada)."""
     nomes = []
@@ -158,6 +172,9 @@ def _modulos_api(api: dict) -> list:
 def mapear_campos(api: dict) -> dict:
     """Converte o payload da API para o dicionário de campos do ERPProjetoDB.
     O vínculo de responsável vem da atribuição por e-mail ('_colaborador_id')."""
+    local = (api.get('local') or '').strip() or None
+    cidade, estado = _extrair_cidade_estado(local)
+
     return {
         'nome_projeto':         (api.get('nome') or '').strip().upper(),
         'status':               mapear_status(api.get('status')),
@@ -166,7 +183,9 @@ def mapear_campos(api: dict) -> dict:
         'nome_cliente':         (api.get('nome_cliente') or '').strip() or None,
         'razao_social':         (api.get('razao_social') or '').strip() or None,
         'cnpj':                 (api.get('cnpj') or '').strip() or None,
-        'local_cliente':        (api.get('local') or '').strip() or None,
+        'local_cliente':        local,
+        'cidade':               cidade,
+        'estado':               estado,
         'numero_proposta':      (api.get('numero_proposta') or '').strip() or None,
         'coordenador_cliente':  (api.get('coordenador_cliente') or '').strip() or None,
         'sponsor':              (api.get('sponsor') or '').strip() or None,
