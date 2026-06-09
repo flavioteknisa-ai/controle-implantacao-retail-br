@@ -12,28 +12,6 @@
   </a>
 </div>
 
-<!-- Alerta: colaboradores sem usuário vinculado -->
-{% if sem_usuario %}
-<div class="alert alert-warning d-flex align-items-start gap-3 fade-in mb-4" role="alert">
-  <i class="bi bi-exclamation-triangle-fill fs-4 mt-1 flex-shrink-0"></i>
-  <div class="flex-grow-1">
-    <strong>{{ sem_usuario|length }} colaborador(es) ativo(s) sem usuário vinculado</strong>
-    <div class="mt-2 d-flex flex-wrap gap-2">
-      {% for c in sem_usuario %}
-      <a href="/novo-usuario?colab={{ c.id }}"
-         class="badge text-bg-warning text-decoration-none"
-         title="Criar usuário para {{ c.nome }}">
-        <i class="bi bi-person-plus me-1"></i>{{ c.nome }}
-      </a>
-      {% endfor %}
-    </div>
-    <div class="mt-1">
-      <small class="text-muted">Clique no nome para criar um usuário já vinculado ao colaborador.</small>
-    </div>
-  </div>
-</div>
-{% endif %}
-
 <!-- Tabela de usuários -->
 <div class="card fade-in mb-4">
   <div class="card-header dark d-flex align-items-center gap-2">
