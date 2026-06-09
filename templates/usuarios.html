@@ -5,21 +5,49 @@
 <div class="page-header fade-in d-flex justify-content-between align-items-start">
   <div>
     <h2><i class="bi bi-people-fill me-2"></i>Usuários do Sistema</h2>
-    <p>Gerencie quem tem acesso e quais permissões</p>
+    <p>Gerencie quem tem acesso e a relação com os colaboradores</p>
   </div>
   <a href="/novo-usuario" class="btn btn-primary">
     <i class="bi bi-person-plus-fill me-1"></i>Novo Usuário
   </a>
 </div>
 
-<div class="card fade-in">
+<!-- Alerta: colaboradores sem usuário vinculado -->
+{% if sem_usuario %}
+<div class="alert alert-warning d-flex align-items-start gap-3 fade-in mb-4" role="alert">
+  <i class="bi bi-exclamation-triangle-fill fs-4 mt-1 flex-shrink-0"></i>
+  <div class="flex-grow-1">
+    <strong>{{ sem_usuario|length }} colaborador(es) ativo(s) sem usuário vinculado</strong>
+    <div class="mt-2 d-flex flex-wrap gap-2">
+      {% for c in sem_usuario %}
+      <a href="/novo-usuario?colab={{ c.id }}"
+         class="badge text-bg-warning text-decoration-none"
+         title="Criar usuário para {{ c.nome }}">
+        <i class="bi bi-person-plus me-1"></i>{{ c.nome }}
+      </a>
+      {% endfor %}
+    </div>
+    <div class="mt-1">
+      <small class="text-muted">Clique no nome para criar um usuário já vinculado ao colaborador.</small>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Tabela de usuários -->
+<div class="card fade-in mb-4">
+  <div class="card-header dark d-flex align-items-center gap-2">
+    <i class="bi bi-shield-lock-fill"></i>
+    <span>Usuários cadastrados</span>
+    <span class="badge bg-secondary ms-auto">{{ usuarios|length }}</span>
+  </div>
   <div class="card-body p-0">
     <div class="table-responsive">
-      <table class="table table-hover mb-0" style="font-size:.85rem;">
+      <table class="table table-hover align-middle mb-0" style="font-size:.85rem;">
         <thead style="background:#f8f9fa;">
           <tr>
-            <th class="ps-4 py-2">Nome</th>
-            <th class="py-2">Username</th>
+            <th class="ps-4 py-2">Usuário</th>
+            <th class="py-2">Login</th>
             <th class="py-2">Perfil</th>
             <th class="py-2">Colaborador vinculado</th>
             <th class="py-2">Status</th>
@@ -46,22 +74,34 @@
               <code style="font-size:.8rem;background:#f0f0f0;padding:2px 7px;border-radius:4px;">{{ u.username }}</code>
             </td>
             <td class="py-2">
-              {% if u.is_gestor %}
+              {% if u.perfil == 'master' %}
+              <span class="badge" style="background:#37474f;font-size:.72rem;">
+                <i class="bi bi-star-fill me-1"></i>Master
+              </span>
+              {% elif u.is_gestor %}
               <span class="badge" style="background:#808080;font-size:.72rem;">
                 <i class="bi bi-shield-fill-check me-1"></i>Gestor
               </span>
               {% else %}
               <span class="badge" style="background:#2e7d32;font-size:.72rem;">
-                <i class="bi bi-person-fill me-1"></i>Colaborador
+                <i class="bi bi-person-fill me-1"></i>Coordenador
               </span>
               {% endif %}
             </td>
             <td class="py-2">
               {% if u.colaborador_id and u.colaborador_id in colab_map %}
-                <span class="text-dark">{{ colab_map[u.colaborador_id].nome }}</span>
-                <div class="text-muted" style="font-size:.68rem;">{{ colab_map[u.colaborador_id].time }}</div>
+                <div class="d-flex align-items-center gap-2">
+                  <i class="bi bi-link-45deg text-success fs-5"></i>
+                  <div>
+                    <div class="fw-semibold" style="font-size:.83rem;">{{ colab_map[u.colaborador_id].nome }}</div>
+                    <div class="text-muted" style="font-size:.7rem;">{{ colab_map[u.colaborador_id].time }}</div>
+                  </div>
+                </div>
               {% else %}
-                <span class="text-muted small">—</span>
+                <span class="d-flex align-items-center gap-1 text-danger" style="font-size:.8rem;">
+                  <i class="bi bi-link-slash"></i>
+                  <span>Sem vínculo</span>
+                </span>
               {% endif %}
             </td>
             <td class="py-2">
@@ -88,6 +128,92 @@
                 </form>
                 {% endif %}
               </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Painel de relação colaborador ↔ usuário -->
+<div class="card fade-in">
+  <div class="card-header dark d-flex align-items-center gap-2">
+    <i class="bi bi-diagram-3-fill"></i>
+    <span>Relação Colaborador ↔ Usuário</span>
+    <small class="text-muted ms-auto">Todos os colaboradores ativos</small>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-sm table-hover align-middle mb-0" style="font-size:.82rem;">
+        <thead style="background:#f8f9fa;">
+          <tr>
+            <th class="ps-4 py-2">Colaborador</th>
+            <th class="py-2">Time / Cidade</th>
+            <th class="py-2">Usuário do sistema</th>
+            <th class="py-2 text-center">Situação</th>
+            <th class="pe-4 py-2 text-end">Ação</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% set user_by_colab = {} %}
+          {% for u in usuarios %}
+            {% if u.colaborador_id %}
+              {% set _ = user_by_colab.update({u.colaborador_id: u}) %}
+            {% endif %}
+          {% endfor %}
+
+          {% for c in colab_map.values()|sort(attribute='nome') %}
+          {% set u_vinc = user_by_colab.get(c.id) %}
+          <tr>
+            <td class="ps-4 py-2">
+              <div class="d-flex align-items-center gap-2">
+                <div class="avatar" style="background:#1565c0;width:28px;height:28px;font-size:.65rem;">
+                  {{ c.nome[:2].upper() }}
+                </div>
+                <span class="fw-semibold">{{ c.nome }}</span>
+              </div>
+            </td>
+            <td class="py-2">
+              <span class="text-muted">{{ c.time or '—' }}</span>
+              {% if c.cidade %}
+              <span class="text-muted"> · {{ c.cidade }}</span>
+              {% endif %}
+            </td>
+            <td class="py-2">
+              {% if u_vinc %}
+              <div>
+                <span class="fw-semibold">{{ u_vinc.nome }}</span>
+                <code class="ms-1" style="font-size:.75rem;background:#f0f0f0;padding:1px 5px;border-radius:3px;">{{ u_vinc.username }}</code>
+              </div>
+              {% else %}
+              <span class="text-muted fst-italic">Nenhum usuário vinculado</span>
+              {% endif %}
+            </td>
+            <td class="py-2 text-center">
+              {% if u_vinc %}
+              <span class="badge bg-success-subtle text-success border border-success-subtle">
+                <i class="bi bi-check-circle-fill me-1"></i>Vinculado
+              </span>
+              {% else %}
+              <span class="badge bg-danger-subtle text-danger border border-danger-subtle">
+                <i class="bi bi-x-circle-fill me-1"></i>Sem usuário
+              </span>
+              {% endif %}
+            </td>
+            <td class="py-2 pe-4 text-end">
+              {% if u_vinc %}
+              <a href="/editar-usuario/{{ u_vinc.id }}"
+                 class="btn btn-sm btn-outline-secondary py-0 px-2" title="Editar usuário">
+                <i class="bi bi-pencil"></i>
+              </a>
+              {% else %}
+              <a href="/novo-usuario?colab={{ c.id }}"
+                 class="btn btn-sm btn-outline-primary py-0 px-2" title="Criar usuário">
+                <i class="bi bi-person-plus"></i> Criar
+              </a>
+              {% endif %}
             </td>
           </tr>
           {% endfor %}

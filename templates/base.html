@@ -258,6 +258,18 @@
   {% endif %}
   {% endif %}
 
+  {% if current_user.is_authenticated and tem_perm('ver_agenda_gestao') %}
+  <div class="nav-section">Agenda de Gestão</div>
+  <a href="{{ url_for('agenda_gestao') }}" class="nav-link {% if '/agenda-gestao' in request.path %}active{% endif %}">
+    <i class="bi bi-calendar2-week"></i><span>Agenda de Gestão</span>
+  </a>
+  {% if tem_perm('criar_agenda_gestao') %}
+  <a href="{{ url_for('nova_agenda_gestao') }}" class="nav-link {% if request.path == '/agenda-gestao/nova' %}active{% endif %}">
+    <i class="bi bi-calendar2-plus"></i><span>Nova Agenda</span>
+  </a>
+  {% endif %}
+  {% endif %}
+
   {% if current_user.is_authenticated and current_user.is_gestor %}
   <div class="nav-section">Admin</div>
   <a href="/novo-colaborador" class="nav-link {% if request.path == '/novo-colaborador' %}active{% endif %}">

@@ -1,0 +1,238 @@
+{% extends "base.html" %}
+
+{% block title %}Agenda de Gestão - {{ super() }}{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+  <div>
+    <h2><i class="bi bi-calendar2-week" style="margin-right:8px;"></i>Agenda de Gestão</h2>
+    <p>Reuniões e visitas de acompanhamento com clientes</p>
+  </div>
+  {% if tem_perm('criar_agenda_gestao') %}
+  <a href="{{ url_for('nova_agenda_gestao') }}" class="btn btn-primary">
+    <i class="bi bi-plus-circle"></i> Nova Agenda
+  </a>
+  {% endif %}
+</div>
+
+<!-- Cartões de resumo -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="card text-center border-0 shadow-sm">
+      <div class="card-body py-3">
+        <div class="fs-3 fw-bold text-primary">{{ total }}</div>
+        <div class="small text-muted">Total</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card text-center border-0 shadow-sm">
+      <div class="card-body py-3">
+        <div class="fs-3 fw-bold text-warning">{{ previstas }}</div>
+        <div class="small text-muted">Previstas</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card text-center border-0 shadow-sm">
+      <div class="card-body py-3">
+        <div class="fs-3 fw-bold text-success">{{ executadas }}</div>
+        <div class="small text-muted">Executadas</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card text-center border-0 shadow-sm">
+      <div class="card-body py-3">
+        <div class="fs-3 fw-bold text-danger">{{ canceladas }}</div>
+        <div class="small text-muted">Canceladas</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Filtros -->
+<div class="card mb-4">
+  <div class="card-body">
+    <form method="GET" class="row g-2 align-items-end">
+      <div class="col-md-3">
+        <label class="form-label small fw-semibold">Mês</label>
+        <input type="month" class="form-control form-control-sm" name="mes"
+               value="{{ mes_filtro }}">
+      </div>
+      {% if current_user.is_gestor %}
+      <div class="col-md-3">
+        <label class="form-label small fw-semibold">Consultor</label>
+        <select class="form-select form-select-sm" name="consultor_id">
+          <option value="">Todos</option>
+          {% for c in consultores %}
+          <option value="{{ c.id }}" {% if consultor_filtro == c.id|string %}selected{% endif %}>{{ c.nome }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endif %}
+      <div class="col-md-3">
+        <label class="form-label small fw-semibold">Status</label>
+        <select class="form-select form-select-sm" name="status">
+          <option value="">Todos</option>
+          <option value="Prevista"  {% if status_filtro == 'Prevista'  %}selected{% endif %}>Prevista</option>
+          <option value="Executada" {% if status_filtro == 'Executada' %}selected{% endif %}>Executada</option>
+          <option value="Cancelada" {% if status_filtro == 'Cancelada' %}selected{% endif %}>Cancelada</option>
+        </select>
+      </div>
+      <div class="col-md-3 d-flex gap-2">
+        <button type="submit" class="btn btn-primary btn-sm flex-fill">
+          <i class="bi bi-search"></i> Filtrar
+        </button>
+        <a href="{{ url_for('agenda_gestao') }}" class="btn btn-outline-secondary btn-sm">
+          <i class="bi bi-x-circle"></i>
+        </a>
+      </div>
+    </form>
+    {% if consultor_nome %}
+    <div class="mt-2">
+      <span class="badge bg-primary"><i class="bi bi-person-fill me-1"></i>{{ consultor_nome }}</span>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Tabela -->
+{% if agendas %}
+<div class="card shadow-sm">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-dark">
+          <tr>
+            <th>Data</th>
+            <th>Cliente</th>
+            <th>Projeto</th>
+            <th>Consultor</th>
+            <th>Responsável Cliente</th>
+            <th>Apresentação</th>
+            <th>Status</th>
+            {% if tem_perm('editar_agenda_gestao') %}
+            <th class="text-center">Ações</th>
+            {% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for ag in agendas %}
+          <tr>
+            <td class="text-nowrap">
+              <i class="bi bi-calendar3 text-muted me-1"></i>
+              {{ ag.data.strftime('%d/%m/%Y') }}
+            </td>
+            <td><strong>{{ ag.cliente }}</strong></td>
+            <td>
+              {% if ag.projeto %}
+              <a href="{{ url_for('detalhe_projeto', projeto_id=ag.projeto_id) }}" class="text-decoration-none small">
+                {{ ag.projeto.nome_projeto }}
+              </a>
+              {% else %}
+              <span class="text-muted small">—</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if ag.consultor %}
+              {{ ag.consultor.nome }}
+              {% else %}
+              <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if ag.responsavel_cliente %}
+              {{ ag.responsavel_cliente }}
+              {% if ag.cargo_responsavel %}
+              <br><small class="text-muted">{{ ag.cargo_responsavel }}</small>
+              {% endif %}
+              {% else %}
+              <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if ag.apresentacao == 'Presencial' %}
+              <span class="badge bg-info text-dark"><i class="bi bi-person-walking me-1"></i>Presencial</span>
+              {% else %}
+              <span class="badge bg-secondary"><i class="bi bi-camera-video me-1"></i>Remoto</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if ag.status == 'Prevista' %}
+              <span class="badge bg-warning text-dark">Prevista</span>
+              {% elif ag.status == 'Executada' %}
+              <span class="badge bg-success">Executada</span>
+              {% else %}
+              <span class="badge bg-danger">Cancelada</span>
+              {% endif %}
+            </td>
+            {% if tem_perm('editar_agenda_gestao') %}
+            <td class="text-center text-nowrap">
+              <a href="{{ url_for('editar_agenda_gestao', aid=ag.id) }}"
+                 class="btn btn-sm btn-outline-primary" title="Editar">
+                <i class="bi bi-pencil"></i>
+              </a>
+              <button type="button" class="btn btn-sm btn-outline-danger"
+                      title="Excluir"
+                      onclick="confirmarExclusao({{ ag.id }}, '{{ ag.cliente|e }}')">
+                <i class="bi bi-trash"></i>
+              </button>
+            </td>
+            {% endif %}
+          </tr>
+          {% if ag.observacoes %}
+          <tr class="table-light">
+            <td colspan="8" class="py-1 px-4">
+              <small class="text-muted"><i class="bi bi-chat-left-text me-1"></i>{{ ag.observacoes }}</small>
+            </td>
+          </tr>
+          {% endif %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% else %}
+<div class="text-center py-5 text-muted">
+  <i class="bi bi-calendar-x fs-1 d-block mb-3"></i>
+  <h5>Nenhuma agenda encontrada</h5>
+  <p>Ajuste os filtros ou crie uma nova entrada.</p>
+  {% if tem_perm('criar_agenda_gestao') %}
+  <a href="{{ url_for('nova_agenda_gestao') }}" class="btn btn-primary mt-2">
+    <i class="bi bi-plus-circle"></i> Nova Agenda
+  </a>
+  {% endif %}
+</div>
+{% endif %}
+
+<!-- Modal de confirmação de exclusão -->
+<form id="formExcluir" method="POST" action="">
+  <div class="modal fade" id="modalExcluir" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title text-danger"><i class="bi bi-exclamation-triangle me-2"></i>Excluir</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          Excluir a agenda de <strong id="nomeExcluir"></strong>?
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-danger btn-sm">Excluir</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</form>
+
+<script>
+function confirmarExclusao(id, nome) {
+  document.getElementById('formExcluir').action = '/agenda-gestao/' + id + '/excluir';
+  document.getElementById('nomeExcluir').textContent = nome;
+  new bootstrap.Modal(document.getElementById('modalExcluir')).show();
+}
+</script>
+{% endblock %}

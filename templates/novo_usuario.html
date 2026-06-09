@@ -24,7 +24,7 @@
           <!-- Nome -->
           <div class="mb-3">
             <label class="form-label fw-semibold small">Nome completo *</label>
-            <input type="text" class="form-control" name="nome" required
+            <input type="text" class="form-control" id="inputNome" name="nome" required
                    placeholder="Ex: João Silva"
                    value="{{ user.nome if user else '' }}">
           </div>
@@ -63,11 +63,12 @@
           <!-- Colaborador vinculado -->
           <div class="mb-3" id="boxColab">
             <label class="form-label fw-semibold small">Colaborador vinculado</label>
-            <select class="form-select" name="colaborador_id">
+            <select class="form-select" name="colaborador_id" id="selColab" onchange="preencherNome()">
               <option value="">— Nenhum —</option>
               {% for c in colaboradores %}
-              <option value="{{ c.id }}"
-                {% if user and user.colaborador_id == c.id %}selected{% endif %}>
+              <option value="{{ c.id }}" data-nome="{{ c.nome }}"
+                {% if user and user.colaborador_id == c.id %}selected
+                {% elif not user and preselect_colab == c.id|string %}selected{% endif %}>
                 {{ c.nome }} · {{ c.time }}
               </option>
               {% endfor %}
@@ -121,10 +122,26 @@
 <script>
 function toggleColab() {
   const perfil = document.getElementById('selPerfil').value;
-  // Mostrar campo de colaborador para perfis que podem estar vinculados a um colaborador
   const showColab = ['colaborador', 'coordenador'].includes(perfil);
   document.getElementById('boxColab').style.display = showColab ? '' : 'none';
 }
+function preencherNome() {
+  const sel  = document.getElementById('selColab');
+  const nome = document.getElementById('inputNome');
+  if (!nome.value && sel.value) {
+    const opt = sel.options[sel.selectedIndex];
+    nome.value = opt.getAttribute('data-nome') || '';
+  }
+}
 toggleColab();
+// Auto-preencher nome se veio de preselect_colab
+document.addEventListener('DOMContentLoaded', function() {
+  const sel = document.getElementById('selColab');
+  const nome = document.getElementById('inputNome');
+  if (sel && sel.value && !nome.value) {
+    const opt = sel.options[sel.selectedIndex];
+    if (opt) nome.value = opt.getAttribute('data-nome') || '';
+  }
+});
 </script>
 {% endblock %}

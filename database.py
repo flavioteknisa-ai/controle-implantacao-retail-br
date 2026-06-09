@@ -268,6 +268,28 @@ class IntegracaoSyncPendente(db.Model):
     resolvido_por = db.Column(db.String(80))
 
 
+class AgendaGestao(db.Model):
+    """Agenda de Gestão — reuniões/visitas de acompanhamento com clientes."""
+    __tablename__ = 'agenda_gestao'
+
+    id                   = db.Column(db.Integer, primary_key=True)
+    cliente              = db.Column(db.String(250), nullable=False)
+    projeto_id           = db.Column(db.Integer, db.ForeignKey('erp_projetos.id'), nullable=True, index=True)
+    data                 = db.Column(db.Date, nullable=False, index=True)
+    consultor_id         = db.Column(db.Integer, db.ForeignKey('colaboradores.id'), nullable=True, index=True)
+    responsavel_cliente  = db.Column(db.String(200))   # Nome do responsável no lado do cliente
+    cargo_responsavel    = db.Column(db.String(150))   # Cargo/função desse responsável
+    status               = db.Column(db.String(30), default='Prevista', index=True)  # Prevista | Executada | Cancelada
+    apresentacao         = db.Column(db.String(30), default='Remoto')  # Remoto | Presencial
+    observacoes          = db.Column(db.Text)
+    criado_por_id        = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    criado_em            = db.Column(db.DateTime, default=datetime.now)
+    atualizado_em        = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
+
+    consultor  = db.relationship('ColaboradorDB', backref='agendas_gestao', foreign_keys=[consultor_id])
+    projeto    = db.relationship('ERPProjetoDB',  backref='agendas_gestao', foreign_keys=[projeto_id])
+
+
 class IntegracaoSyncLog(db.Model):
     """Log de auditoria de cada execução de sincronização."""
     __tablename__ = 'integracao_sync_log'

@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+
+{% block title %}{% if agenda %}Editar Agenda{% else %}Nova Agenda{% endif %} - {{ super() }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h2>
+    <i class="bi bi-calendar2-plus" style="margin-right:8px;"></i>
+    {% if agenda %}Editar Agenda{% else %}Nova Agenda de Gestão{% endif %}
+  </h2>
+  <p>{% if agenda %}Atualizar dados da reunião com {{ agenda.cliente }}{% else %}Registrar nova reunião/visita de gestão{% endif %}</p>
+</div>
+
+<div class="row">
+  <div class="col-lg-8">
+    <div class="card shadow-sm">
+      <div class="card-header dark">
+        <i class="bi bi-file-earmark-text me-2"></i>Dados da Agenda
+      </div>
+      <div class="card-body">
+        <form method="POST">
+
+          <div class="row g-3 mb-3">
+            <div class="col-md-8">
+              <label for="cliente" class="form-label fw-semibold">Cliente <span class="text-danger">*</span></label>
+              <input type="text" class="form-control" id="cliente" name="cliente" required
+                     placeholder="Nome do cliente"
+                     value="{{ agenda.cliente if agenda else request.form.get('cliente','') }}">
+            </div>
+            <div class="col-md-4">
+              <label for="data" class="form-label fw-semibold">Data <span class="text-danger">*</span></label>
+              <input type="date" class="form-control" id="data" name="data" required
+                     value="{{ agenda.data.strftime('%Y-%m-%d') if agenda else request.form.get('data','') }}">
+            </div>
+          </div>
+
+          <div class="row g-3 mb-3">
+            <div class="col-md-6">
+              <label for="projeto_id" class="form-label fw-semibold">Projeto Vinculado</label>
+              <select class="form-select" id="projeto_id" name="projeto_id">
+                <option value="">-- Nenhum --</option>
+                {% for p in projetos %}
+                <option value="{{ p.id }}"
+                  {% if agenda and agenda.projeto_id == p.id %}selected
+                  {% elif request.form.get('projeto_id')|int == p.id %}selected{% endif %}>
+                  {{ p.nome_projeto }}{% if p.cidade %} — {{ p.cidade }}/{{ p.estado }}{% endif %}
+                </option>
+                {% endfor %}
+              </select>
+              <small class="form-text text-muted">Vincule a um projeto em andamento (opcional)</small>
+            </div>
+            <div class="col-md-6">
+              <label for="consultor_id" class="form-label fw-semibold">Consultor Responsável</label>
+              <select class="form-select" id="consultor_id" name="consultor_id">
+                <option value="">-- Selecione --</option>
+                {% for c in consultores %}
+                <option value="{{ c.id }}"
+                  {% if agenda and agenda.consultor_id == c.id %}selected
+                  {% elif request.form.get('consultor_id')|int == c.id %}selected{% endif %}>
+                  {{ c.nome }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+
+          <div class="row g-3 mb-3">
+            <div class="col-md-6">
+              <label for="responsavel_cliente" class="form-label fw-semibold">Responsável do Cliente</label>
+              <input type="text" class="form-control" id="responsavel_cliente" name="responsavel_cliente"
+                     placeholder="Nome do contato no cliente"
+                     value="{{ agenda.responsavel_cliente if agenda else request.form.get('responsavel_cliente','') }}">
+            </div>
+            <div class="col-md-6">
+              <label for="cargo_responsavel" class="form-label fw-semibold">Cargo / Função</label>
+              <input type="text" class="form-control" id="cargo_responsavel" name="cargo_responsavel"
+                     placeholder="Ex: Diretor TI, Gerente Operações"
+                     value="{{ agenda.cargo_responsavel if agenda else request.form.get('cargo_responsavel','') }}">
+            </div>
+          </div>
+
+          <div class="row g-3 mb-3">
+            <div class="col-md-6">
+              <label for="apresentacao" class="form-label fw-semibold">Tipo de Apresentação</label>
+              <select class="form-select" id="apresentacao" name="apresentacao">
+                {% set cur_ap = agenda.apresentacao if agenda else request.form.get('apresentacao','Remoto') %}
+                <option value="Remoto"     {% if cur_ap == 'Remoto'     %}selected{% endif %}>
+                  <i class="bi bi-camera-video"></i> Remoto
+                </option>
+                <option value="Presencial" {% if cur_ap == 'Presencial' %}selected{% endif %}>
+                  Presencial
+                </option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label for="status" class="form-label fw-semibold">Status</label>
+              <select class="form-select" id="status" name="status">
+                {% set cur_st = agenda.status if agenda else request.form.get('status','Prevista') %}
+                <option value="Prevista"  {% if cur_st == 'Prevista'  %}selected{% endif %}>Prevista</option>
+                <option value="Executada" {% if cur_st == 'Executada' %}selected{% endif %}>Executada</option>
+                <option value="Cancelada" {% if cur_st == 'Cancelada' %}selected{% endif %}>Cancelada</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="mb-4">
+            <label for="observacoes" class="form-label fw-semibold">Observações</label>
+            <textarea class="form-control" id="observacoes" name="observacoes" rows="3"
+                      placeholder="Pauta, pontos discutidos, próximos passos...">{{ agenda.observacoes if agenda else request.form.get('observacoes','') }}</textarea>
+          </div>
+
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary">
+              <i class="bi bi-check-circle"></i>
+              {% if agenda %}Salvar Alterações{% else %}Criar Agenda{% endif %}
+            </button>
+            <a href="{{ url_for('agenda_gestao') }}" class="btn btn-secondary">
+              <i class="bi bi-x-circle"></i> Cancelar
+            </a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4 mt-3 mt-lg-0">
+    <div class="card bg-light border-0">
+      <div class="card-body">
+        <h6 class="card-title"><i class="bi bi-info-circle me-1"></i>Instruções</h6>
+        <ul class="small mb-0">
+          <li>Informe o nome exato do cliente</li>
+          <li>Vincule ao projeto correspondente para rastreabilidade</li>
+          <li>Registre o responsável do lado do cliente para facilitar contato futuro</li>
+          <li>Use Observações para registrar pauta ou pontos acordados</li>
+          <li>Atualize o status para <em>Executada</em> após a reunião</li>
+        </ul>
+      </div>
+    </div>
+
+    {% if agenda %}
+    <div class="card mt-3 border-0 bg-light">
+      <div class="card-body">
+        <h6 class="card-title"><i class="bi bi-clock-history me-1"></i>Registro</h6>
+        <div class="small text-muted">
+          <div>Criado em: {{ agenda.criado_em.strftime('%d/%m/%Y %H:%M') }}</div>
+          {% if agenda.atualizado_em and agenda.atualizado_em != agenda.criado_em %}
+          <div>Atualizado: {{ agenda.atualizado_em.strftime('%d/%m/%Y %H:%M') }}</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

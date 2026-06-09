@@ -46,7 +46,7 @@ import io
 from io import BytesIO
 
 from models import Colaborador, Ferias
-from database import db, User, ColaboradorDB, FeriasDB, ERPProjetoDB, ERPModuloDB, ERPUnidadeDB, ERPAtividadeDB, ComissionamentoDB, PermissaoPerfil, VisitaDB, AppConfig
+from database import db, User, ColaboradorDB, FeriasDB, ERPProjetoDB, ERPModuloDB, ERPUnidadeDB, ERPAtividadeDB, ComissionamentoDB, PermissaoPerfil, VisitaDB, AppConfig, AgendaGestao
 from validators import FeriasValidator
 from analytics import FeriasAnalytics
 from erp_models import Projeto, Modulo, Unidade, Atividade
@@ -270,6 +270,10 @@ PERMISSOES_CATALOG = OrderedDict([
     ('ver_visitas',              ('Visitas',         'Ver lista e detalhes de visitas')),
     ('criar_visita',             ('Visitas',         'Registrar nova visita')),
     ('editar_visita',            ('Visitas',         'Editar e excluir visitas')),
+    # ── Agenda de Gestão ─────────────────────────────────────────
+    ('ver_agenda_gestao',        ('Agenda Gestão',   'Ver lista e detalhes da agenda de gestão')),
+    ('criar_agenda_gestao',      ('Agenda Gestão',   'Criar novas entradas na agenda de gestão')),
+    ('editar_agenda_gestao',     ('Agenda Gestão',   'Editar e excluir entradas da agenda de gestão')),
     # ── Integração API ───────────────────────────────────────────
     ('gerenciar_integracao',     ('Integração',      'Configurar e sincronizar projetos da API externa')),
 ])
@@ -289,6 +293,7 @@ PERMISSOES_DEFAULT: dict = {
         'ver_comissionamentos', 'criar_comissionamento', 'exportar_comissionamentos',
         'ver_relatorios',
         'ver_visitas', 'criar_visita', 'editar_visita',
+        'ver_agenda_gestao', 'criar_agenda_gestao', 'editar_agenda_gestao',
     }),
     # gestor / master → is_gestor == True → sempre permitido (sem verificação no DB)
 }
@@ -628,10 +633,14 @@ def logout():
 @login_required
 @gestor_required
 def listar_usuarios():
-    usuarios     = User.query.order_by(User.nome).all()
+    usuarios      = User.query.order_by(User.nome).all()
     colaboradores = ColaboradorDB.query.filter_by(ativo=True).order_by(ColaboradorDB.nome).all()
-    colab_map    = {c.id: c for c in colaboradores}
-    return render_template('usuarios.html', usuarios=usuarios, colab_map=colab_map)
+    colab_map     = {c.id: c for c in colaboradores}
+    # Colaboradores ativos que ainda não têm usuário vinculado
+    vinculados_ids = {u.colaborador_id for u in usuarios if u.colaborador_id}
+    sem_usuario    = [c for c in colaboradores if c.id not in vinculados_ids]
+    return render_template('usuarios.html', usuarios=usuarios, colab_map=colab_map,
+                           sem_usuario=sem_usuario)
 
 @app.route('/novo-usuario', methods=['GET', 'POST'])
 @login_required
@@ -664,7 +673,10 @@ def novo_usuario():
         flash(f'Usuário "{nome}" criado com sucesso!', 'success')
         return redirect(url_for('listar_usuarios'))
 
-    return render_template('novo_usuario.html', colaboradores=colaboradores)
+    # Pré-seleciona colaborador quando vindo do link "Criar usuário" da tabela de relação
+    preselect_colab = request.args.get('colab', '')
+    return render_template('novo_usuario.html', colaboradores=colaboradores,
+                           preselect_colab=preselect_colab)
 
 @app.route('/editar-usuario/<int:uid>', methods=['GET', 'POST'])
 @login_required
@@ -3634,6 +3646,169 @@ def integracao_testar():
         flash(f'Erro ao conectar: {e}', 'danger')
 
     return redirect(url_for('integracao_config'))
+
+
+# ─── Agenda de Gestão ────────────────────────────────────────────────────────
+
+@app.route('/agenda-gestao')
+@login_required
+@permission_required('ver_agenda_gestao')
+def agenda_gestao():
+    """Lista e filtros da Agenda de Gestão."""
+    # Filtros
+    mes_str    = request.args.get('mes', '')
+    consultor_filtro = request.args.get('consultor_id', '')
+    status_filtro    = request.args.get('status', '')
+
+    # Pré-filtra pelo consultor logado se não for gestor
+    if not consultor_filtro and not current_user.is_gestor and current_user.colaborador_id:
+        consultor_filtro = str(current_user.colaborador_id)
+
+    query = AgendaGestao.query.order_by(AgendaGestao.data.desc())
+
+    if consultor_filtro:
+        try:
+            query = query.filter(AgendaGestao.consultor_id == int(consultor_filtro))
+        except ValueError:
+            pass
+
+    if status_filtro:
+        query = query.filter(AgendaGestao.status == status_filtro)
+
+    if mes_str:
+        try:
+            ano, mes = mes_str.split('-')
+            from sqlalchemy import extract
+            query = query.filter(
+                extract('year',  AgendaGestao.data) == int(ano),
+                extract('month', AgendaGestao.data) == int(mes),
+            )
+        except Exception:
+            pass
+
+    agendas = query.all()
+
+    # Contadores
+    total     = len(agendas)
+    previstas  = sum(1 for a in agendas if a.status == 'Prevista')
+    executadas = sum(1 for a in agendas if a.status == 'Executada')
+    canceladas = sum(1 for a in agendas if a.status == 'Cancelada')
+
+    consultores = obter_coordenadores()
+    consultor_nome = ''
+    if consultor_filtro:
+        c = next((x for x in consultores if str(x.id) == str(consultor_filtro)), None)
+        consultor_nome = c.nome if c else ''
+
+    return render_template('agenda_gestao/lista.html',
+                           agendas=agendas,
+                           consultores=consultores,
+                           consultor_filtro=consultor_filtro,
+                           consultor_nome=consultor_nome,
+                           status_filtro=status_filtro,
+                           mes_filtro=mes_str,
+                           total=total, previstas=previstas,
+                           executadas=executadas, canceladas=canceladas)
+
+
+@app.route('/agenda-gestao/nova', methods=['GET', 'POST'])
+@login_required
+@permission_required('criar_agenda_gestao')
+def nova_agenda_gestao():
+    consultores = obter_coordenadores()
+    projetos    = ERPProjetoDB.query.filter(
+        ERPProjetoDB.status.in_(['Em andamento', 'Paralisado'])
+    ).order_by(ERPProjetoDB.nome_projeto).all()
+
+    if request.method == 'POST':
+        cliente  = request.form.get('cliente', '').strip()
+        data_str = request.form.get('data', '')
+        if not cliente or not data_str:
+            flash('Cliente e Data são obrigatórios.', 'danger')
+            return render_template('agenda_gestao/form.html',
+                                   consultores=consultores, projetos=projetos, agenda=None)
+        try:
+            data = datetime.strptime(data_str, '%Y-%m-%d').date()
+        except ValueError:
+            flash('Data inválida.', 'danger')
+            return render_template('agenda_gestao/form.html',
+                                   consultores=consultores, projetos=projetos, agenda=None)
+
+        proj_id     = request.form.get('projeto_id') or None
+        consultor_id = request.form.get('consultor_id') or None
+        ag = AgendaGestao(
+            cliente=cliente,
+            projeto_id=int(proj_id) if proj_id else None,
+            data=data,
+            consultor_id=int(consultor_id) if consultor_id else None,
+            responsavel_cliente=request.form.get('responsavel_cliente','').strip() or None,
+            cargo_responsavel=request.form.get('cargo_responsavel','').strip() or None,
+            status=request.form.get('status','Prevista'),
+            apresentacao=request.form.get('apresentacao','Remoto'),
+            observacoes=request.form.get('observacoes','').strip() or None,
+            criado_por_id=current_user.id,
+        )
+        db.session.add(ag)
+        db.session.commit()
+        flash('Agenda criada com sucesso!', 'success')
+        return redirect(url_for('agenda_gestao'))
+
+    return render_template('agenda_gestao/form.html',
+                           consultores=consultores, projetos=projetos, agenda=None)
+
+
+@app.route('/agenda-gestao/<int:aid>/editar', methods=['GET', 'POST'])
+@login_required
+@permission_required('editar_agenda_gestao')
+def editar_agenda_gestao(aid):
+    ag = AgendaGestao.query.get_or_404(aid)
+    consultores = obter_coordenadores()
+    projetos    = ERPProjetoDB.query.filter(
+        ERPProjetoDB.status.in_(['Em andamento', 'Paralisado'])
+    ).order_by(ERPProjetoDB.nome_projeto).all()
+
+    if request.method == 'POST':
+        cliente  = request.form.get('cliente', '').strip()
+        data_str = request.form.get('data', '')
+        if not cliente or not data_str:
+            flash('Cliente e Data são obrigatórios.', 'danger')
+            return render_template('agenda_gestao/form.html',
+                                   consultores=consultores, projetos=projetos, agenda=ag)
+        try:
+            data = datetime.strptime(data_str, '%Y-%m-%d').date()
+        except ValueError:
+            flash('Data inválida.', 'danger')
+            return render_template('agenda_gestao/form.html',
+                                   consultores=consultores, projetos=projetos, agenda=ag)
+
+        proj_id      = request.form.get('projeto_id') or None
+        consultor_id = request.form.get('consultor_id') or None
+        ag.cliente             = cliente
+        ag.projeto_id          = int(proj_id) if proj_id else None
+        ag.data                = data
+        ag.consultor_id        = int(consultor_id) if consultor_id else None
+        ag.responsavel_cliente = request.form.get('responsavel_cliente','').strip() or None
+        ag.cargo_responsavel   = request.form.get('cargo_responsavel','').strip() or None
+        ag.status              = request.form.get('status', ag.status)
+        ag.apresentacao        = request.form.get('apresentacao', ag.apresentacao)
+        ag.observacoes         = request.form.get('observacoes','').strip() or None
+        db.session.commit()
+        flash('Agenda atualizada!', 'success')
+        return redirect(url_for('agenda_gestao'))
+
+    return render_template('agenda_gestao/form.html',
+                           consultores=consultores, projetos=projetos, agenda=ag)
+
+
+@app.route('/agenda-gestao/<int:aid>/excluir', methods=['POST'])
+@login_required
+@permission_required('editar_agenda_gestao')
+def excluir_agenda_gestao(aid):
+    ag = AgendaGestao.query.get_or_404(aid)
+    db.session.delete(ag)
+    db.session.commit()
+    flash('Agenda excluída.', 'success')
+    return redirect(url_for('agenda_gestao'))
 
 
 def _sync_buscar_e_classificar():
