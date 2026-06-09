@@ -368,6 +368,8 @@ def db_to_projeto(p: ERPProjetoDB, colabs_map: dict = None) -> Projeto:
         tipo_projeto=p.tipo_projeto or 'Novo',
         modelo_projeto=p.modelo_projeto or 'Tradicional',
         ponto_atencao=bool(p.ponto_atencao),
+        cidade=p.cidade,
+        estado=p.estado,
     )
 
     # Adiciona módulos
@@ -1890,6 +1892,8 @@ def novo_projeto():
         potencial_cliente = request.form.get('potencial_cliente', 'Médio')
         tipo_projeto = request.form.get('tipo_projeto', 'Novo')
         modelo_projeto = request.form.get('modelo_projeto', 'Tradicional')
+        cidade = request.form.get('cidade', '').strip().upper() or None
+        estado = request.form.get('estado', '').strip().upper() or None
 
         # Validação básica
         if not nome:
@@ -1917,7 +1921,9 @@ def novo_projeto():
             numero_unidades=numero_unidades,
             potencial_cliente=potencial_cliente,
             tipo_projeto=tipo_projeto,
-            modelo_projeto=modelo_projeto
+            modelo_projeto=modelo_projeto,
+            cidade=cidade,
+            estado=estado,
         )
         db.session.add(novo)
         db.session.commit()
@@ -1998,6 +2004,8 @@ def editar_projeto(pid):
         tipo_projeto = request.form.get('tipo_projeto', 'Novo')
         modelo_projeto = request.form.get('modelo_projeto', 'Tradicional')
         ponto_atencao = bool(request.form.get('ponto_atencao'))
+        cidade = request.form.get('cidade', '').strip().upper() or None
+        estado = request.form.get('estado', '').strip().upper() or None
 
         # Validação
         if not responsavel_id:
@@ -2022,6 +2030,8 @@ def editar_projeto(pid):
         p_db.tipo_projeto = tipo_projeto
         p_db.modelo_projeto = modelo_projeto
         p_db.ponto_atencao = ponto_atencao
+        p_db.cidade = cidade
+        p_db.estado = estado
         db.session.commit()
 
         flash(f'Projeto "{nome}" atualizado!', 'success')

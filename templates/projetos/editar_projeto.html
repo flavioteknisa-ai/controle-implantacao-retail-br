@@ -133,6 +133,30 @@
             </div>
           </div>
 
+          <div class="row">
+            <div class="col-md-8">
+              <div class="mb-3">
+                <label for="cidade" class="form-label">Cidade</label>
+                <input type="text" class="form-control" id="cidade" name="cidade"
+                       placeholder="Ex: São Paulo"
+                       value="{{ p_db.cidade or '' }}">
+                <small class="form-text text-muted">Cidade onde o cliente está localizado</small>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="mb-3">
+                <label for="estado" class="form-label">Estado (UF)</label>
+                <select class="form-control" id="estado" name="estado">
+                  <option value="">-- UF --</option>
+                  {% for uf in ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'] %}
+                  <option value="{{ uf }}" {% if p_db.estado == uf %}selected{% endif %}>{{ uf }}</option>
+                  {% endfor %}
+                </select>
+                <small class="form-text text-muted">Sigla do estado</small>
+              </div>
+            </div>
+          </div>
+
           <div class="mb-3">
             <label for="descricao" class="form-label">Descrição</label>
             <textarea class="form-control" id="descricao" name="descricao" rows="4"

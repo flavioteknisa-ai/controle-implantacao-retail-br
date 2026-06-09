@@ -90,7 +90,8 @@ class Projeto:
                  responsavel: Optional[str] = None, responsavel_id: Optional[int] = None, descricao: str = '',
                  numero_unidades: int = 1, potencial_cliente: str = 'Médio',
                  tipo_projeto: str = 'Novo', modelo_projeto: str = 'Tradicional',
-                 ponto_atencao: bool = False, percentual_conclusao_db: float = 0):
+                 ponto_atencao: bool = False, percentual_conclusao_db: float = 0,
+                 cidade: Optional[str] = None, estado: Optional[str] = None):
         self.id = id
         self.nome = nome
         self.data_aceite = data_aceite if isinstance(data_aceite, date) else datetime.strptime(str(data_aceite), "%Y-%m-%d").date()
@@ -108,6 +109,8 @@ class Projeto:
         self.tipo_projeto = tipo_projeto  # 'Base', 'Novo'
         self.modelo_projeto = modelo_projeto  # 'Tradicional', 'Rollout', 'Treinamento'
         self.ponto_atencao = ponto_atencao
+        self.cidade = cidade
+        self.estado = estado
         # Stored DB percentual — used as fallback when modules are not loaded (lite views)
         self._percentual_db: float = percentual_conclusao_db
         self.modulos: List[Modulo] = []

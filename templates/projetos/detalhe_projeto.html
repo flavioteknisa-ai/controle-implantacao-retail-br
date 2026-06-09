@@ -219,6 +219,16 @@
               </div>
             </p>
           </div>
+          <div class="col-md-6">
+            <p><strong>Cidade:</strong><br>
+              {{ projeto.cidade or '<em class="text-muted">Não informada</em>' }}
+            </p>
+          </div>
+          <div class="col-md-6">
+            <p><strong>Estado (UF):</strong><br>
+              {{ projeto.estado or '<em class="text-muted">Não informado</em>' }}
+            </p>
+          </div>
         </div>
         {% if projeto.descricao %}
         <hr>
