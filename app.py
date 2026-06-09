@@ -126,6 +126,14 @@ def load_user(uid):
 # ─── Verificação de banco inicializado ────────────────────────────────────────
 
 # ─── Inicialização do banco ───────────────────────────────────────────────────
+# Garante que tabelas novas sejam criadas automaticamente no Vercel
+try:
+    with app.app_context():
+        db.create_all()
+except Exception as _e_init:
+    import sys
+    print(f"[init] db.create_all() falhou: {_e_init}", file=sys.stderr)
+
 # Comentado para permitir inicialização via endpoint
 # with app.app_context():
 #     db.create_all()
