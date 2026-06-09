@@ -1670,7 +1670,12 @@ def listar_projetos():
     todos_projetos = db_to_projetos_batch_lite(projetos_db)  # already batches colabs
 
     # Filtro por responsável (coordenador)
+    # Se o usuário logado é coordenador (não gestor) e não escolheu filtro manualmente,
+    # pré-filtra pelos projetos dele usando o colaborador_id vinculado à conta.
     responsavel_filtro = request.args.get('responsavel_id', '')
+    if not responsavel_filtro and not current_user.is_gestor and current_user.colaborador_id:
+        responsavel_filtro = str(current_user.colaborador_id)
+
     if responsavel_filtro:
         try:
             responsavel_id = int(responsavel_filtro)
