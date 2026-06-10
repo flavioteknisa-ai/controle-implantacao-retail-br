@@ -137,16 +137,7 @@
       <div class="stat-label">{% if dias < 0 %}Dias Atrasado{% else %}Dias Restantes{% endif %}</div>
     </div>
   </div>
-  <div class="col-md-2 mb-3">
-    <div class="stat-card">
-      <div class="stat-number" style="color:#E91E63; font-size:1.2rem;">{{ projeto.numero_unidades }}</div>
-      <div class="stat-label">Unidades</div>
-      <div class="stat-badge" style="background:#f3e5f5;color:#6a1b9a;">
-        {{ projeto.potencial_cliente }}
-      </div>
-    </div>
-  </div>
-  <div class="col-md-2 mb-3">
+  <div class="col-md-4 mb-3">
     <div class="stat-card">
       <div class="stat-number" style="color:#673AB7; font-size:1.2rem;">
         <span class="badge bg-info">{{ projeto.tipo_projeto }}</span>
