@@ -127,7 +127,7 @@
             <td><strong>{{ ag.cliente }}</strong></td>
             <td>
               {% if ag.projeto %}
-              <a href="{{ url_for('detalhe_projeto', projeto_id=ag.projeto_id) }}" class="text-decoration-none small">
+              <a href="{{ url_for('detalhe_projeto', pid=ag.projeto_id) }}" class="text-decoration-none small">
                 {{ ag.projeto.nome_projeto }}
               </a>
               {% else %}
