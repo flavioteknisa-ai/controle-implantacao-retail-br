@@ -375,6 +375,8 @@ def db_to_projeto(p: ERPProjetoDB, colabs_map: dict = None) -> Projeto:
         ponto_atencao=bool(p.ponto_atencao),
         cidade=p.cidade,
         estado=p.estado,
+        nome_cliente=p.nome_cliente,
+        comentarios_repasse=p.comentarios_repasse,
     )
 
     # Adiciona módulos
@@ -451,6 +453,9 @@ def db_to_projeto_lite(p: ERPProjetoDB, responsaveis_map: dict = None) -> Projet
         modelo_projeto=p.modelo_projeto or 'Tradicional',
         ponto_atencao=bool(p.ponto_atencao),
         percentual_conclusao_db=p.percentual_conclusao or 0,
+        cidade=p.cidade,
+        estado=p.estado,
+        nome_cliente=p.nome_cliente,
     )
 
 
@@ -1911,6 +1916,7 @@ def novo_projeto():
         modelo_projeto = request.form.get('modelo_projeto', 'Tradicional')
         cidade = request.form.get('cidade', '').strip().upper() or None
         estado = request.form.get('estado', '').strip().upper() or None
+        comentarios_repasse = request.form.get('comentarios_repasse', '').strip() or None
 
         # Validação básica
         if not nome:
@@ -1941,6 +1947,7 @@ def novo_projeto():
             modelo_projeto=modelo_projeto,
             cidade=cidade,
             estado=estado,
+            comentarios_repasse=comentarios_repasse,
         )
         db.session.add(novo)
         db.session.commit()
@@ -2023,6 +2030,7 @@ def editar_projeto(pid):
         ponto_atencao = bool(request.form.get('ponto_atencao'))
         cidade = request.form.get('cidade', '').strip().upper() or None
         estado = request.form.get('estado', '').strip().upper() or None
+        comentarios_repasse = request.form.get('comentarios_repasse', '').strip() or None
 
         # Validação
         if not responsavel_id:
@@ -2049,6 +2057,7 @@ def editar_projeto(pid):
         p_db.ponto_atencao = ponto_atencao
         p_db.cidade = cidade
         p_db.estado = estado
+        p_db.comentarios_repasse = comentarios_repasse
         db.session.commit()
 
         flash(f'Projeto "{nome}" atualizado!', 'success')
@@ -2166,7 +2175,7 @@ def adicionar_modulo(pid):
     novo_modulo = ERPModuloDB(
         projeto_id=pid,
         modulo=nome,
-        status_modulo='Planejado',
+        status_modulo='Concluído' if percentual >= 100 else 'Planejado',
         data_inicio_modulo=None,
         data_conclusao_modulo=None,
         percentual_conclusao=percentual
@@ -2175,6 +2184,34 @@ def adicionar_modulo(pid):
     db.session.commit()
 
     flash(f'Módulo "{nome}" adicionado!', 'success')
+    return redirect(url_for('detalhe_projeto', pid=pid))
+
+@app.route('/projeto/<int:pid>/modulos-lote', methods=['POST'])
+@login_required
+@permission_required('adicionar_modulo')
+def adicionar_modulos_lote(pid):
+    """Adiciona vários módulos de uma vez, um por linha."""
+    p_db = ERPProjetoDB.query.get_or_404(pid)
+
+    nomes_raw = request.form.get('modulos', '')
+    nomes = [n.strip() for n in nomes_raw.splitlines() if n.strip()]
+
+    if not nomes:
+        flash('Informe ao menos um módulo.', 'danger')
+        return redirect(url_for('detalhe_projeto', pid=pid))
+
+    for nome in nomes:
+        db.session.add(ERPModuloDB(
+            projeto_id=pid,
+            modulo=nome,
+            status_modulo='Planejado',
+            data_inicio_modulo=None,
+            data_conclusao_modulo=None,
+            percentual_conclusao=0
+        ))
+    db.session.commit()
+
+    flash(f'{len(nomes)} módulo(s) adicionado(s)!', 'success')
     return redirect(url_for('detalhe_projeto', pid=pid))
 
 @app.route('/projeto/<int:pid>/unidade', methods=['POST'])
@@ -2222,6 +2259,11 @@ def editar_modulo(mid, mid_id):
         percentual = max(0, min(100, percentual))  # Limitar entre 0 e 100
     except ValueError:
         percentual = modulo_db.percentual_conclusao or 0
+
+    if percentual >= 100:
+        status = 'Concluído'
+    elif status == 'Concluído' and percentual < 100:
+        status = 'Em Progresso'
 
     modulo_db.modulo = nome
     modulo_db.status_modulo = status

@@ -193,7 +193,12 @@
           {% for projeto in projetos %}
           <tr class="{% if projeto.ponto_atencao %}row-atencao{% elif projeto.status == 'Paralisado' %}row-paralisado{% endif %}">
             <td>
-              <strong>{{ projeto.nome }}</strong>
+              <a href="/projeto/{{ projeto.id }}" class="text-decoration-none text-reset">
+                {% if projeto.nome_cliente %}
+                <div class="text-muted small text-uppercase" style="letter-spacing:.03em;">{{ projeto.nome_cliente }}</div>
+                {% endif %}
+                <strong>{{ projeto.nome }}</strong>
+              </a>
               {# Badges de alerta #}
               {% if projeto.ponto_atencao %}
               <span class="badge badge-atencao ms-1" title="Ponto de Atenção">

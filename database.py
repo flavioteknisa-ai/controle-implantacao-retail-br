@@ -86,6 +86,7 @@ class ERPProjetoDB(db.Model):
     tipo_projeto        = db.Column(db.String(50), default='Novo')
     modelo_projeto      = db.Column(db.String(50), default='Tradicional')  # Tradicional | Rollout | Treinamento | Demanda Avulsa
     ponto_atencao       = db.Column(db.Boolean, default=False)
+    comentarios_repasse = db.Column(db.Text)  # histórico de repasses entre coordenadores
     # ── Integração com API externa (Controle Implantação Teknisa) ──
     external_id         = db.Column(db.String(64), unique=True, index=True)  # UUID da API origem
     origem              = db.Column(db.String(20), default='manual')         # 'manual' | 'api'

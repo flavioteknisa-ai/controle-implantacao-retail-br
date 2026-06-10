@@ -164,6 +164,15 @@
             <small class="form-text text-muted">Informações complementares</small>
           </div>
 
+          <div class="mb-3">
+            <label for="comentarios_repasse" class="form-label">
+              <i class="bi bi-arrow-left-right me-1"></i>Comentários / Repasses entre Coordenadores
+            </label>
+            <textarea class="form-control" id="comentarios_repasse" name="comentarios_repasse" rows="4"
+                      placeholder="Ex: 10/06/2026 - Repassado de João para Maria. Pendências: ...">{{ p_db.comentarios_repasse or '' }}</textarea>
+            <small class="form-text text-muted">Histórico de transferências de responsabilidade entre coordenadores</small>
+          </div>
+
           <!-- Ponto de Atenção -->
           <div class="mb-4 p-3 rounded" style="background:#fff8e1;border:1px solid #ffe082;">
             <div class="form-check form-switch d-flex align-items-center gap-2">
