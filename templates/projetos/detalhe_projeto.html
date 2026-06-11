@@ -28,6 +28,20 @@
   .repasse-texto { font-size: .86rem; color: #444441; white-space: pre-wrap; line-height: 1.55; }
   .info-label { font-size: .74rem; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; margin-bottom: 2px; }
   .info-valor { font-size: .9rem; color: var(--ink); }
+  .stepper { display: inline-flex; align-items: center; border: 1px solid #D3D1C7; border-radius: 8px; background: #fff; overflow: hidden; }
+  .st-btn { border: none; background: #fff; padding: 1px 9px; font-size: .9rem; color: #5F5E5A; cursor: pointer; line-height: 1.4; }
+  .st-btn:hover { background: #F1EFE8; }
+  .st-val { font-size: .74rem; font-weight: 600; padding: 0 4px; min-width: 38px; text-align: center; }
+  .quick-add { display: flex; align-items: center; gap: 8px; border: 1.5px dashed #D3D1C7; border-radius: 9px; padding: 8px 12px; margin: 10px; }
+  .quick-add input[type="text"] { border: none; outline: none; flex: 1; font-size: .85rem; background: transparent; min-width: 0; }
+  .circ {
+    width: 26px; height: 26px; border-radius: 50%; border: 1.5px solid #D3D1C7;
+    background: #fff; color: transparent; display: flex; align-items: center;
+    justify-content: center; cursor: pointer; font-size: .85rem; padding: 0; flex-shrink: 0;
+  }
+  .circ:hover { border-color: #1D9E75; color: #1D9E75; }
+  .circ.feito { background: #EAF3DE; border-color: #97C459; color: #3B6D11; }
+  .data-inline { border: none; background: transparent; font-size: .78rem; color: var(--muted); cursor: pointer; padding: 0; }
 </style>
 {% endblock %}
 
@@ -90,20 +104,23 @@
     {% if tem_perm('finalizar_projeto') %}
       {% if projeto.status == 'Em andamento' %}
       <form method="POST" action="/projeto/{{ projeto.id }}/paralisar" style="display:inline;"
-            onsubmit="return confirm('Paralisar este projeto?');">
+            data-confirm="O projeto ficará marcado como Paralisado até ser reativado."
+            data-confirm-titulo="Paralisar este projeto?" data-confirm-botao="Paralisar">
         <button type="submit" class="btn btn-outline-warning btn-sm">
           <i class="bi bi-pause-circle"></i> Paralisar
         </button>
       </form>
       <form method="POST" action="/projeto/{{ projeto.id }}/concluir" style="display:inline;"
-            onsubmit="return confirm('Finalizar este projeto?');">
+            data-confirm="O projeto será marcado como Finalizado."
+            data-confirm-titulo="Finalizar este projeto?" data-confirm-botao="Finalizar">
         <button type="submit" class="btn btn-success btn-sm">
           <i class="bi bi-check-circle"></i> Finalizar
         </button>
       </form>
       {% elif projeto.status in ('Finalizado', 'Paralisado') %}
       <form method="POST" action="/projeto/{{ projeto.id }}/reativar" style="display:inline;"
-            onsubmit="return confirm('Reativar este projeto para Em Andamento?');">
+            data-confirm="O projeto voltará para o status Em Andamento."
+            data-confirm-titulo="Reativar este projeto?" data-confirm-botao="Reativar">
         <button type="submit" class="btn btn-primary btn-sm">
           <i class="bi bi-arrow-counterclockwise"></i> Reativar
         </button>
@@ -113,7 +130,8 @@
 
     {% if tem_perm('excluir_projeto') %}
     <form method="POST" action="/projeto/{{ projeto.id }}/excluir" style="display:inline;"
-          onsubmit="return confirm('⚠️ ATENÇÃO: Excluir permanentemente o projeto \'{{ projeto.nome }}\'?\n\nIsso removerá também todos os módulos, unidades, atividades e repasses vinculados.\n\nEsta ação não pode ser desfeita!');">
+          data-confirm="Isso removerá também todos os módulos, unidades, atividades e repasses vinculados. Esta ação não pode ser desfeita."
+          data-confirm-titulo='Excluir permanentemente "{{ projeto.nome }}"?' data-confirm-botao="Excluir">
       <button type="submit" class="btn btn-outline-danger btn-sm" title="Excluir projeto permanentemente">
         <i class="bi bi-trash3"></i>
       </button>
@@ -370,6 +388,7 @@
             <tr class="modulo-row" data-status="{{ modulo.status }}" style="{% if modulo.status == 'Concluído' %}opacity: 0.55;{% endif %} display: {% if modulo.status == 'Concluído' %}none{% endif %};">
               <td><strong style="{% if modulo.status == 'Concluído' %}text-decoration: line-through; color: #888780;{% endif %}">{{ modulo.nome }}</strong></td>
               <td>
+                <span id="pillMod{{ modulo.id }}">
                 {% if modulo.status == 'Planejado' %}
                 <span class="pill pill-modelo">Planejado</span>
                 {% elif modulo.status == 'Em Progresso' %}
@@ -379,12 +398,21 @@
                 {% elif modulo.status == 'Atrasado' %}
                 <span class="pill pill-cancelado">Atrasado</span>
                 {% endif %}
+                </span>
               </td>
               <td>
-                <div class="bar-slim" style="margin-top:8px;">
+                <div class="bar-slim" style="margin-top:8px;" id="barMod{{ modulo.id }}">
                   <div class="{% if modulo.percentual_conclusao >= 100 %}done{% endif %}" style="width:{{ modulo.percentual_conclusao }}%;"></div>
                 </div>
+                {% if tem_perm('adicionar_modulo') %}
+                <div class="stepper mt-1" data-mid="{{ modulo.id }}">
+                  <button type="button" class="st-btn st-menos" aria-label="Diminuir 5%">−</button>
+                  <span class="st-val">{{ modulo.percentual_conclusao|int }}%</span>
+                  <button type="button" class="st-btn st-mais" aria-label="Aumentar 5%">+</button>
+                </div>
+                {% else %}
                 <small class="text-muted">{{ modulo.percentual_conclusao|int }}%</small>
+                {% endif %}
               </td>
               <td>
                 {% if modulo.data_conclusao %}
@@ -422,7 +450,8 @@
                 </button>
                 <form method="POST" action="/projeto/{{ projeto.id }}/modulo/{{ modulo.id }}/excluir"
                       style="display:inline;"
-                      onsubmit="return confirm('Excluir o módulo \'{{ modulo.nome }}\'? Esta ação não pode ser desfeita.')">
+                      data-confirm="Você poderá desfazer logo após excluir."
+                      data-confirm-titulo='Excluir o módulo "{{ modulo.nome }}"?' data-confirm-botao="Excluir">
                   <button type="submit" class="btn btn-sm btn-outline-danger" title="Excluir módulo">
                     <i class="bi bi-trash"></i>
                   </button>
@@ -438,6 +467,15 @@
           <i class="bi bi-puzzle d-block mb-1" style="font-size:1.4rem;"></i>
           Nenhum módulo adicionado ainda.
         </div>
+        {% endif %}
+        {% if tem_perm('adicionar_modulo') %}
+        <form method="POST" action="/projeto/{{ projeto.id }}/modulo" class="quick-add">
+          <i class="bi bi-plus-circle" style="color:var(--muted);"></i>
+          <input type="text" name="modulo" placeholder="Digite o nome do módulo e pressione Enter…" required>
+          <input type="hidden" name="percentual_conclusao" value="0">
+          <span class="kbd">Enter</span>
+          <button type="submit" class="d-none" aria-hidden="true"></button>
+        </form>
         {% endif %}
       </div>
     </div>
@@ -537,21 +575,50 @@
         </div>
       </div>
       <div class="card-body">
+        {% if tem_perm('adicionar_atividade') %}
+        <form method="POST" action="/projeto/{{ projeto.id }}/atividade" class="quick-add" style="margin:0 0 12px;">
+          <i class="bi bi-plus-circle" style="color:var(--muted);"></i>
+          <input type="text" name="titulo" placeholder="Nova atividade… pressione Enter para adicionar" required>
+          <input type="date" name="data_reuniao" id="dataNovaAtividade"
+                 class="form-control form-control-sm" style="width:auto;font-size:.78rem;">
+          <span class="kbd">Enter</span>
+          <button type="submit" class="d-none" aria-hidden="true"></button>
+        </form>
+        {% endif %}
+
         {% if projeto.atividades %}
         <div class="timeline">
           {% for atividade in projeto.atividades %}
           <div class="atividade-item" data-status="{{ atividade.status_atividade }}" style="margin-bottom: 8px; padding: 12px 14px; background:{% if atividade.status_atividade == 'Concluída' %}#F6F8F2{% else %}#FAFAF7{% endif %}; border: 1px solid #F1EFE8; border-radius: 10px; display: {% if atividade.status_atividade == 'Concluída' %}none{% endif %};">
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
+            <div style="display: flex; align-items: flex-start; gap: 10px;">
+              {% if tem_perm('adicionar_atividade') %}
+              <form method="POST" action="/projeto/{{ projeto.id }}/atividade/{{ atividade.id }}/status" style="flex-shrink:0;margin-top:1px;">
+                <input type="hidden" name="status" value="{{ 'Aberta' if atividade.status_atividade == 'Concluída' else 'Concluída' }}">
+                <button type="submit" class="circ {% if atividade.status_atividade == 'Concluída' %}feito{% endif %}"
+                        title="{% if atividade.status_atividade == 'Concluída' %}Reabrir atividade{% else %}Marcar como concluída{% endif %}">
+                  <i class="bi bi-check"></i>
+                </button>
+              </form>
+              {% endif %}
+
               <div style="flex: 1; min-width: 0;">
                 <strong style="font-size:.9rem;{% if atividade.status_atividade == 'Concluída' %}text-decoration: line-through; color: #888780;{% endif %}">
                   {{ atividade.titulo }}
                 </strong>
-                <div style="font-size: .78rem; color: var(--muted); margin-top: 4px;">
-                  {% if atividade.data_reuniao %}
-                  <i class="bi bi-calendar-event me-1"></i>{{ atividade.data_reuniao.strftime('%d/%m/%Y') }}
+                <div style="font-size: .78rem; color: var(--muted); margin-top: 4px; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                  {% if tem_perm('adicionar_atividade') %}
+                  <form method="POST" action="/projeto/{{ projeto.id }}/atividade/{{ atividade.id }}/data"
+                        style="display:inline-flex;align-items:center;gap:4px;" title="Alterar data">
+                    <i class="bi bi-calendar-event"></i>
+                    <input type="date" name="data_reuniao" class="data-inline"
+                           value="{{ atividade.data_reuniao.strftime('%Y-%m-%d') if atividade.data_reuniao else '' }}"
+                           onchange="this.form.submit()">
+                  </form>
+                  {% elif atividade.data_reuniao %}
+                  <span><i class="bi bi-calendar-event me-1"></i>{{ atividade.data_reuniao.strftime('%d/%m/%Y') }}</span>
                   {% endif %}
                   {% if atividade.status_atividade %}
-                  <span class="pill ms-1
+                  <span class="pill
                     {% if atividade.status_atividade == 'Concluída' %}pill-finalizado
                     {% elif atividade.status_atividade == 'Em Progresso' %}pill-andamento
                     {% else %}pill-modelo{% endif %}">
@@ -562,28 +629,10 @@
               </div>
 
               {% if tem_perm('adicionar_atividade') %}
-              <div style="flex-shrink: 0; display: flex; gap: 4px;">
-                {% if atividade.status_atividade != 'Concluída' %}
-                <form method="POST" action="/projeto/{{ projeto.id }}/atividade/{{ atividade.id }}/status" style="display: inline;">
-                  <input type="hidden" name="status" value="Concluída">
-                  <button type="submit" class="btn btn-sm btn-outline-success" title="Marcar como concluída">
-                    <i class="bi bi-check-circle"></i>
-                  </button>
-                </form>
-                {% else %}
-                <form method="POST" action="/projeto/{{ projeto.id }}/atividade/{{ atividade.id }}/status" style="display: inline;">
-                  <input type="hidden" name="status" value="Aberta">
-                  <button type="submit" class="btn btn-sm btn-outline-secondary" title="Marcar como não concluída">
-                    <i class="bi bi-arrow-clockwise"></i>
-                  </button>
-                </form>
-                {% endif %}
-
-                <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal"
-                        data-bs-target="#deletarAtividadeModal{{ atividade.id }}" title="Deletar">
-                  <i class="bi bi-trash"></i>
-                </button>
-              </div>
+              <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal"
+                      data-bs-target="#deletarAtividadeModal{{ atividade.id }}" title="Deletar" style="flex-shrink:0;">
+                <i class="bi bi-trash"></i>
+              </button>
               {% endif %}
             </div>
           </div>
@@ -624,7 +673,8 @@
           </div>
           {% if tem_perm('editar_projeto') %}
           <form method="POST" action="/projeto/{{ projeto.id }}/repasse/{{ r.id }}/excluir" style="flex-shrink:0;"
-                onsubmit="return confirm('Excluir este registro de repasse?');">
+                data-confirm="Você poderá desfazer logo após excluir."
+                data-confirm-titulo="Excluir este registro de repasse?" data-confirm-botao="Excluir">
             <button type="submit" class="btn btn-sm btn-outline-danger" title="Excluir repasse">
               <i class="bi bi-trash"></i>
             </button>
@@ -901,12 +951,53 @@
   });
 })();
 
-// Data padrão do repasse = hoje
-const dataRepasse = document.getElementById('data_repasse');
-if (dataRepasse) {
+// Data padrão de hoje (modal de repasse e cadastro rápido de atividade)
+(function() {
   const d = new Date();
-  dataRepasse.value = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
-}
+  const hoje = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  const dataRepasse = document.getElementById('data_repasse');
+  if (dataRepasse) dataRepasse.value = hoje;
+  const dataAtividade = document.getElementById('dataNovaAtividade');
+  if (dataAtividade) dataAtividade.value = hoje;
+})();
+
+// Stepper de percentual dos módulos (salva via fetch, sem reload)
+document.querySelectorAll('.stepper').forEach(st => {
+  const mid = st.dataset.mid;
+  const val = st.querySelector('.st-val');
+  let pct = parseInt(val.textContent) || 0;
+  let timer = null;
+
+  function aplicar(delta) {
+    pct = Math.max(0, Math.min(100, pct + delta));
+    val.textContent = pct + '%';
+    const bar = document.querySelector('#barMod' + mid + ' > div');
+    if (bar) {
+      bar.style.width = pct + '%';
+      bar.classList.toggle('done', pct >= 100);
+    }
+    clearTimeout(timer);
+    timer = setTimeout(salvar, 500);
+  }
+
+  async function salvar() {
+    const fd = new FormData();
+    fd.append('percentual', pct);
+    try {
+      const r = await fetch('/projeto/{{ projeto.id }}/modulo/' + mid + '/percentual', { method: 'POST', body: fd });
+      if (!r.ok) return;
+      const j = await r.json();
+      const pillBox = document.getElementById('pillMod' + mid);
+      if (pillBox && j.status) {
+        const mapa = { 'Planejado': 'pill-modelo', 'Em Progresso': 'pill-andamento', 'Concluído': 'pill-finalizado', 'Atrasado': 'pill-cancelado' };
+        pillBox.innerHTML = '<span class="pill ' + (mapa[j.status] || 'pill-modelo') + '">' + j.status + '</span>';
+      }
+    } catch (e) { /* silencioso */ }
+  }
+
+  st.querySelector('.st-menos').addEventListener('click', () => aplicar(-5));
+  st.querySelector('.st-mais').addEventListener('click', () => aplicar(5));
+});
 
 // Toggle para ocultar/mostrar Módulos Concluídos
 document.getElementById('showConcluiModulos')?.addEventListener('change', function() {

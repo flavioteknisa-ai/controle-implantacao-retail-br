@@ -2147,7 +2147,7 @@ def toggle_atencao_projeto(pid):
     db.session.commit()
     estado = 'ativado' if p_db.ponto_atencao else 'removido'
     flash(f'Ponto de atenção {estado} em "{p_db.nome_projeto}".', 'warning' if p_db.ponto_atencao else 'success')
-    return redirect(url_for('detalhe_projeto', pid=pid))
+    return redirect(request.referrer or url_for('detalhe_projeto', pid=pid))
 
 
 @app.route('/projeto/<int:pid>/modulo', methods=['POST'])
@@ -2273,6 +2273,29 @@ def editar_modulo(mid, mid_id):
     flash('Módulo atualizado!', 'success')
     return redirect(url_for('detalhe_projeto', pid=mid) + '#modulos')
 
+@app.route('/projeto/<int:pid>/modulo/<int:mid>/percentual', methods=['POST'])
+@login_required
+@permission_required('adicionar_modulo')
+def atualizar_percentual_modulo(pid, mid):
+    """Atualiza o percentual de um módulo via fetch (edição inline, sem reload)."""
+    modulo_db = ERPModuloDB.query.get_or_404(mid)
+    try:
+        pct = float(request.form.get('percentual', '0').replace(',', '.'))
+    except ValueError:
+        return jsonify({'erro': 'percentual inválido'}), 400
+    pct = max(0, min(100, pct))
+
+    modulo_db.percentual_conclusao = pct
+    if pct >= 100:
+        modulo_db.status_modulo = 'Concluído'
+    elif modulo_db.status_modulo == 'Concluído':
+        modulo_db.status_modulo = 'Em Progresso'
+    elif pct > 0 and modulo_db.status_modulo == 'Planejado':
+        modulo_db.status_modulo = 'Em Progresso'
+    db.session.commit()
+
+    return jsonify({'percentual': pct, 'status': modulo_db.status_modulo})
+
 @app.route('/projeto/<int:pid>/modulo/<int:mid>/status', methods=['POST'])
 @login_required
 @permission_required('adicionar_modulo')
@@ -2297,9 +2320,21 @@ def excluir_modulo(pid, mid):
     """Exclui um módulo do projeto"""
     modulo_db = ERPModuloDB.query.get_or_404(mid)
     nome = modulo_db.modulo
+    session['undo_acao'] = {
+        'tipo': 'modulo',
+        'volta': url_for('detalhe_projeto', pid=pid) + '#modulos',
+        'dados': {
+            'projeto_id': modulo_db.projeto_id,
+            'modulo': modulo_db.modulo,
+            'status_modulo': modulo_db.status_modulo,
+            'data_inicio_modulo': modulo_db.data_inicio_modulo.isoformat() if modulo_db.data_inicio_modulo else None,
+            'data_conclusao_modulo': modulo_db.data_conclusao_modulo.isoformat() if modulo_db.data_conclusao_modulo else None,
+            'percentual_conclusao': modulo_db.percentual_conclusao or 0,
+        },
+    }
     db.session.delete(modulo_db)
     db.session.commit()
-    flash(f'Módulo "{nome}" excluído.', 'success')
+    flash(f'Módulo "{nome}" excluído.', 'undo')
     return redirect(url_for('detalhe_projeto', pid=pid) + '#modulos')
 
 
@@ -2330,10 +2365,16 @@ def adicionar_atividade(pid):
         flash('Título da atividade é obrigatório.', 'danger')
         return redirect(url_for('detalhe_projeto', pid=pid) + '#atividades')
 
+    data_str = request.form.get('data_reuniao', '').strip()
+    try:
+        data_reuniao = datetime.strptime(data_str, '%Y-%m-%d').date() if data_str else date.today()
+    except ValueError:
+        data_reuniao = date.today()
+
     nova_atividade = ERPAtividadeDB(
         projeto_id=pid,
         titulo=titulo,
-        data_reuniao=date.today(),
+        data_reuniao=data_reuniao,
         status_atividade='Aberta',
         concluida=False
     )
@@ -2351,10 +2392,37 @@ def deletar_atividade(pid, aid):
     atividade_db = ERPAtividadeDB.query.get_or_404(aid)
     titulo = atividade_db.titulo
 
+    session['undo_acao'] = {
+        'tipo': 'atividade',
+        'volta': url_for('detalhe_projeto', pid=pid) + '#atividades',
+        'dados': {
+            'projeto_id': atividade_db.projeto_id,
+            'titulo': atividade_db.titulo,
+            'descricao': atividade_db.descricao,
+            'data_reuniao': atividade_db.data_reuniao.isoformat() if atividade_db.data_reuniao else None,
+            'responsavel_nota': atividade_db.responsavel_nota,
+            'status_atividade': atividade_db.status_atividade,
+            'concluida': bool(atividade_db.concluida),
+        },
+    }
     db.session.delete(atividade_db)
     db.session.commit()
 
-    flash(f'Atividade "{titulo}" deletada!', 'success')
+    flash(f'Atividade "{titulo}" deletada!', 'undo')
+    return redirect(url_for('detalhe_projeto', pid=pid) + '#atividades')
+
+@app.route('/projeto/<int:pid>/atividade/<int:aid>/data', methods=['POST'])
+@login_required
+@permission_required('adicionar_atividade')
+def atualizar_data_atividade(pid, aid):
+    """Atualiza a data da atividade direto da linha (input inline)."""
+    atividade_db = ERPAtividadeDB.query.get_or_404(aid)
+    try:
+        atividade_db.data_reuniao = datetime.strptime(request.form.get('data_reuniao', ''), '%Y-%m-%d').date()
+        db.session.commit()
+        flash('Data da atividade atualizada!', 'success')
+    except ValueError:
+        flash('Data inválida.', 'danger')
     return redirect(url_for('detalhe_projeto', pid=pid) + '#atividades')
 
 @app.route('/projeto/<int:pid>/atividade/<int:aid>/status', methods=['POST'])
@@ -2409,10 +2477,61 @@ def adicionar_repasse(pid):
 def excluir_repasse(pid, rid):
     """Exclui um registro de repasse."""
     repasse = ERPRepasseDB.query.get_or_404(rid)
+    session['undo_acao'] = {
+        'tipo': 'repasse',
+        'volta': url_for('detalhe_projeto', pid=pid) + '#repasses',
+        'dados': {
+            'projeto_id': repasse.projeto_id,
+            'data_repasse': repasse.data_repasse.isoformat(),
+            'comentario': repasse.comentario,
+            'criado_por': repasse.criado_por,
+        },
+    }
     db.session.delete(repasse)
     db.session.commit()
-    flash('Repasse excluído.', 'success')
+    flash('Repasse excluído.', 'undo')
     return redirect(url_for('detalhe_projeto', pid=pid) + '#repasses')
+
+@app.route('/desfazer', methods=['POST'])
+@login_required
+def desfazer_acao():
+    """Recria o último registro excluído (módulo, atividade ou repasse)."""
+    acao = session.pop('undo_acao', None)
+    if not acao:
+        flash('Nada para desfazer.', 'warning')
+        return redirect(request.referrer or url_for('listar_projetos'))
+
+    d = acao['dados']
+    if acao['tipo'] == 'modulo':
+        db.session.add(ERPModuloDB(
+            projeto_id=d['projeto_id'],
+            modulo=d['modulo'],
+            status_modulo=d['status_modulo'],
+            data_inicio_modulo=date.fromisoformat(d['data_inicio_modulo']) if d['data_inicio_modulo'] else None,
+            data_conclusao_modulo=date.fromisoformat(d['data_conclusao_modulo']) if d['data_conclusao_modulo'] else None,
+            percentual_conclusao=d['percentual_conclusao'],
+        ))
+    elif acao['tipo'] == 'atividade':
+        db.session.add(ERPAtividadeDB(
+            projeto_id=d['projeto_id'],
+            titulo=d['titulo'],
+            descricao=d['descricao'],
+            data_reuniao=date.fromisoformat(d['data_reuniao']) if d['data_reuniao'] else date.today(),
+            responsavel_nota=d['responsavel_nota'],
+            status_atividade=d['status_atividade'],
+            concluida=d['concluida'],
+        ))
+    elif acao['tipo'] == 'repasse':
+        db.session.add(ERPRepasseDB(
+            projeto_id=d['projeto_id'],
+            data_repasse=date.fromisoformat(d['data_repasse']),
+            comentario=d['comentario'],
+            criado_por=d['criado_por'],
+        ))
+    db.session.commit()
+
+    flash('Exclusão desfeita!', 'success')
+    return redirect(acao.get('volta') or url_for('listar_projetos'))
 
 # ─── API: saldo ───────────────────────────────────────────────────────────────
 
@@ -2428,6 +2547,33 @@ def api_saldo(cid):
         return jsonify({'saldo': None, 'status': 'estagiario', 'colaborador': c.nome, 'estagiario': True})
     s_disp = saldo_quantizado(s_raw)
     return jsonify({'saldo': s_disp, 'saldo_raw': s_raw, 'status': status_saldo(s_raw), 'colaborador': c.nome})
+
+@app.route('/api/busca')
+@login_required
+def api_busca():
+    """Busca global (Ctrl+K): projetos por nome ou cliente."""
+    q = request.args.get('q', '').strip()
+    if len(q) < 2:
+        return jsonify({'projetos': []})
+
+    like = f'%{q}%'
+    rows = ERPProjetoDB.query.filter(
+        db.or_(ERPProjetoDB.nome_projeto.ilike(like),
+               ERPProjetoDB.nome_cliente.ilike(like))
+    ).order_by(
+        ERPProjetoDB.status.in_(['Finalizado', 'Cancelado']),  # ativos primeiro
+        ERPProjetoDB.nome_projeto
+    ).limit(8).all()
+
+    return jsonify({'projetos': [
+        {
+            'id': p.id,
+            'nome': p.nome_projeto,
+            'cliente': p.nome_cliente or '',
+            'status': p.status,
+            'pct': int(p.percentual_conclusao or 0),
+        } for p in rows
+    ]})
 
 @app.route('/api/projetos')
 @login_required
@@ -2513,13 +2659,31 @@ def listar_visitas():
 
     colaboradores = ColaboradorDB.query.filter_by(ativo=True).order_by(ColaboradorDB.nome).all()
 
+    view = request.args.get('view', 'tabela')
+
     return render_template('visitas/lista_visitas.html',
                            visitas=visitas, resumo=resumo,
                            colaboradores=colaboradores,
                            regioes=VISITA_REGIOES, motivos=VISITA_MOTIVOS,
                            f_status=f_status, f_regiao=f_regiao,
                            f_colab=f_colab, f_motivo=f_motivo,
-                           f_ini=f_ini, f_fim=f_fim)
+                           f_ini=f_ini, f_fim=f_fim, view=view)
+
+
+@app.route('/visita/<int:vid>/status', methods=['POST'])
+@login_required
+@permission_required('editar_visita')
+def status_visita(vid):
+    """Atualiza o status da visita (usado pelo kanban e botões rápidos)."""
+    v = VisitaDB.query.get_or_404(vid)
+    novo = request.form.get('status', '').strip().upper()
+    if novo in ('PLANEJADA', 'CONCLUIDA', 'CANCELADA'):
+        v.status = novo
+        db.session.commit()
+        if request.headers.get('X-Requested-With') == 'fetch':
+            return jsonify({'ok': True, 'status': novo})
+        flash(f'Visita a "{v.cliente}" marcada como {novo.title()}.', 'success')
+    return redirect(request.referrer or url_for('listar_visitas'))
 
 
 @app.route('/nova-visita', methods=['GET', 'POST'])
@@ -3781,6 +3945,48 @@ def agenda_gestao():
         c = next((x for x in consultores if str(x.id) == str(consultor_filtro)), None)
         consultor_nome = c.nome if c else ''
 
+    # Visão calendário
+    view = request.args.get('view', 'lista')
+    cal_data = None
+    if view == 'calendario':
+        hoje = date.today()
+        mes_cal = mes_str or hoje.strftime('%Y-%m')
+        try:
+            ano_c, mes_c = [int(x) for x in mes_cal.split('-')]
+            date(ano_c, mes_c, 1)
+        except (ValueError, TypeError):
+            ano_c, mes_c = hoje.year, hoje.month
+            mes_cal = hoje.strftime('%Y-%m')
+
+        eventos_mes = [a for a in agendas if a.data.year == ano_c and a.data.month == mes_c]
+        por_dia = {}
+        for a in eventos_mes:
+            por_dia.setdefault(a.data.day, []).append(a)
+
+        try:
+            dia_sel = datetime.strptime(request.args.get('dia', ''), '%Y-%m-%d').date()
+            if (dia_sel.year, dia_sel.month) != (ano_c, mes_c):
+                raise ValueError
+        except ValueError:
+            dia_sel = hoje if (hoje.year, hoje.month) == (ano_c, mes_c) else date(ano_c, mes_c, 1)
+
+        primeiro = date(ano_c, mes_c, 1)
+        mes_ant  = (primeiro - timedelta(days=1)).strftime('%Y-%m')
+        mes_prox = (primeiro + timedelta(days=32)).replace(day=1).strftime('%Y-%m')
+        nomes_meses = ['', 'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+                       'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
+        cal_data = {
+            'mes': mes_cal,
+            'titulo': f'{nomes_meses[mes_c]} {ano_c}',
+            'semanas': calendar.Calendar(firstweekday=6).monthdayscalendar(ano_c, mes_c),
+            'por_dia': por_dia,
+            'hoje': hoje,
+            'dia_sel': dia_sel,
+            'eventos_dia': por_dia.get(dia_sel.day, []),
+            'mes_ant': mes_ant,
+            'mes_prox': mes_prox,
+        }
+
     return render_template('agenda_gestao/lista.html',
                            agendas=agendas,
                            consultores=consultores,
@@ -3788,6 +3994,7 @@ def agenda_gestao():
                            consultor_nome=consultor_nome,
                            status_filtro=status_filtro,
                            mes_filtro=mes_str,
+                           view=view, cal=cal_data,
                            total=total, previstas=previstas,
                            executadas=executadas, canceladas=canceladas)
 
@@ -3879,6 +4086,20 @@ def editar_agenda_gestao(aid):
 
     return render_template('agenda_gestao/form.html',
                            consultores=consultores, projetos=projetos, agenda=ag)
+
+
+@app.route('/agenda-gestao/<int:aid>/status', methods=['POST'])
+@login_required
+@permission_required('editar_agenda_gestao')
+def status_agenda_gestao(aid):
+    """Atualiza o status da agenda com um clique (Executada/Cancelada/Prevista)."""
+    ag = AgendaGestao.query.get_or_404(aid)
+    novo = request.form.get('status', '').strip()
+    if novo in ('Prevista', 'Executada', 'Cancelada'):
+        ag.status = novo
+        db.session.commit()
+        flash(f'Agenda de "{ag.cliente}" marcada como {novo}.', 'success')
+    return redirect(request.referrer or url_for('agenda_gestao'))
 
 
 @app.route('/agenda-gestao/<int:aid>/excluir', methods=['POST'])

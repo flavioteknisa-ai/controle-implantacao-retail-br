@@ -143,6 +143,32 @@
     .chip.chip-warn.active { background: #854F0B; border-color: #854F0B; color: #FAEEDA; }
     .chip.chip-danger.active { background: #A32D2D; border-color: #A32D2D; color: #FCEBEB; }
 
+    /* Toasts */
+    .toast-stack { position: fixed; top: 18px; right: 18px; z-index: 2000; display: flex; flex-direction: column; gap: 8px; max-width: 380px; }
+    .toastx {
+      background: #fff; border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px;
+      display: flex; gap: 10px; align-items: flex-start; box-shadow: 0 6px 24px rgba(0,0,0,.10);
+      animation: toastIn .25s ease; font-size: .85rem; color: var(--ink);
+    }
+    .toastx.saindo { opacity: 0; transform: translateY(-6px); transition: opacity .3s, transform .3s; }
+    .toastx .t-ic { width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: .8rem; }
+    .toastx .t-fechar { background: none; border: none; color: var(--muted); padding: 2px 0 0 4px; cursor: pointer; line-height: 1; }
+    @keyframes toastIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* Busca global */
+    .busca-overlay { position: fixed; inset: 0; background: rgba(30,30,28,.45); z-index: 1900; display: none; padding: 12vh 16px 0; }
+    .busca-overlay.aberta { display: block; }
+    .busca-box {
+      max-width: 540px; margin: 0 auto; background: #fff; border-radius: 14px;
+      border: 1px solid var(--border); overflow: hidden; box-shadow: 0 16px 48px rgba(0,0,0,.18);
+    }
+    .busca-box input { width: 100%; border: none; outline: none; padding: 14px 8px; font-size: .95rem; background: transparent; }
+    .busca-res { max-height: 340px; overflow-y: auto; border-top: 1px solid var(--border); padding-bottom: 6px; }
+    .busca-item { display: flex; align-items: center; gap: 10px; padding: 9px 14px; text-decoration: none; color: var(--ink); font-size: .85rem; }
+    .busca-item:hover, .busca-item.ativo { background: #E1F5EE; color: var(--ink); }
+    .busca-grupo { font-size: .68rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); padding: 10px 14px 2px; font-weight: 600; }
+    .kbd { font-size: .7rem; border: 1px solid #D3D1C7; border-radius: 5px; padding: 1px 6px; background: #fff; color: var(--muted); white-space: nowrap; }
+
     /* Badges de status */
     .badge-confirmado { background: #e8f5e9; color: #2e7d32; }
     .badge-planejado  { background: #e3f2fd; color: #808080; }
@@ -239,6 +265,14 @@
   </div>
 
   <div class="sidebar-nav">
+    {% if current_user.is_authenticated %}
+    <button type="button" class="nav-link" id="btnBuscaGlobal"
+            style="background:transparent;border:none;width:calc(100% - 16px);cursor:pointer;text-align:left;">
+      <i class="bi bi-search"></i><span>Buscar</span>
+      <span class="kbd" style="margin-left:auto;background:transparent;border-color:#5F5E5A;color:#888780;">Ctrl K</span>
+    </button>
+    {% endif %}
+
     {% if current_user.is_authenticated and tem_perm('ver_dashboard') %}
     <div class="nav-section">Menu</div>
     <a href="/" class="nav-link {% if request.path == '/' %}active{% endif %}">
@@ -380,21 +414,204 @@
   </div>
 </div>
 
-<div class="main-content">
+<div class="toast-stack" id="toastStack">
   {% with msgs = get_flashed_messages(with_categories=true) %}
     {% for cat, msg in msgs %}
-    <div class="alert alert-{{ cat }} alert-dismissible fade show" role="alert">
-      {{ msg }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    <div class="toastx" data-undo="{{ '1' if cat == 'undo' else '' }}">
+      {% if cat in ('success', 'undo') %}
+      <span class="t-ic" style="background:#EAF3DE;color:#3B6D11;"><i class="bi bi-check-lg"></i></span>
+      {% elif cat == 'danger' %}
+      <span class="t-ic" style="background:#FCEBEB;color:#A32D2D;"><i class="bi bi-exclamation-octagon"></i></span>
+      {% elif cat == 'warning' %}
+      <span class="t-ic" style="background:#FAEEDA;color:#854F0B;"><i class="bi bi-exclamation-triangle"></i></span>
+      {% else %}
+      <span class="t-ic" style="background:#E6F1FB;color:#0C447C;"><i class="bi bi-info-lg"></i></span>
+      {% endif %}
+      <div style="flex:1;min-width:0;">
+        {{ msg }}
+        {% if cat == 'undo' %}
+        <form method="POST" action="/desfazer" style="display:inline;">
+          <button type="submit" class="btn btn-link btn-sm p-0 ms-1"
+                  style="font-size:.85rem;font-weight:600;color:var(--primary);text-decoration:none;vertical-align:baseline;">
+            Desfazer
+          </button>
+        </form>
+        {% endif %}
+      </div>
+      <button type="button" class="t-fechar" onclick="this.parentElement.remove()" aria-label="Fechar">
+        <i class="bi bi-x-lg" style="font-size:.7rem;"></i>
+      </button>
     </div>
     {% endfor %}
   {% endwith %}
+</div>
+
+<div class="main-content">
   {% block content %}{% endblock %}
 </div>
+
+<!-- Modal global de confirmação -->
+<div class="modal fade" id="confirmModalGlobal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:420px;">
+    <div class="modal-content">
+      <div class="modal-body" style="padding:20px 20px 14px;">
+        <div style="font-weight:600;font-size:.95rem;margin-bottom:4px;" id="confirmTitulo">Confirmar ação</div>
+        <div style="font-size:.85rem;color:var(--muted);white-space:pre-line;" id="confirmTexto"></div>
+      </div>
+      <div class="modal-footer" style="border-top:1px solid var(--border);padding:12px 20px;">
+        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-sm btn-danger" id="confirmOk">Confirmar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if current_user.is_authenticated %}
+<!-- Busca global (Ctrl+K) -->
+<div class="busca-overlay" id="buscaOverlay">
+  <div class="busca-box">
+    <div style="display:flex;align-items:center;gap:8px;padding:0 14px;">
+      <i class="bi bi-search" style="color:var(--muted);"></i>
+      <input type="text" id="buscaInput" placeholder="Buscar projeto ou cliente…" autocomplete="off">
+      <span class="kbd">Esc</span>
+    </div>
+    <div class="busca-res" id="buscaRes">
+      <div id="buscaProj"></div>
+      <div class="busca-grupo">Ações</div>
+      {% if tem_perm('criar_projeto') %}
+      <a class="busca-item" href="/novo-projeto">
+        <i class="bi bi-plus-circle" style="color:var(--muted);"></i>Novo projeto
+      </a>
+      {% endif %}
+      {% if tem_perm('criar_agenda_gestao') %}
+      <a class="busca-item" href="/agenda-gestao/nova">
+        <i class="bi bi-calendar2-plus" style="color:var(--muted);"></i>Nova agenda de gestão
+      </a>
+      {% endif %}
+      {% if tem_perm('criar_visita') %}
+      <a class="busca-item" href="/nova-visita">
+        <i class="bi bi-geo-alt" style="color:var(--muted);"></i>Nova visita
+      </a>
+      {% endif %}
+      <a class="busca-item" href="/projetos">
+        <i class="bi bi-building" style="color:var(--muted);"></i>Ver todos os projetos
+      </a>
+    </div>
+  </div>
+</div>
+{% endif %}
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
   const tooltipEls = document.querySelectorAll('[data-bs-toggle="tooltip"]');
   tooltipEls.forEach(el => new bootstrap.Tooltip(el, { trigger: 'hover' }));
+
+  // ── Toasts: auto-fechar ──
+  document.querySelectorAll('.toastx').forEach(t => {
+    const ms = t.dataset.undo ? 10000 : 6000;
+    setTimeout(() => {
+      t.classList.add('saindo');
+      setTimeout(() => t.remove(), 350);
+    }, ms);
+  });
+
+  // ── Confirmação estilizada: forms com data-confirm ──
+  let formPendente = null;
+  const confirmModalEl = document.getElementById('confirmModalGlobal');
+  const confirmModal = confirmModalEl ? new bootstrap.Modal(confirmModalEl) : null;
+  document.addEventListener('submit', function(e) {
+    const f = e.target;
+    if (f.dataset && f.dataset.confirm && confirmModal) {
+      e.preventDefault();
+      formPendente = f;
+      document.getElementById('confirmTitulo').textContent = f.dataset.confirmTitulo || 'Confirmar ação';
+      document.getElementById('confirmTexto').textContent = f.dataset.confirm;
+      const okBtn = document.getElementById('confirmOk');
+      okBtn.textContent = f.dataset.confirmBotao || 'Confirmar';
+      confirmModal.show();
+    }
+  }, true);
+  document.getElementById('confirmOk')?.addEventListener('click', function() {
+    if (formPendente) {
+      confirmModal.hide();
+      formPendente.submit();
+      formPendente = null;
+    }
+  });
+
+  // ── Busca global (Ctrl+K) ──
+  const buscaOverlay = document.getElementById('buscaOverlay');
+  const buscaInput = document.getElementById('buscaInput');
+  let buscaItens = [], buscaIdx = -1, buscaTimer = null;
+
+  function buscaAtualizarItens() {
+    buscaItens = buscaOverlay ? [...buscaOverlay.querySelectorAll('.busca-item')] : [];
+    buscaIdx = -1;
+    buscaItens.forEach(i => i.classList.remove('ativo'));
+  }
+  function abrirBusca() {
+    if (!buscaOverlay) return;
+    buscaOverlay.classList.add('aberta');
+    buscaInput.value = '';
+    document.getElementById('buscaProj').innerHTML = '';
+    buscaAtualizarItens();
+    buscaInput.focus();
+  }
+  function fecharBusca() { buscaOverlay?.classList.remove('aberta'); }
+
+  document.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      buscaOverlay?.classList.contains('aberta') ? fecharBusca() : abrirBusca();
+    } else if (e.key === 'Escape' && buscaOverlay?.classList.contains('aberta')) {
+      fecharBusca();
+    }
+  });
+  buscaOverlay?.addEventListener('mousedown', e => { if (e.target === buscaOverlay) fecharBusca(); });
+  document.getElementById('btnBuscaGlobal')?.addEventListener('click', abrirBusca);
+
+  function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+  buscaInput?.addEventListener('input', () => {
+    clearTimeout(buscaTimer);
+    const q = buscaInput.value.trim();
+    buscaTimer = setTimeout(async () => {
+      const alvo = document.getElementById('buscaProj');
+      if (q.length < 2) { alvo.innerHTML = ''; buscaAtualizarItens(); return; }
+      try {
+        const r = await fetch('/api/busca?q=' + encodeURIComponent(q));
+        const j = await r.json();
+        const lista = j.projetos || [];
+        alvo.innerHTML = !lista.length
+          ? '<div class="busca-grupo">Nenhum projeto encontrado</div>'
+          : '<div class="busca-grupo">Projetos</div>' + lista.map(p =>
+              '<a class="busca-item" href="/projeto/' + p.id + '">' +
+                '<i class="bi bi-building" style="color:var(--muted);"></i>' +
+                '<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
+                  '<strong>' + escHtml(p.nome) + '</strong>' +
+                  (p.cliente ? '<span style="color:var(--muted);"> · ' + escHtml(p.cliente) + '</span>' : '') +
+                '</span>' +
+                '<span style="color:var(--muted);font-size:.74rem;">' + p.pct + '%</span>' +
+              '</a>').join('');
+        buscaAtualizarItens();
+      } catch (err) { /* silencioso */ }
+    }, 250);
+  });
+
+  buscaInput?.addEventListener('keydown', e => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (!buscaItens.length) return;
+      buscaIdx = e.key === 'ArrowDown'
+        ? (buscaIdx + 1) % buscaItens.length
+        : (buscaIdx - 1 + buscaItens.length) % buscaItens.length;
+      buscaItens.forEach((i, n) => i.classList.toggle('ativo', n === buscaIdx));
+      buscaItens[buscaIdx].scrollIntoView({ block: 'nearest' });
+    } else if (e.key === 'Enter' && buscaIdx >= 0) {
+      e.preventDefault();
+      buscaItens[buscaIdx].click();
+    }
+  });
 </script>
 {% block extra_js %}{% endblock %}
 

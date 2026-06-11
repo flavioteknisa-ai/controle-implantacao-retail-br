@@ -33,8 +33,24 @@
   .pill-cancelado  { background: #FCEBEB; color: #A32D2D; }
   .pill-atencao    { background: #FCEBEB; color: #A32D2D; }
   .meta-sm { font-size: .74rem; color: var(--muted); }
+  .proj-card { position: relative; }
+  .qa {
+    position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+    display: none; align-items: center; gap: 4px; background: #fff;
+    border: 1px solid var(--border); border-radius: 9px; padding: 4px 6px;
+    box-shadow: 0 4px 14px rgba(0,0,0,.08);
+  }
+  .proj-card:hover .qa { display: flex; }
+  .icb {
+    width: 28px; height: 28px; border-radius: 7px; border: 1px solid #D3D1C7;
+    background: #fff; color: #5F5E5A; display: inline-flex; align-items: center;
+    justify-content: center; font-size: .8rem; text-decoration: none; cursor: pointer;
+  }
+  .icb:hover { background: #F1EFE8; color: var(--ink); }
+  .ordenar { cursor: pointer; }
   @media (max-width: 992px) {
     .proj-card { grid-template-columns: 1fr 1fr; }
+    .qa { display: none !important; }
   }
 </style>
 {% endblock %}
@@ -140,11 +156,30 @@
 </div>
 {% endif %}
 
+<!-- Busca instantânea + ordenação -->
+<div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+  <div style="position:relative;flex:1;max-width:280px;">
+    <i class="bi bi-search" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:.8rem;"></i>
+    <input type="text" id="buscaLista" class="form-control form-control-sm"
+           placeholder="Filtrar por nome ou cliente…" style="padding-left:30px;font-size:.8rem;">
+  </div>
+  <span class="ms-auto" style="font-size:.74rem;color:var(--muted);">Ordenar:</span>
+  <button type="button" class="chip ordenar" data-campo="pct">Progresso <span class="seta"></span></button>
+  <button type="button" class="chip ordenar" data-campo="meses">Execução <span class="seta"></span></button>
+  <button type="button" class="chip ordenar" data-campo="dias">Conclusão <span class="seta"></span></button>
+  <button type="button" class="chip ordenar" data-campo="nome">Nome <span class="seta"></span></button>
+</div>
+
 <!-- Lista de Projetos -->
 {% if projetos %}
-<div class="d-flex flex-column gap-2">
+<div class="d-flex flex-column gap-2" id="listaProjetos">
   {% for projeto in projetos %}
-  <div class="proj-card {% if projeto.ponto_atencao %}atencao{% endif %}">
+  <div class="proj-card {% if projeto.ponto_atencao %}atencao{% endif %}"
+       data-busca="{{ ((projeto.nome or '') ~ ' ' ~ (projeto.nome_cliente or ''))|lower }}"
+       data-pct="{{ projeto.percentual_geral() }}"
+       data-meses="{{ projeto.meses_em_execucao }}"
+       data-dias="{{ projeto.dias_restantes() if projeto.data_conclusao else 999999 }}"
+       data-nome="{{ (projeto.nome or '')|lower }}">
     <div style="min-width:0;">
       <a href="/projeto/{{ projeto.id }}" class="proj-link">
         {% if projeto.nome_cliente %}
@@ -207,6 +242,21 @@
         <i class="bi bi-clock"></i> {{ projeto.meses_em_execucao }}m execução
       </div>
     </div>
+
+    <div class="qa">
+      <a href="/projeto/{{ projeto.id }}" class="icb" title="Abrir projeto"><i class="bi bi-eye"></i></a>
+      {% if tem_perm('editar_projeto') %}
+      <a href="/editar-projeto/{{ projeto.id }}" class="icb" title="Editar"><i class="bi bi-pencil"></i></a>
+      <form method="POST" action="/projeto/{{ projeto.id }}/toggle-atencao" style="display:inline;">
+        <button type="submit" class="icb"
+                title="{% if projeto.ponto_atencao %}Remover ponto de atenção{% else %}Marcar ponto de atenção{% endif %}"
+                {% if projeto.ponto_atencao %}style="color:#BA7517;border-color:#FAC775;"{% endif %}>
+          <i class="bi bi-exclamation-triangle"></i>
+        </button>
+      </form>
+      <a href="/projeto/{{ projeto.id }}#repasses" class="icb" title="Repasses"><i class="bi bi-arrow-left-right"></i></a>
+      {% endif %}
+    </div>
   </div>
   {% endfor %}
 </div>
@@ -221,4 +271,44 @@
   </div>
 </div>
 {% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Filtro instantâneo por nome/cliente
+const buscaLista = document.getElementById('buscaLista');
+buscaLista?.addEventListener('input', () => {
+  const q = buscaLista.value.trim().toLowerCase();
+  document.querySelectorAll('#listaProjetos .proj-card').forEach(c => {
+    c.style.display = !q || c.dataset.busca.includes(q) ? '' : 'none';
+  });
+});
+
+// Ordenação client-side
+let ordemCampo = null, ordemAsc = false;
+document.querySelectorAll('.ordenar').forEach(chip => {
+  chip.addEventListener('click', () => {
+    const campo = chip.dataset.campo;
+    ordemAsc = (ordemCampo === campo) ? !ordemAsc : (campo === 'nome' || campo === 'dias');
+    ordemCampo = campo;
+    document.querySelectorAll('.ordenar').forEach(c => {
+      c.classList.toggle('active', c === chip);
+      c.querySelector('.seta').textContent = '';
+    });
+    chip.querySelector('.seta').textContent = ordemAsc ? '↑' : '↓';
+
+    const cont = document.getElementById('listaProjetos');
+    if (!cont) return;
+    const cards = [...cont.querySelectorAll('.proj-card')];
+    cards.sort((a, b) => {
+      let va = a.dataset[campo], vb = b.dataset[campo];
+      if (campo !== 'nome') { va = parseFloat(va); vb = parseFloat(vb); }
+      if (va < vb) return ordemAsc ? -1 : 1;
+      if (va > vb) return ordemAsc ? 1 : -1;
+      return 0;
+    });
+    cards.forEach(c => cont.appendChild(c));
+  });
+});
+</script>
 {% endblock %}

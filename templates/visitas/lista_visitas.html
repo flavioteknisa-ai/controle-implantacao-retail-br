@@ -15,6 +15,21 @@
   .custo-teknisa { background:#e8eaf6; color:#3949ab; font-size:.68rem; padding:2px 7px; border-radius:20px; font-weight:600; }
   .custo-cliente { background:#e8f5e9; color:#2e7d32; font-size:.68rem; padding:2px 7px; border-radius:20px; font-weight:600; }
   .custo-compartilhado { background:#fff3e0; color:#e65100; font-size:.68rem; padding:2px 7px; border-radius:20px; font-weight:600; }
+
+  /* Kanban */
+  .kb-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; align-items: start; }
+  @media (max-width: 992px) { .kb-grid { grid-template-columns: 1fr; } }
+  .kb-col { background: #F4F3EE; border: 1px solid var(--border); border-radius: 12px; padding: 10px; min-height: 140px; }
+  .kb-col.drag-over { outline: 2px dashed var(--primary-light); outline-offset: -4px; }
+  .kb-tit {
+    font-size: .74rem; font-weight: 600; text-transform: uppercase; letter-spacing: .05em;
+    padding: 2px 4px 8px; display: flex; justify-content: space-between; align-items: center;
+  }
+  .kb-count { background: #fff; border: 1px solid var(--border); border-radius: 99px; padding: 0 8px; font-size: .72rem; color: var(--muted); }
+  .kb-card { background: #fff; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
+  .kb-card[draggable="true"] { cursor: grab; }
+  .kb-card.arrastando { opacity: .5; }
+  .kb-dica { font-size: .74rem; color: var(--muted); margin-top: 6px; }
 </style>
 {% endblock %}
 
@@ -65,10 +80,22 @@
   </div>
 </div>
 
+<!-- Alternância Tabela/Kanban -->
+{% set qs_filtros = 'status=' ~ f_status ~ '&regiao=' ~ f_regiao ~ '&colaborador=' ~ f_colab ~ '&motivo=' ~ f_motivo ~ '&data_ini=' ~ f_ini ~ '&data_fim=' ~ f_fim %}
+<div class="d-flex gap-2 mb-3">
+  <a class="chip {% if view != 'kanban' %}active{% endif %}" href="/visitas?view=tabela&{{ qs_filtros }}">
+    <i class="bi bi-list-ul"></i>Tabela
+  </a>
+  <a class="chip {% if view == 'kanban' %}active{% endif %}" href="/visitas?view=kanban&{{ qs_filtros }}">
+    <i class="bi bi-kanban"></i>Kanban
+  </a>
+</div>
+
 <!-- Filtros -->
 <div class="card mb-3">
   <div class="card-body py-2 px-3">
     <form method="GET" action="/visitas" class="row g-2 align-items-end">
+      <input type="hidden" name="view" value="{{ view }}">
       <div class="col-6 col-md-2">
         <label class="form-label small mb-1">Status</label>
         <select name="status" class="form-select form-select-sm">
@@ -125,6 +152,60 @@
   </div>
 </div>
 
+{% if view == 'kanban' %}
+<!-- Kanban -->
+{% if tem_perm('editar_visita') %}
+<div class="kb-dica mb-2"><i class="bi bi-info-circle me-1"></i>Arraste um cartão entre as colunas para mudar o status da visita.</div>
+{% endif %}
+<div class="kb-grid">
+  {% for st, titulo, cor in [('PLANEJADA', 'Planejadas', '#854F0B'), ('CONCLUIDA', 'Concluídas', '#27500A'), ('CANCELADA', 'Canceladas', '#A32D2D')] %}
+  <div class="kb-col" data-status="{{ st }}">
+    <div class="kb-tit">
+      <span style="color:{{ cor }};">{{ titulo }}</span>
+      <span class="kb-count">{{ visitas|selectattr('status', 'equalto', st)|list|length }}</span>
+    </div>
+    {% for v in visitas if v.status == st %}
+    <div class="kb-card" data-vid="{{ v.id }}" {% if tem_perm('editar_visita') %}draggable="true"{% endif %}>
+      <div class="d-flex justify-content-between align-items-start gap-2">
+        <strong style="font-size:.85rem;">{{ v.cliente }}</strong>
+        <span class="text-muted" style="font-size:.72rem;white-space:nowrap;">
+          <i class="bi bi-calendar3"></i> {{ v.data_visita.strftime('%d/%m') }}
+        </span>
+      </div>
+      <div style="font-size:.74rem;color:var(--muted);margin-top:2px;">
+        {{ v.colaborador_nome or (v.colaborador.nome if v.colaborador else '—') }}{% if v.motivo %} · {{ v.motivo|title }}{% endif %}{% if v.regiao %} · {{ v.regiao }}{% endif %}
+      </div>
+      <div class="d-flex gap-1 flex-wrap mt-2 align-items-center">
+        {% if v.cda == 'ASSINADO' %}
+        <span class="status-badge badge-cda-assinado">CDA assinado</span>
+        {% elif v.cda == 'PENDENTE' %}
+        <span class="status-badge badge-cda-pendente">CDA pendente</span>
+        {% elif v.cda in ('NÃO ENVIADO', 'NÃO ENVIADA') %}
+        <span class="status-badge badge-cda-nao">CDA não env.</span>
+        {% endif %}
+        {% if tem_perm('editar_visita') %}
+        <span class="ms-auto d-flex gap-1">
+          {% if v.status == 'PLANEJADA' %}
+          <form method="POST" action="/visita/{{ v.id }}/status" style="display:inline;">
+            <input type="hidden" name="status" value="CONCLUIDA">
+            <button type="submit" class="btn btn-sm btn-outline-success py-0 px-1" title="Concluir visita">
+              <i class="bi bi-check-circle" style="font-size:.75rem;"></i>
+            </button>
+          </form>
+          {% endif %}
+          <a href="/editar-visita/{{ v.id }}" class="btn btn-sm btn-outline-secondary py-0 px-1" title="Editar">
+            <i class="bi bi-pencil" style="font-size:.75rem;"></i>
+          </a>
+        </span>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+</div>
+
+{% else %}
 <!-- Tabela -->
 <div class="card">
   <div class="card-header dark d-flex justify-content-between align-items-center">
@@ -219,7 +300,8 @@
                 <i class="bi bi-pencil"></i>
               </a>
               <form method="POST" action="/excluir-visita/{{ v.id }}" style="display:inline;"
-                    onsubmit="return confirm('Excluir visita a {{ v.cliente }}?')">
+                    data-confirm="Esta ação não pode ser desfeita."
+                    data-confirm-titulo='Excluir visita a "{{ v.cliente }}"?' data-confirm-botao="Excluir">
                 <button class="btn btn-sm btn-outline-danger" title="Excluir">
                   <i class="bi bi-trash"></i>
                 </button>
@@ -245,4 +327,43 @@
     {% endif %}
   </div>
 </div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+{% if view == 'kanban' and tem_perm('editar_visita') %}
+<script>
+// Drag-and-drop do kanban: arrastar cartão entre colunas muda o status
+let cartaoArrastado = null;
+
+document.querySelectorAll('.kb-card[draggable="true"]').forEach(c => {
+  c.addEventListener('dragstart', () => { cartaoArrastado = c; c.classList.add('arrastando'); });
+  c.addEventListener('dragend', () => { c.classList.remove('arrastando'); cartaoArrastado = null; });
+});
+
+document.querySelectorAll('.kb-col').forEach(col => {
+  col.addEventListener('dragover', e => { e.preventDefault(); col.classList.add('drag-over'); });
+  col.addEventListener('dragleave', () => col.classList.remove('drag-over'));
+  col.addEventListener('drop', async e => {
+    e.preventDefault();
+    col.classList.remove('drag-over');
+    if (!cartaoArrastado) return;
+    const card = cartaoArrastado;
+    if (card.closest('.kb-col') === col) return;
+
+    const fd = new FormData();
+    fd.append('status', col.dataset.status);
+    try {
+      const r = await fetch('/visita/' + card.dataset.vid + '/status',
+                            { method: 'POST', body: fd, headers: { 'X-Requested-With': 'fetch' } });
+      if (!r.ok) return;
+      col.appendChild(card);
+      document.querySelectorAll('.kb-col').forEach(c => {
+        c.querySelector('.kb-count').textContent = c.querySelectorAll('.kb-card').length;
+      });
+    } catch (err) { /* mantém o cartão onde estava */ }
+  });
+});
+</script>
+{% endif %}
 {% endblock %}

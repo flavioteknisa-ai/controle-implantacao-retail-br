@@ -2,6 +2,30 @@
 
 {% block title %}Agenda de Gestão - {{ super() }}{% endblock %}
 
+{% block extra_css %}
+<style>
+  .cal-grade { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .cal-cab { font-size: .7rem; color: var(--muted); text-align: center; font-weight: 600; padding-bottom: 2px; }
+  .cal-celula {
+    aspect-ratio: 1; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; border-radius: 8px; font-size: .8rem; color: #5F5E5A;
+    text-decoration: none; transition: background .15s;
+  }
+  .cal-celula:hover { background: #F1EFE8; color: var(--ink); }
+  .cal-celula.vazio { pointer-events: none; }
+  .cal-celula.hoje { border: 1.5px solid var(--primary); font-weight: 600; }
+  .cal-celula.sel { background: var(--primary); color: #fff; font-weight: 600; }
+  .cal-celula.sel:hover { background: var(--primary); color: #fff; }
+  .cal-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--primary-light); margin-top: 2px; }
+  .cal-celula.sel .cal-dot { background: #9FE1CB; }
+  .ev-card { background: #fff; border: 1px solid var(--border); border-radius: 10px; padding: 11px 13px; margin-bottom: 8px; }
+  .pill { font-size: .72rem; font-weight: 600; padding: 3px 10px; border-radius: 99px; display: inline-block; white-space: nowrap; }
+  .pill-prevista  { background: #FAEEDA; color: #854F0B; }
+  .pill-executada { background: #EAF3DE; color: #27500A; }
+  .pill-cancelada { background: #FCEBEB; color: #A32D2D; }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-2">
   <div>
@@ -51,10 +75,23 @@
   </div>
 </div>
 
+<!-- Alternância Lista/Calendário -->
+<div class="d-flex gap-2 mb-3">
+  <a class="chip {% if view != 'calendario' %}active{% endif %}"
+     href="{{ url_for('agenda_gestao', mes=mes_filtro or None, consultor_id=consultor_filtro or None, status=status_filtro or None) }}">
+    <i class="bi bi-list-ul"></i>Lista
+  </a>
+  <a class="chip {% if view == 'calendario' %}active{% endif %}"
+     href="{{ url_for('agenda_gestao', view='calendario', mes=mes_filtro or None, consultor_id=consultor_filtro or None, status=status_filtro or None) }}">
+    <i class="bi bi-calendar3"></i>Calendário
+  </a>
+</div>
+
 <!-- Filtros -->
 <div class="card mb-4">
   <div class="card-body">
     <form method="GET" class="row g-2 align-items-end">
+      <input type="hidden" name="view" value="{{ view }}">
       <div class="col-md-3">
         <label class="form-label small fw-semibold">Mês</label>
         <input type="month" class="form-control form-control-sm" name="mes"
@@ -96,6 +133,107 @@
     {% endif %}
   </div>
 </div>
+
+{% if view == 'calendario' and cal %}
+<!-- Vista calendário -->
+<div class="row g-3">
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <a class="btn btn-sm btn-light" title="Mês anterior"
+           href="{{ url_for('agenda_gestao', view='calendario', mes=cal.mes_ant, consultor_id=consultor_filtro or None, status=status_filtro or None) }}">
+          <i class="bi bi-chevron-left"></i>
+        </a>
+        <span>{{ cal.titulo }}</span>
+        <a class="btn btn-sm btn-light" title="Próximo mês"
+           href="{{ url_for('agenda_gestao', view='calendario', mes=cal.mes_prox, consultor_id=consultor_filtro or None, status=status_filtro or None) }}">
+          <i class="bi bi-chevron-right"></i>
+        </a>
+      </div>
+      <div class="card-body">
+        <div class="cal-grade mb-1">
+          {% for d in ['D','S','T','Q','Q','S','S'] %}<span class="cal-cab">{{ d }}</span>{% endfor %}
+        </div>
+        <div class="cal-grade">
+          {% for semana in cal.semanas %}
+            {% for d in semana %}
+              {% if d == 0 %}
+              <span class="cal-celula vazio"></span>
+              {% else %}
+              <a class="cal-celula {% if d == cal.dia_sel.day %}sel{% elif cal.hoje.day == d and cal.hoje.strftime('%Y-%m') == cal.mes %}hoje{% endif %}"
+                 href="{{ url_for('agenda_gestao', view='calendario', mes=cal.mes, dia=cal.mes ~ '-' ~ '%02d'|format(d), consultor_id=consultor_filtro or None, status=status_filtro or None) }}">
+                {{ d }}
+                {% if d in cal.por_dia %}<span class="cal-dot"></span>{% endif %}
+              </a>
+              {% endif %}
+            {% endfor %}
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header">
+        <i class="bi bi-calendar-event me-1"></i>{{ cal.dia_sel.strftime('%d/%m/%Y') }}
+        <span class="text-muted" style="font-weight:400;font-size:.8rem;">· {{ cal.eventos_dia|length }} compromisso{{ 's' if cal.eventos_dia|length != 1 }}</span>
+      </div>
+      <div class="card-body">
+        {% for ag in cal.eventos_dia %}
+        <div class="ev-card">
+          <div class="d-flex align-items-start gap-2 flex-wrap">
+            <div style="flex:1;min-width:0;">
+              <strong style="font-size:.9rem;">{{ ag.cliente }}</strong>
+              <div style="font-size:.78rem;color:var(--muted);margin-top:2px;">
+                {% if ag.projeto %}
+                <a href="{{ url_for('detalhe_projeto', pid=ag.projeto_id) }}">{{ ag.projeto.nome_projeto }}</a> ·
+                {% endif %}
+                {{ ag.consultor.nome if ag.consultor else 'Sem consultor' }}
+                · {{ ag.apresentacao }}
+              </div>
+            </div>
+            {% if ag.status == 'Prevista' %}
+            <span class="pill pill-prevista">Prevista</span>
+            {% elif ag.status == 'Executada' %}
+            <span class="pill pill-executada">Executada</span>
+            {% else %}
+            <span class="pill pill-cancelada">Cancelada</span>
+            {% endif %}
+            {% if tem_perm('editar_agenda_gestao') %}
+            {% if ag.status == 'Prevista' %}
+            <form method="POST" action="/agenda-gestao/{{ ag.id }}/status" style="display:inline;">
+              <input type="hidden" name="status" value="Executada">
+              <button type="submit" class="btn btn-sm btn-outline-success" title="Marcar como executada">
+                <i class="bi bi-check-circle"></i>
+              </button>
+            </form>
+            {% endif %}
+            <a href="{{ url_for('editar_agenda_gestao', aid=ag.id) }}" class="btn btn-sm btn-outline-secondary" title="Editar">
+              <i class="bi bi-pencil"></i>
+            </a>
+            {% endif %}
+          </div>
+          {% if ag.observacoes %}
+          <div style="font-size:.78rem;color:var(--muted);margin-top:6px;">
+            <i class="bi bi-chat-left-text me-1"></i>{{ ag.observacoes }}
+          </div>
+          {% endif %}
+        </div>
+        {% else %}
+        <div class="text-center py-4" style="color:var(--muted);font-size:.88rem;">
+          <i class="bi bi-calendar-x d-block mb-1" style="font-size:1.4rem;"></i>
+          Nenhum compromisso neste dia.
+          {% if tem_perm('criar_agenda_gestao') %}
+          <br><a href="{{ url_for('nova_agenda_gestao') }}">Criar nova agenda</a>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+{% else %}
 
 <!-- Tabela -->
 {% if agendas %}
@@ -169,6 +307,14 @@
             </td>
             {% if tem_perm('editar_agenda_gestao') %}
             <td class="text-center text-nowrap">
+              {% if ag.status == 'Prevista' %}
+              <form method="POST" action="/agenda-gestao/{{ ag.id }}/status" style="display:inline;">
+                <input type="hidden" name="status" value="Executada">
+                <button type="submit" class="btn btn-sm btn-outline-success" title="Marcar como executada">
+                  <i class="bi bi-check-circle"></i>
+                </button>
+              </form>
+              {% endif %}
               <a href="{{ url_for('editar_agenda_gestao', aid=ag.id) }}"
                  class="btn btn-sm btn-outline-primary" title="Editar">
                 <i class="bi bi-pencil"></i>
@@ -205,6 +351,7 @@
   </a>
   {% endif %}
 </div>
+{% endif %}
 {% endif %}
 
 <!-- Modal de confirmação de exclusão -->
