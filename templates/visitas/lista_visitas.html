@@ -81,7 +81,7 @@
 </div>
 
 <!-- Alternância Tabela/Kanban -->
-{% set qs_filtros = 'status=' ~ f_status ~ '&regiao=' ~ f_regiao ~ '&colaborador=' ~ f_colab ~ '&motivo=' ~ f_motivo ~ '&data_ini=' ~ f_ini ~ '&data_fim=' ~ f_fim %}
+{% set qs_filtros = 'status=' ~ f_status ~ '&regiao=' ~ f_regiao ~ '&colaborador=' ~ f_colab ~ '&motivo=' ~ f_motivo ~ '&data_ini=' ~ f_ini ~ '&data_fim=' ~ f_fim ~ '&cda=' ~ f_cda ~ '&cliente=' ~ f_cliente ~ '&colab_nome=' ~ f_colab_nome %}
 <div class="d-flex gap-2 mb-3">
   <a class="chip {% if view != 'kanban' %}active{% endif %}" href="/visitas?view=tabela&{{ qs_filtros }}">
     <i class="bi bi-list-ul"></i>Tabela

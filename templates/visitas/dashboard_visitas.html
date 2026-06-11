@@ -5,11 +5,14 @@
 <style>
 :root { --v-blue:#0340AB; --v-green:#2e7d32; --v-gray:#808080; --v-orange:#e65100; }
 .kpi-card { background:#fff; border-radius:14px; padding:20px 24px; border:1px solid #eee;
-            box-shadow:0 2px 8px rgba(0,0,0,.06); position:relative; overflow:hidden; }
+            box-shadow:0 2px 8px rgba(0,0,0,.06); position:relative; overflow:hidden;
+            transition:transform .15s, box-shadow .15s; }
 .kpi-card .kpi-accent { position:absolute; left:0; top:0; bottom:0; width:5px; border-radius:14px 0 0 14px; }
 .kpi-card .kpi-val   { font-size:2.2rem; font-weight:800; line-height:1; }
 .kpi-card .kpi-label { font-size:.78rem; color:#888; text-transform:uppercase; letter-spacing:.8px; margin-top:4px; }
 .kpi-card .kpi-icon  { position:absolute; right:18px; top:18px; font-size:1.8rem; opacity:.15; }
+.kpi-card-link { display:block; transition:transform .15s, box-shadow .15s; }
+.kpi-card-link:hover .kpi-card { box-shadow:0 4px 14px rgba(0,0,0,.12); transform:translateY(-2px); }
 .chart-card { background:#fff; border-radius:14px; padding:20px; border:1px solid #eee;
               box-shadow:0 2px 8px rgba(0,0,0,.06); }
 .chart-title { font-size:.8rem; font-weight:700; text-transform:uppercase; letter-spacing:.8px;
@@ -20,6 +23,8 @@
 .filter-pill.active { background:var(--v-blue); color:#fff; border-color:var(--v-blue); }
 .top-client-bar { height:8px; border-radius:4px; background:#e0e0e0; overflow:hidden; }
 .top-client-fill { height:100%; border-radius:4px; background:var(--v-blue); }
+.top-client-link { display:block; padding:4px 6px; border-radius:8px; transition:background .15s; }
+.top-client-link:hover { background:#f5f5f5; }
 .taxa-circle { width:90px; height:90px; border-radius:50%;
                background:conic-gradient(var(--v-green) 0% {{ taxa }}%, #eee {{ taxa }}% 100%);
                display:flex; align-items:center; justify-content:center; }
@@ -60,32 +65,40 @@
 </div>
 
 <!-- KPI Cards -->
+{% set base_qs = 'data_ini=' ~ ano_sel ~ '-01-01&data_fim=' ~ ano_sel ~ '-12-31' ~ (('&regiao=' ~ regiao_sel) if regiao_sel else '') %}
 <div class="row g-3 mb-4">
   <div class="col-6 col-md-3">
+    <a href="/visitas?{{ base_qs }}" class="text-decoration-none kpi-card-link">
     <div class="kpi-card">
       <div class="kpi-accent" style="background:var(--v-blue);"></div>
       <div class="kpi-icon"><i class="bi bi-geo-alt-fill"></i></div>
       <div class="kpi-val" style="color:var(--v-blue);">{{ total }}</div>
       <div class="kpi-label">Total de Visitas</div>
     </div>
+    </a>
   </div>
   <div class="col-6 col-md-3">
+    <a href="/visitas?status=CONCLUIDA&{{ base_qs }}" class="text-decoration-none kpi-card-link">
     <div class="kpi-card">
       <div class="kpi-accent" style="background:var(--v-green);"></div>
       <div class="kpi-icon"><i class="bi bi-check-circle-fill"></i></div>
       <div class="kpi-val" style="color:var(--v-green);">{{ concluidas }}</div>
       <div class="kpi-label">Concluídas</div>
     </div>
+    </a>
   </div>
   <div class="col-6 col-md-3">
+    <a href="/visitas?status=PLANEJADA&{{ base_qs }}" class="text-decoration-none kpi-card-link">
     <div class="kpi-card">
       <div class="kpi-accent" style="background:#0277bd;"></div>
       <div class="kpi-icon"><i class="bi bi-calendar-event"></i></div>
       <div class="kpi-val" style="color:#0277bd;">{{ planejadas }}</div>
       <div class="kpi-label">Planejadas</div>
     </div>
+    </a>
   </div>
   <div class="col-6 col-md-3">
+    <a href="/visitas?status=CONCLUIDA&{{ base_qs }}" class="text-decoration-none kpi-card-link">
     <div class="kpi-card">
       <div class="kpi-accent" style="background:var(--v-green);"></div>
       <div class="kpi-icon"><i class="bi bi-trophy-fill"></i></div>
@@ -99,6 +112,7 @@
         </div>
       </div>
     </div>
+    </a>
   </div>
 </div>
 
@@ -242,6 +256,7 @@
         {% set max_visits = top_clientes[0][1] %}
         {% for cliente, qtd in top_clientes %}
         <div class="col-md-6">
+          <a href="/visitas?cliente={{ cliente|urlencode }}&{{ base_qs }}" class="text-decoration-none text-reset top-client-link">
           <div class="mb-1">
             <div class="d-flex justify-content-between align-items-center mb-1">
               <span class="small fw-semibold text-truncate" style="max-width:80%;">{{ cliente }}</span>
@@ -251,6 +266,7 @@
               <div class="top-client-fill" style="width:{{ (qtd / max_visits * 100)|round }}%;"></div>
             </div>
           </div>
+          </a>
         </div>
         {% endfor %}
       </div>
@@ -277,7 +293,19 @@ Chart.defaults.font.family = "'Segoe UI', sans-serif";
 Chart.defaults.font.size   = 12;
 Chart.defaults.plugins.legend.labels.boxWidth = 12;
 
+/* ── Helpers de navegação ─────────────────────────────── */
+const ANO_SEL    = {{ ano_sel }};
+const REGIAO_SEL = {{ regiao_sel | tojson }};
+function anoQS()    { return `&data_ini=${ANO_SEL}-01-01&data_fim=${ANO_SEL}-12-31`; }
+function regiaoQS() { return REGIAO_SEL ? `&regiao=${encodeURIComponent(REGIAO_SEL)}` : ''; }
+function irPara(url) { window.location.href = url; }
+function cursorHover(evt, elements, chart) {
+  chart.canvas.style.cursor = elements.length ? 'pointer' : 'default';
+}
+
 /* ── Colaboradores ─────────────────────────────────── */
+const COLAB_IDS   = {{ chart_colab.ids   | tojson }};
+const COLAB_NOMES = {{ chart_colab.nomes | tojson }};
 new Chart(document.getElementById('chartColab'), {
   type: 'bar',
   data: {
@@ -294,6 +322,21 @@ new Chart(document.getElementById('chartColab'), {
     scales: {
       x: { stacked: true, grid: { color: '#f0f0f0' } },
       y: { stacked: true, ticks: { font: { size: 11 } } }
+    },
+    onHover: cursorHover,
+    onClick: (evt, els, chart) => {
+      if (!els.length) return;
+      const { index, datasetIndex } = els[0];
+      const status = datasetIndex === 0 ? 'CONCLUIDA' : 'PLANEJADA';
+      let url = `/visitas?status=${status}` + anoQS() + regiaoQS();
+      const id = COLAB_IDS[index];
+      if (id) {
+        url += `&colaborador=${id}`;
+      } else {
+        const nome = COLAB_NOMES[index];
+        url += `&colab_nome=${encodeURIComponent(nome === 'Não informado' ? '__vazio__' : nome)}`;
+      }
+      irPara(url);
     }
   }
 });
@@ -316,6 +359,17 @@ new Chart(document.getElementById('chartMes'), {
     scales: {
       x: { stacked: true, grid: { color: '#f0f0f0' } },
       y: { stacked: true, beginAtZero: true }
+    },
+    onHover: cursorHover,
+    onClick: (evt, els, chart) => {
+      if (!els.length) return;
+      const { index, datasetIndex } = els[0];
+      const status = datasetIndex === 0 ? 'CONCLUIDA' : 'PLANEJADA';
+      const mes = index + 1;
+      const ultimoDia = new Date(ANO_SEL, mes, 0).getDate();
+      const ini = `${ANO_SEL}-${String(mes).padStart(2,'0')}-01`;
+      const fim = `${ANO_SEL}-${String(mes).padStart(2,'0')}-${String(ultimoDia).padStart(2,'0')}`;
+      irPara(`/visitas?status=${status}&data_ini=${ini}&data_fim=${fim}` + regiaoQS());
     }
   }
 });
@@ -333,7 +387,14 @@ new Chart(document.getElementById('chartMotivo'), {
   options: {
     responsive: true, maintainAspectRatio: false,
     plugins: { legend: { position: 'bottom' } },
-    cutout: '62%'
+    cutout: '62%',
+    onHover: cursorHover,
+    onClick: (evt, els, chart) => {
+      if (!els.length) return;
+      const lbl = {{ chart_motivo.labels | tojson }}[els[0].index];
+      const val = lbl === 'Não informado' ? '__vazio__' : lbl;
+      irPara(`/visitas?motivo=${encodeURIComponent(val)}` + anoQS() + regiaoQS());
+    }
   }
 });
 
@@ -350,7 +411,14 @@ new Chart(document.getElementById('chartRegiao'), {
   options: {
     responsive: true, maintainAspectRatio: false,
     plugins: { legend: { position: 'bottom' } },
-    cutout: '55%'
+    cutout: '55%',
+    onHover: cursorHover,
+    onClick: (evt, els, chart) => {
+      if (!els.length) return;
+      const lbl = {{ chart_regiao.labels | tojson }}[els[0].index];
+      const val = lbl === 'Não informada' ? '__vazio__' : lbl;
+      irPara(`/visitas?regiao=${encodeURIComponent(val)}` + anoQS());
+    }
   }
 });
 
@@ -366,7 +434,14 @@ new Chart(document.getElementById('chartCda'), {
   },
   options: {
     responsive: true, maintainAspectRatio: false,
-    plugins: { legend: { position: 'bottom' } }
+    plugins: { legend: { position: 'bottom' } },
+    onHover: cursorHover,
+    onClick: (evt, els, chart) => {
+      if (!els.length) return;
+      const lbl = {{ chart_cda.labels | tojson }}[els[0].index];
+      const val = lbl === 'Não informado' ? '__vazio__' : lbl;
+      irPara(`/visitas?cda=${encodeURIComponent(val)}` + anoQS() + regiaoQS());
+    }
   }
 });
 </script>

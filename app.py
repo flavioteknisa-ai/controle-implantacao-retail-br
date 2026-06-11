@@ -2625,16 +2625,40 @@ def listar_visitas():
     f_motivo  = request.args.get('motivo', '')
     f_ini     = request.args.get('data_ini', '')
     f_fim     = request.args.get('data_fim', '')
+    f_cda     = request.args.get('cda', '')
+    f_cliente = request.args.get('cliente', '')
+    f_colab_nome = request.args.get('colab_nome', '')
 
     q = VisitaDB.query
     if f_status:  q = q.filter(VisitaDB.status   == f_status)
-    if f_regiao:  q = q.filter(VisitaDB.regiao    == f_regiao)
-    if f_motivo:  q = q.filter(VisitaDB.motivo    == f_motivo)
+    if f_regiao:
+        if f_regiao == '__vazio__':
+            q = q.filter(db.or_(VisitaDB.regiao == None, VisitaDB.regiao == ''))
+        else:
+            q = q.filter(VisitaDB.regiao == f_regiao)
+    if f_motivo:
+        if f_motivo == '__vazio__':
+            q = q.filter(db.or_(VisitaDB.motivo == None, VisitaDB.motivo == ''))
+        else:
+            q = q.filter(VisitaDB.motivo == f_motivo)
+    if f_cda:
+        if f_cda == '__vazio__':
+            q = q.filter(db.or_(VisitaDB.cda == None, VisitaDB.cda == ''))
+        else:
+            q = q.filter(VisitaDB.cda == f_cda)
+    if f_cliente:
+        q = q.filter(VisitaDB.cliente.ilike(f'%{f_cliente}%'))
     if f_colab:
         try:
             q = q.filter(VisitaDB.colaborador_id == int(f_colab))
         except ValueError:
             pass
+    elif f_colab_nome:
+        if f_colab_nome == '__vazio__':
+            q = q.filter(VisitaDB.colaborador_id == None,
+                         db.or_(VisitaDB.colaborador_nome == None, VisitaDB.colaborador_nome == ''))
+        else:
+            q = q.filter(VisitaDB.colaborador_nome == f_colab_nome)
     if f_ini:
         try:
             q = q.filter(VisitaDB.data_visita >= datetime.strptime(f_ini, '%Y-%m-%d').date())
@@ -2667,7 +2691,8 @@ def listar_visitas():
                            regioes=VISITA_REGIOES, motivos=VISITA_MOTIVOS,
                            f_status=f_status, f_regiao=f_regiao,
                            f_colab=f_colab, f_motivo=f_motivo,
-                           f_ini=f_ini, f_fim=f_fim, view=view)
+                           f_ini=f_ini, f_fim=f_fim, view=view,
+                           f_cda=f_cda, f_cliente=f_cliente, f_colab_nome=f_colab_nome)
 
 
 @app.route('/visita/<int:vid>/status', methods=['POST'])
@@ -2840,16 +2865,20 @@ def dashboard_visitas():
     taxa = round(concluidas / total * 100) if total else 0
 
     # ── Por colaborador ──────────────────────────────────────────
-    colab_count = defaultdict(lambda: {'total': 0, 'concluidas': 0, 'planejadas': 0})
+    colab_count = defaultdict(lambda: {'total': 0, 'concluidas': 0, 'planejadas': 0, 'id': None})
     for v in visitas:
         nome = v.colaborador_nome or (v.colaborador.nome if v.colaborador else 'Não informado')
         colab_count[nome]['total'] += 1
         colab_count[nome]['concluidas' if v.status == 'CONCLUIDA' else 'planejadas'] += 1
+        if colab_count[nome]['id'] is None and v.colaborador_id:
+            colab_count[nome]['id'] = v.colaborador_id
     colab_sorted = sorted(colab_count.items(), key=lambda x: x[1]['total'], reverse=True)
     chart_colab = {
         'labels': [c[0] for c in colab_sorted],
         'concluidas': [c[1]['concluidas'] for c in colab_sorted],
         'planejadas':  [c[1]['planejadas']  for c in colab_sorted],
+        'ids':    [c[1]['id'] for c in colab_sorted],
+        'nomes':  [c[0] for c in colab_sorted],
     }
 
     # ── Por mês ──────────────────────────────────────────────────
