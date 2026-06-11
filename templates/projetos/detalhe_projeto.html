@@ -4,24 +4,134 @@
 
 {% block extra_css %}
 <style>
-  .alerta-atencao { border-left:4px solid #f57f17; background:#fff8e1; border-radius:8px; padding:10px 14px; }
-  .alerta-8meses  { border-left:4px solid #c62828; background:#fce4ec; border-radius:8px; padding:10px 14px; }
-  .badge-paralisado { background:#fff3e0; color:#e65100; border:1px solid #ffcc02; }
+  .pill { font-size: .72rem; font-weight: 600; padding: 3px 10px; border-radius: 99px; display: inline-block; white-space: nowrap; }
+  .pill-andamento  { background: #FAEEDA; color: #854F0B; }
+  .pill-paralisado { background: #FAECE7; color: #993C1D; }
+  .pill-finalizado { background: #EAF3DE; color: #27500A; }
+  .pill-cancelado  { background: #FCEBEB; color: #A32D2D; }
+  .pill-atencao    { background: #FCEBEB; color: #A32D2D; }
+  .pill-tipo       { background: #E6F1FB; color: #0C447C; }
+  .pill-modelo     { background: #F1EFE8; color: #444441; }
+  .proj-cliente { font-size: .74rem; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+  .breadcrumb-sm { font-size: .78rem; color: var(--muted); margin-bottom: 10px; }
+  .breadcrumb-sm a { color: var(--muted); text-decoration: none; }
+  .breadcrumb-sm a:hover { color: var(--primary); }
+  .bar-slim { height: 6px; border-radius: 99px; background: #EDEBE3; overflow: hidden; }
+  .bar-slim > div { height: 100%; background: var(--primary-light); }
+  .bar-slim > div.done { background: #639922; }
+  .alerta-atencao { border: 1px solid #FAC775; background: #FFFDF8; border-radius: 10px; padding: 10px 14px; font-size: .85rem; }
+  .alerta-8meses  { border: 1px solid #F09595; background: #FFF9F9; border-radius: 10px; padding: 10px 14px; font-size: .85rem; }
+  .repasse-item { display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid #F1EFE8; }
+  .repasse-item:last-child { border-bottom: none; }
+  .repasse-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--primary-light); margin-top: 6px; flex-shrink: 0; }
+  .repasse-data { font-size: .74rem; color: var(--muted); }
+  .repasse-texto { font-size: .86rem; color: #444441; white-space: pre-wrap; line-height: 1.55; }
+  .info-label { font-size: .74rem; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; margin-bottom: 2px; }
+  .info-valor { font-size: .9rem; color: var(--ink); }
 </style>
 {% endblock %}
 
 {% block content %}
 
+<div class="breadcrumb-sm">
+  <a href="/projetos">Projetos</a> <span class="mx-1">/</span> <span style="color:#5F5E5A;">{{ projeto.nome }}</span>
+</div>
+
+<!-- Header -->
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+  <div>
+    {% if projeto.nome_cliente or projeto.cidade %}
+    <div class="proj-cliente">
+      {{ projeto.nome_cliente or '' }}{% if projeto.nome_cliente and projeto.cidade %} · {% endif %}{{ projeto.cidade or '' }}{% if projeto.estado %}, {{ projeto.estado }}{% endif %}
+    </div>
+    {% endif %}
+    <h2 style="font-weight:600;font-size:1.3rem;color:var(--ink);margin:2px 0 8px;">{{ projeto.nome }}</h2>
+    <div class="d-flex gap-1 flex-wrap">
+      {% if p_db.status == 'Em andamento' %}
+      <span class="pill pill-andamento">Em andamento</span>
+      {% elif p_db.status == 'Paralisado' %}
+      <span class="pill pill-paralisado"><i class="bi bi-pause-circle me-1"></i>Paralisado</span>
+      {% elif p_db.status == 'Finalizado' %}
+      <span class="pill pill-finalizado">Finalizado</span>
+      {% elif p_db.status == 'Cancelado' %}
+      <span class="pill pill-cancelado">Cancelado</span>
+      {% else %}
+      <span class="pill pill-modelo">{{ p_db.status }}</span>
+      {% endif %}
+      <span class="pill pill-tipo">{{ projeto.tipo_projeto }}</span>
+      <span class="pill pill-modelo">{{ projeto.modelo_projeto }}</span>
+      {% if projeto.ponto_atencao %}
+      <span class="pill pill-atencao"><i class="bi bi-exclamation-triangle-fill me-1"></i>Atenção</span>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="d-flex gap-2 flex-wrap">
+    {% if tem_perm('editar_projeto') and projeto.status not in ('Finalizado', 'Cancelado') %}
+    <a href="/editar-projeto/{{ projeto.id }}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-pencil"></i> Editar
+    </a>
+    {% endif %}
+
+    {% if tem_perm('editar_projeto') %}
+    <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#registrarRepasseModal">
+      <i class="bi bi-arrow-left-right"></i> Registrar Repasse
+    </button>
+    {% endif %}
+
+    {% if tem_perm('editar_projeto') and not projeto.ponto_atencao and projeto.status not in ('Finalizado','Cancelado') %}
+    <form method="POST" action="/projeto/{{ projeto.id }}/toggle-atencao" style="display:inline;">
+      <button type="submit" class="btn btn-outline-warning btn-sm" title="Marcar ponto de atenção">
+        <i class="bi bi-exclamation-triangle"></i>
+      </button>
+    </form>
+    {% endif %}
+
+    {% if tem_perm('finalizar_projeto') %}
+      {% if projeto.status == 'Em andamento' %}
+      <form method="POST" action="/projeto/{{ projeto.id }}/paralisar" style="display:inline;"
+            onsubmit="return confirm('Paralisar este projeto?');">
+        <button type="submit" class="btn btn-outline-warning btn-sm">
+          <i class="bi bi-pause-circle"></i> Paralisar
+        </button>
+      </form>
+      <form method="POST" action="/projeto/{{ projeto.id }}/concluir" style="display:inline;"
+            onsubmit="return confirm('Finalizar este projeto?');">
+        <button type="submit" class="btn btn-success btn-sm">
+          <i class="bi bi-check-circle"></i> Finalizar
+        </button>
+      </form>
+      {% elif projeto.status in ('Finalizado', 'Paralisado') %}
+      <form method="POST" action="/projeto/{{ projeto.id }}/reativar" style="display:inline;"
+            onsubmit="return confirm('Reativar este projeto para Em Andamento?');">
+        <button type="submit" class="btn btn-primary btn-sm">
+          <i class="bi bi-arrow-counterclockwise"></i> Reativar
+        </button>
+      </form>
+      {% endif %}
+    {% endif %}
+
+    {% if tem_perm('excluir_projeto') %}
+    <form method="POST" action="/projeto/{{ projeto.id }}/excluir" style="display:inline;"
+          onsubmit="return confirm('⚠️ ATENÇÃO: Excluir permanentemente o projeto \'{{ projeto.nome }}\'?\n\nIsso removerá também todos os módulos, unidades, atividades e repasses vinculados.\n\nEsta ação não pode ser desfeita!');">
+      <button type="submit" class="btn btn-outline-danger btn-sm" title="Excluir projeto permanentemente">
+        <i class="bi bi-trash3"></i>
+      </button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
 {# ── Alertas de destaque ── #}
 {% if projeto.ponto_atencao %}
-<div class="alerta-atencao d-flex align-items-center gap-2 mb-3 fade-in">
-  <i class="bi bi-exclamation-triangle-fill text-warning fs-5"></i>
+<div class="alerta-atencao d-flex align-items-center gap-2 mb-2 fade-in">
+  <i class="bi bi-exclamation-triangle-fill" style="color:#BA7517;"></i>
   <div>
     <strong>Ponto de Atenção</strong> — este projeto requer acompanhamento especial.
     {% if tem_perm('editar_projeto') %}
     <form method="POST" action="/projeto/{{ projeto.id }}/toggle-atencao" style="display:inline;">
-      <button type="submit" class="btn btn-sm btn-outline-secondary ms-2">
-        <i class="bi bi-x me-1"></i>Remover alerta
+      <button type="submit" class="btn btn-sm btn-outline-secondary ms-2 py-0" style="font-size:.74rem;">
+        Remover alerta
       </button>
     </form>
     {% endif %}
@@ -30,8 +140,8 @@
 {% endif %}
 
 {% if projeto.alerta_longa_execucao %}
-<div class="alerta-8meses d-flex align-items-center gap-2 mb-3 fade-in">
-  <i class="bi bi-clock-history text-danger fs-5"></i>
+<div class="alerta-8meses d-flex align-items-center gap-2 mb-2 fade-in">
+  <i class="bi bi-clock-history" style="color:#A32D2D;"></i>
   <div>
     <strong>Execução prolongada</strong> — projeto em andamento há
     <strong>{{ projeto.meses_em_execucao }} meses</strong> ({{ projeto.dias_em_execucao }} dias).
@@ -40,210 +150,196 @@
 </div>
 {% endif %}
 
-<div class="page-header">
-  <div class="d-flex justify-content-between align-items-start">
-    <div>
-      <h2>
-        <i class="bi bi-building me-2"></i>{{ projeto.nome }}
-        {% if projeto.ponto_atencao %}
-        <span class="badge" style="background:#fff8e1;color:#f57f17;border:1px solid #ffe082;font-size:.6em;vertical-align:middle;">
-          <i class="bi bi-exclamation-triangle-fill me-1"></i>Atenção
-        </span>
-        {% endif %}
-      </h2>
-      <p style="margin:4px 0 0;">Detalhes e progresso da implantação</p>
-    </div>
-    <div class="d-flex gap-2 flex-wrap">
-      {% if tem_perm('editar_projeto') and projeto.status not in ('Finalizado', 'Cancelado') %}
-      <a href="/editar-projeto/{{ projeto.id }}" class="btn btn-warning btn-sm">
-        <i class="bi bi-pencil"></i> Editar
-      </a>
-      {% endif %}
-
-      {% if tem_perm('editar_projeto') and not projeto.ponto_atencao and projeto.status not in ('Finalizado','Cancelado') %}
-      <form method="POST" action="/projeto/{{ projeto.id }}/toggle-atencao" style="display:inline;">
-        <button type="submit" class="btn btn-outline-warning btn-sm" title="Marcar ponto de atenção">
-          <i class="bi bi-exclamation-triangle"></i>
-        </button>
-      </form>
-      {% endif %}
-
-      {% if tem_perm('finalizar_projeto') %}
-        {% if projeto.status == 'Em andamento' %}
-        <form method="POST" action="/projeto/{{ projeto.id }}/paralisar" style="display:inline;"
-              onsubmit="return confirm('Paralisar este projeto?');">
-          <button type="submit" class="btn btn-outline-warning btn-sm">
-            <i class="bi bi-pause-circle"></i> Paralisar
-          </button>
-        </form>
-        <form method="POST" action="/projeto/{{ projeto.id }}/concluir" style="display:inline;"
-              onsubmit="return confirm('Finalizar este projeto?');">
-          <button type="submit" class="btn btn-success btn-sm">
-            <i class="bi bi-check-circle"></i> Finalizar
-          </button>
-        </form>
-        {% elif projeto.status in ('Finalizado', 'Paralisado') %}
-        <form method="POST" action="/projeto/{{ projeto.id }}/reativar" style="display:inline;"
-              onsubmit="return confirm('Reativar este projeto para Em Andamento?');">
-          <button type="submit" class="btn btn-primary btn-sm">
-            <i class="bi bi-arrow-counterclockwise"></i> Reativar
-          </button>
-        </form>
-        {% endif %}
-      {% endif %}
-
-      {% if tem_perm('excluir_projeto') %}
-      <form method="POST" action="/projeto/{{ projeto.id }}/excluir" style="display:inline;"
-            onsubmit="return confirm('⚠️ ATENÇÃO: Excluir permanentemente o projeto \"{{ projeto.nome }}\"?\n\nIsso removerá também todos os módulos, unidades e atividades vinculados.\n\nEsta ação não pode ser desfeita!');">
-        <button type="submit" class="btn btn-danger btn-sm" title="Excluir projeto permanentemente">
-          <i class="bi bi-trash3"></i> Excluir
-        </button>
-      </form>
-      {% endif %}
-    </div>
-  </div>
-</div>
-
 <!-- Cards de Status -->
-<div class="row mb-4">
-  <div class="col-md-2 mb-3">
+{% set dias = projeto.dias_restantes() %}
+{% set modulos_concluidos = projeto.modulos|selectattr('status', 'equalto', 'Concluído')|list|length %}
+<div class="row mb-3 mt-3">
+  <div class="col-6 col-md-3 mb-2">
     <div class="stat-card">
-      <div class="stat-number" style="color:#2196F3;">{{ projeto.percentual_geral()|int }}%</div>
-      <div class="stat-label">Progresso Geral</div>
+      <div class="stat-label" style="margin:0 0 4px;">Progresso Geral</div>
+      <div class="stat-number">{{ projeto.percentual_geral()|int }}%</div>
+      {% set pct = projeto.percentual_geral() %}
+      <div class="bar-slim mt-2"><div class="{% if pct >= 100 %}done{% endif %}" style="width:{{ pct }}%;"></div></div>
     </div>
   </div>
-  <div class="col-md-2 mb-3">
+  <div class="col-6 col-md-3 mb-2">
     <div class="stat-card">
-      <div class="stat-number" style="color:#FF9800;">{{ projeto.modulos|length }}</div>
-      <div class="stat-label">Módulos</div>
+      <div class="stat-label" style="margin:0 0 4px;">Módulos</div>
+      <div class="stat-number">{{ modulos_concluidos }}/{{ projeto.modulos|length }}</div>
+      <div class="stat-label">concluídos</div>
     </div>
   </div>
-  <div class="col-md-2 mb-3">
+  <div class="col-6 col-md-3 mb-2">
     <div class="stat-card">
-      <div class="stat-number" style="color:#4CAF50;">{{ projeto.unidades|length }}</div>
-      <div class="stat-label">Unidades</div>
-    </div>
-  </div>
-  <div class="col-md-2 mb-3">
-    <div class="stat-card">
-      <div class="stat-number" style="color:#9C27B0;">
-        {% set dias = projeto.dias_restantes() %}
-        {% if dias < 0 %}
-        <span class="text-danger">{{ (dias * -1) }}</span>
-        {% else %}
-        {{ dias }}
-        {% endif %}
+      <div class="stat-label" style="margin:0 0 4px;">{% if dias < 0 %}Dias Atrasado{% else %}Dias Restantes{% endif %}</div>
+      <div class="stat-number" {% if dias < 0 %}style="color:#A32D2D;"{% endif %}>{{ dias|abs }}</div>
+      <div class="stat-label">
+        {% if projeto.data_conclusao %}até {{ projeto.data_conclusao.strftime('%d/%m/%Y') }}{% else %}sem previsão{% endif %}
       </div>
-      <div class="stat-label">{% if dias < 0 %}Dias Atrasado{% else %}Dias Restantes{% endif %}</div>
     </div>
   </div>
-  <div class="col-md-4 mb-3">
+  <div class="col-6 col-md-3 mb-2">
     <div class="stat-card">
-      <div class="stat-number" style="color:#673AB7; font-size:1.2rem;">
-        <span class="badge bg-info">{{ projeto.tipo_projeto }}</span>
-      </div>
-      <div class="stat-label">Tipo</div>
+      <div class="stat-label" style="margin:0 0 4px;">Mensalidade</div>
+      <div class="stat-number" style="font-size:1.25rem;">R$ {{ "%.2f"|format(projeto.valor_mensalidades) }}</div>
+      <div class="stat-label">potencial {{ projeto.potencial_cliente|lower }}</div>
     </div>
   </div>
 </div>
 
-<div class="row">
-  <!-- Informações Principais -->
-  <div class="col-lg-8">
-    <!-- Dados Básicos -->
-    <div class="card mb-3">
-      <div class="card-header dark">
-        <i class="bi bi-info-circle"></i> Informações Básicas
-      </div>
-      <div class="card-body">
-        <div class="row">
-          <div class="col-md-6">
-            <p><strong>Status:</strong><br>
-              {% if p_db.status == 'Em andamento' %}
-              <span class="badge bg-warning text-dark">Em andamento</span>
-              {% elif p_db.status == 'Paralisado' %}
-              <span class="badge badge-paralisado"><i class="bi bi-pause-circle me-1"></i>Paralisado</span>
-              {% elif p_db.status == 'Finalizado' %}
-              <span class="badge bg-success">Finalizado</span>
-              {% elif p_db.status == 'Cancelado' %}
-              <span class="badge bg-danger">Cancelado</span>
-              {% else %}
-              <span class="badge bg-secondary">{{ p_db.status }}</span>
-              {% endif %}
-            </p>
+<!-- Abas -->
+<ul class="nav nav-tabs mb-3" id="projetoTabs" role="tablist">
+  <li class="nav-item" role="presentation">
+    <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-visao" type="button" role="tab">
+      Visão Geral
+    </button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-modulos" type="button" role="tab">
+      Módulos <span class="text-muted">· {{ projeto.modulos|length }}</span>
+    </button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-unidades" type="button" role="tab">
+      Unidades <span class="text-muted">· {{ projeto.unidades|length }}</span>
+    </button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-atividades" type="button" role="tab">
+      Atividades <span class="text-muted">· {{ projeto.atividades|length }}</span>
+    </button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-repasses" type="button" role="tab">
+      Repasses <span class="text-muted">· {{ repasses|length }}</span>
+    </button>
+  </li>
+</ul>
+
+<div class="tab-content">
+
+  <!-- Aba: Visão Geral -->
+  <div class="tab-pane fade show active" id="tab-visao" role="tabpanel">
+    <div class="row">
+      <div class="col-lg-8">
+        <div class="card mb-3">
+          <div class="card-header">
+            <i class="bi bi-info-circle me-1"></i> Informações Básicas
           </div>
-          <div class="col-md-6">
-            <p><strong>Responsável:</strong><br>
-              {{ projeto.responsavel or '<em class="text-muted">Não atribuído</em>' }}
-            </p>
-          </div>
-          <div class="col-md-6">
-            <p><strong>Data de Aceite:</strong><br>
-              {{ projeto.data_aceite.strftime('%d/%m/%Y') }}
-            </p>
-          </div>
-          <div class="col-md-6">
-            <p><strong>Data de Conclusão:</strong><br>
-              {% if projeto.data_conclusao %}
-              {{ projeto.data_conclusao.strftime('%d/%m/%Y') }}
-              {% if projeto.esta_atrasado() %}
-              <br><small class="text-danger"><i class="bi bi-exclamation-triangle-fill"></i> Atrasado</small>
-              {% endif %}
-              {% else %}
-              <em class="text-muted">Não definida</em>
-              {% endif %}
-            </p>
-          </div>
-          <div class="col-md-6">
-            <p><strong>Valor Mensal:</strong><br>
-              R$ {{ "%.2f"|format(projeto.valor_mensalidades) }}
-            </p>
-          </div>
-          <div class="col-md-6">
-            <p><strong>Progresso:</strong><br>
-              <div class="progress" style="height: 24px; border-radius: 12px;">
-                <div class="progress-bar bg-info" role="progressbar"
-                     style="width: {{ projeto.percentual_geral() }}%;"
-                     aria-valuenow="{{ projeto.percentual_geral() }}" aria-valuemin="0" aria-valuemax="100">
-                  <small style="font-weight: 600;">{{ projeto.percentual_geral()|int }}%</small>
+          <div class="card-body">
+            <div class="row g-3">
+              <div class="col-md-6">
+                <div class="info-label">Responsável</div>
+                <div class="info-valor">{{ projeto.responsavel or 'Não atribuído' }}</div>
+              </div>
+              <div class="col-md-6">
+                <div class="info-label">Status</div>
+                <div class="info-valor">{{ p_db.status }}</div>
+              </div>
+              <div class="col-md-6">
+                <div class="info-label">Data de Aceite</div>
+                <div class="info-valor">{{ projeto.data_aceite.strftime('%d/%m/%Y') }}</div>
+              </div>
+              <div class="col-md-6">
+                <div class="info-label">Data de Conclusão</div>
+                <div class="info-valor">
+                  {% if projeto.data_conclusao %}
+                  {{ projeto.data_conclusao.strftime('%d/%m/%Y') }}
+                  {% if projeto.esta_atrasado() %}
+                  <span class="pill pill-cancelado ms-1">Atrasado</span>
+                  {% endif %}
+                  {% else %}
+                  <span class="text-muted">Não definida</span>
+                  {% endif %}
                 </div>
               </div>
-            </p>
-          </div>
-          <div class="col-md-6">
-            <p><strong>Cidade:</strong><br>
-              {{ projeto.cidade or '<em class="text-muted">Não informada</em>' }}
-            </p>
-          </div>
-          <div class="col-md-6">
-            <p><strong>Estado (UF):</strong><br>
-              {{ projeto.estado or '<em class="text-muted">Não informado</em>' }}
-            </p>
+              <div class="col-md-6">
+                <div class="info-label">Cidade</div>
+                <div class="info-valor">{{ projeto.cidade or '—' }}</div>
+              </div>
+              <div class="col-md-6">
+                <div class="info-label">Estado (UF)</div>
+                <div class="info-valor">{{ projeto.estado or '—' }}</div>
+              </div>
+              <div class="col-md-6">
+                <div class="info-label">Valor Mensal</div>
+                <div class="info-valor">R$ {{ "%.2f"|format(projeto.valor_mensalidades) }}</div>
+              </div>
+              <div class="col-md-6">
+                <div class="info-label">Potencial do Cliente</div>
+                <div class="info-valor">{{ projeto.potencial_cliente }}</div>
+              </div>
+            </div>
+            {% if projeto.descricao %}
+            <hr style="border-color:var(--border);">
+            <div class="info-label">Descrição</div>
+            <div style="white-space: pre-wrap; font-size:.88rem; line-height:1.6; color:#444441;">{{ projeto.descricao }}</div>
+            {% endif %}
           </div>
         </div>
-        {% if projeto.descricao %}
-        <hr>
-        <p class="mb-1"><strong>Descrição:</strong></p>
-        <div style="white-space: pre-wrap; font-size:.88rem; line-height:1.6; color:#444;">{{ projeto.descricao }}</div>
-        {% endif %}
-        {% if projeto.comentarios_repasse %}
-        <hr>
-        <p class="mb-1"><strong><i class="bi bi-arrow-left-right me-1"></i>Comentários / Repasses entre Coordenadores:</strong></p>
-        <div style="white-space: pre-wrap; font-size:.88rem; line-height:1.6; color:#444; background:#f8f9fa; border-radius:6px; padding:10px;">{{ projeto.comentarios_repasse }}</div>
-        {% endif %}
+      </div>
+
+      <div class="col-lg-4">
+        <div class="card mb-3">
+          <div class="card-header">
+            <i class="bi bi-card-checklist me-1"></i> Resumo
+          </div>
+          <div class="card-body">
+            <div class="mb-3">
+              <div class="info-label">Módulos em Progresso</div>
+              <div class="info-valor fw-semibold">{{ projeto.modulos_em_progresso()|length }}</div>
+            </div>
+            <div class="mb-3">
+              <div class="info-label">Módulos Atrasados</div>
+              <div class="info-valor fw-semibold" style="color:#A32D2D;">{{ projeto.modulos_atrasados()|length }}</div>
+            </div>
+            <div class="mb-3">
+              <div class="info-label">Unidades Iniciadas</div>
+              <div class="info-valor fw-semibold">{{ projeto.unidades_iniciadas()|length }}</div>
+            </div>
+            <div>
+              <div class="info-label">Unidades Atrasadas</div>
+              <div class="info-valor fw-semibold" style="color:#A32D2D;">{{ projeto.unidades_atrasadas()|length }}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <i class="bi bi-calendar-event me-1"></i> Timeline
+          </div>
+          <div class="card-body">
+            <div class="mb-3">
+              <div class="info-label">Início</div>
+              <div class="info-valor fw-semibold">{{ projeto.data_aceite.strftime('%d/%m/%Y') }}</div>
+            </div>
+            <div class="mb-3">
+              <div class="info-label">Previsão Conclusão</div>
+              <div class="info-valor fw-semibold">
+                {% if projeto.data_conclusao %}{{ projeto.data_conclusao.strftime('%d/%m/%Y') }}{% else %}<span class="text-muted">Não definida</span>{% endif %}
+              </div>
+            </div>
+            <div>
+              <div class="info-label">Duração Total</div>
+              <div class="info-valor fw-semibold">
+                {% if projeto.data_conclusao %}{{ (projeto.data_conclusao - projeto.data_aceite).days }} dias{% else %}—{% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
+  </div>
 
-    <!-- Módulos -->
-    <div class="card mb-3">
-      <div class="card-header dark d-flex justify-content-between align-items-center">
-        <div>
-          <i class="bi bi-puzzle"></i> Módulos ({{ projeto.modulos|length }})
-        </div>
-        <div class="d-flex gap-2 align-items-center">
+  <!-- Aba: Módulos -->
+  <div class="tab-pane fade" id="tab-modulos" role="tabpanel">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div><i class="bi bi-puzzle me-1"></i> Módulos ({{ projeto.modulos|length }})</div>
+        <div class="d-flex gap-2 align-items-center flex-wrap">
           <div class="form-check" style="margin: 0;">
             <input class="form-check-input" type="checkbox" id="showConcluiModulos" checked>
-            <label class="form-check-label" for="showConcluiModulos" style="margin: 0; font-size: .85rem;">
+            <label class="form-check-label" for="showConcluiModulos" style="margin: 0; font-size: .8rem;">
               Ocultar Concluídos
             </label>
           </div>
@@ -252,7 +348,7 @@
             <i class="bi bi-plus-circle"></i> Adicionar
           </button>
           <button type="button" class="btn btn-sm btn-light" data-bs-toggle="modal" data-bs-target="#adicionarModulosLoteModal">
-            <i class="bi bi-list-check"></i> Adicionar em Lote
+            <i class="bi bi-list-check"></i> Em Lote
           </button>
           {% endif %}
         </div>
@@ -264,49 +360,47 @@
             <tr>
               <th>Módulo</th>
               <th>Status</th>
-              <th>Progresso</th>
+              <th style="width:22%;">Progresso</th>
               <th>Conclusão</th>
               {% if tem_perm('adicionar_modulo') %}<th></th>{% endif %}
             </tr>
           </thead>
           <tbody>
             {% for modulo in projeto.modulos %}
-            <tr class="modulo-row" data-status="{{ modulo.status }}" style="{% if modulo.status == 'Concluído' %}opacity: 0.5; background: #f5f5f5;{% endif %} display: {% if modulo.status == 'Concluído' %}none{% endif %};">
-              <td><strong style="{% if modulo.status == 'Concluído' %}text-decoration: line-through; color: #888;{% endif %}">{{ modulo.nome }}</strong></td>
+            <tr class="modulo-row" data-status="{{ modulo.status }}" style="{% if modulo.status == 'Concluído' %}opacity: 0.55;{% endif %} display: {% if modulo.status == 'Concluído' %}none{% endif %};">
+              <td><strong style="{% if modulo.status == 'Concluído' %}text-decoration: line-through; color: #888780;{% endif %}">{{ modulo.nome }}</strong></td>
               <td>
                 {% if modulo.status == 'Planejado' %}
-                <span class="badge bg-secondary">Planejado</span>
+                <span class="pill pill-modelo">Planejado</span>
                 {% elif modulo.status == 'Em Progresso' %}
-                <span class="badge bg-warning">Em Progresso</span>
+                <span class="pill pill-andamento">Em Progresso</span>
                 {% elif modulo.status == 'Concluído' %}
-                <span class="badge bg-success">Concluído</span>
+                <span class="pill pill-finalizado">Concluído</span>
                 {% elif modulo.status == 'Atrasado' %}
-                <span class="badge bg-danger">Atrasado</span>
+                <span class="pill pill-cancelado">Atrasado</span>
                 {% endif %}
               </td>
               <td>
-                <div class="progress" style="height: 20px; border-radius: 10px;">
-                  <div class="progress-bar" role="progressbar"
-                       style="width: {{ modulo.percentual_conclusao }}%;">
-                    <small>{{ modulo.percentual_conclusao|int }}%</small>
-                  </div>
+                <div class="bar-slim" style="margin-top:8px;">
+                  <div class="{% if modulo.percentual_conclusao >= 100 %}done{% endif %}" style="width:{{ modulo.percentual_conclusao }}%;"></div>
                 </div>
+                <small class="text-muted">{{ modulo.percentual_conclusao|int }}%</small>
               </td>
               <td>
                 {% if modulo.data_conclusao %}
                   {{ modulo.data_conclusao.strftime('%d/%m/%Y') }}<br>
                   {% set dias_restantes = modulo.dias_restantes() %}
                   {% if dias_restantes < 0 %}
-                    <small class="text-danger">{{ (dias_restantes * -1) }} dias atrás</small>
+                    <small style="color:#A32D2D;">{{ (dias_restantes * -1) }} dias atrás</small>
                   {% else %}
-                    <small>{{ dias_restantes }} dias</small>
+                    <small class="text-muted">{{ dias_restantes }} dias</small>
                   {% endif %}
                 {% else %}
                   <small class="text-muted">-</small>
                 {% endif %}
               </td>
               {% if tem_perm('adicionar_modulo') %}
-              <td style="white-space:nowrap;">
+              <td style="white-space:nowrap;" class="text-end">
                 {% if modulo.status != 'Concluído' %}
                 <form method="POST" action="/projeto/{{ projeto.id }}/modulo/{{ modulo.id }}/status" style="display:inline;">
                   <input type="hidden" name="status" value="Concluído">
@@ -322,7 +416,7 @@
                   </button>
                 </form>
                 {% endif %}
-                <button type="button" class="btn btn-sm btn-outline-primary me-1" data-bs-toggle="modal"
+                <button type="button" class="btn btn-sm btn-outline-secondary me-1" data-bs-toggle="modal"
                         data-bs-target="#editarModuloModal{{ modulo.id }}" title="Editar">
                   <i class="bi bi-pencil"></i>
                 </button>
@@ -340,23 +434,24 @@
           </tbody>
         </table>
         {% else %}
-        <div class="alert alert-info m-3" role="alert">
-          <i class="bi bi-info-circle"></i> Nenhum módulo adicionado ainda.
+        <div class="text-center py-4" style="color:var(--muted);font-size:.88rem;">
+          <i class="bi bi-puzzle d-block mb-1" style="font-size:1.4rem;"></i>
+          Nenhum módulo adicionado ainda.
         </div>
         {% endif %}
       </div>
     </div>
+  </div>
 
-    <!-- Unidades -->
-    <div class="card mb-3">
-      <div class="card-header dark d-flex justify-content-between align-items-center">
-        <div>
-          <i class="bi bi-geo-alt"></i> Unidades/Lojas ({{ projeto.unidades|length }})
-        </div>
-        <div class="d-flex gap-2 align-items-center">
+  <!-- Aba: Unidades -->
+  <div class="tab-pane fade" id="tab-unidades" role="tabpanel">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div><i class="bi bi-geo-alt me-1"></i> Unidades/Lojas ({{ projeto.unidades|length }})</div>
+        <div class="d-flex gap-2 align-items-center flex-wrap">
           <div class="form-check" style="margin: 0;">
             <input class="form-check-input" type="checkbox" id="showConcluiUnidades" checked>
-            <label class="form-check-label" for="showConcluiUnidades" style="margin: 0; font-size: .85rem;">
+            <label class="form-check-label" for="showConcluiUnidades" style="margin: 0; font-size: .8rem;">
               Ocultar Concluídos
             </label>
           </div>
@@ -380,17 +475,17 @@
           </thead>
           <tbody>
             {% for unidade in projeto.unidades %}
-            <tr class="unidade-row" data-status="{{ unidade.status }}" style="{% if unidade.status == 'Finalizado' %}opacity: 0.5; background: #f5f5f5;{% endif %} display: {% if unidade.status == 'Finalizado' %}none{% endif %};">
-              <td><strong style="{% if unidade.status == 'Finalizado' %}text-decoration: line-through; color: #888;{% endif %}">{{ unidade.nome }}</strong></td>
+            <tr class="unidade-row" data-status="{{ unidade.status }}" style="{% if unidade.status == 'Finalizado' %}opacity: 0.55;{% endif %} display: {% if unidade.status == 'Finalizado' %}none{% endif %};">
+              <td><strong style="{% if unidade.status == 'Finalizado' %}text-decoration: line-through; color: #888780;{% endif %}">{{ unidade.nome }}</strong></td>
               <td>
                 {% if unidade.status == 'Não iniciado' %}
-                <span class="badge bg-secondary">Não iniciado</span>
+                <span class="pill pill-modelo">Não iniciado</span>
                 {% elif unidade.status == 'Em andamento' %}
-                <span class="badge bg-warning">Em andamento</span>
+                <span class="pill pill-andamento">Em andamento</span>
                 {% elif unidade.status == 'Finalizado' %}
-                <span class="badge bg-success">Finalizado</span>
+                <span class="pill pill-finalizado">Finalizado</span>
                 {% elif unidade.status == 'Atrasado' %}
-                <span class="badge bg-danger">Atrasado</span>
+                <span class="pill pill-cancelado">Atrasado</span>
                 {% endif %}
               </td>
               <td>
@@ -401,8 +496,8 @@
                 {% endif %}
               </td>
               {% if tem_perm('adicionar_unidade') %}
-              <td>
-                <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal"
+              <td class="text-end">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal"
                         data-bs-target="#editarUnidadeModal{{ unidade.id }}" title="Editar">
                   <i class="bi bi-pencil"></i>
                 </button>
@@ -413,23 +508,24 @@
           </tbody>
         </table>
         {% else %}
-        <div class="alert alert-info m-3" role="alert">
-          <i class="bi bi-info-circle"></i> Nenhuma unidade adicionada ainda.
+        <div class="text-center py-4" style="color:var(--muted);font-size:.88rem;">
+          <i class="bi bi-geo-alt d-block mb-1" style="font-size:1.4rem;"></i>
+          Nenhuma unidade adicionada ainda.
         </div>
         {% endif %}
       </div>
     </div>
+  </div>
 
-    <!-- Atividades -->
+  <!-- Aba: Atividades -->
+  <div class="tab-pane fade" id="tab-atividades" role="tabpanel">
     <div class="card">
-      <div class="card-header dark d-flex justify-content-between align-items-center">
-        <div>
-          <i class="bi bi-chat-dots"></i> Atividades ({{ projeto.atividades|length }})
-        </div>
-        <div class="d-flex gap-2 align-items-center">
+      <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div><i class="bi bi-chat-dots me-1"></i> Atividades ({{ projeto.atividades|length }})</div>
+        <div class="d-flex gap-2 align-items-center flex-wrap">
           <div class="form-check" style="margin: 0;">
             <input class="form-check-input" type="checkbox" id="showConcluiAtividades" checked>
-            <label class="form-check-label" for="showConcluiAtividades" style="margin: 0; font-size: .85rem;">
+            <label class="form-check-label" for="showConcluiAtividades" style="margin: 0; font-size: .8rem;">
               Ocultar Concluídos
             </label>
           </div>
@@ -444,21 +540,21 @@
         {% if projeto.atividades %}
         <div class="timeline">
           {% for atividade in projeto.atividades %}
-          <div class="atividade-item" data-status="{{ atividade.status_atividade }}" style="margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid #f0f0f0; padding: 12px; background:{% if atividade.status_atividade == 'Concluída' %}#f0f5f0{% else %}#fafafa{% endif %}; border-radius: 8px; display: {% if atividade.status_atividade == 'Concluída' %}none{% endif %};">
+          <div class="atividade-item" data-status="{{ atividade.status_atividade }}" style="margin-bottom: 8px; padding: 12px 14px; background:{% if atividade.status_atividade == 'Concluída' %}#F6F8F2{% else %}#FAFAF7{% endif %}; border: 1px solid #F1EFE8; border-radius: 10px; display: {% if atividade.status_atividade == 'Concluída' %}none{% endif %};">
             <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
               <div style="flex: 1; min-width: 0;">
-                <strong style="{% if atividade.status_atividade == 'Concluída' %}text-decoration: line-through; color: #999;{% endif %}">
+                <strong style="font-size:.9rem;{% if atividade.status_atividade == 'Concluída' %}text-decoration: line-through; color: #888780;{% endif %}">
                   {{ atividade.titulo }}
                 </strong>
-                <div style="font-size: .8rem; color: #888; margin-top: 4px;">
+                <div style="font-size: .78rem; color: var(--muted); margin-top: 4px;">
                   {% if atividade.data_reuniao %}
                   <i class="bi bi-calendar-event me-1"></i>{{ atividade.data_reuniao.strftime('%d/%m/%Y') }}
                   {% endif %}
                   {% if atividade.status_atividade %}
-                  <span class="badge" style="font-size: .7rem; margin-left: 6px;
-                    {% if atividade.status_atividade == 'Concluída' %}background: #4CAF50; color: #fff;
-                    {% elif atividade.status_atividade == 'Em Progresso' %}background: #FF9800; color: #fff;
-                    {% else %}background: #999; color: #fff;{% endif %}">
+                  <span class="pill ms-1
+                    {% if atividade.status_atividade == 'Concluída' %}pill-finalizado
+                    {% elif atividade.status_atividade == 'Em Progresso' %}pill-andamento
+                    {% else %}pill-modelo{% endif %}">
                     {{ atividade.status_atividade }}
                   </span>
                   {% endif %}
@@ -467,7 +563,6 @@
 
               {% if tem_perm('adicionar_atividade') %}
               <div style="flex-shrink: 0; display: flex; gap: 4px;">
-                <!-- Botão para marcar como concluída -->
                 {% if atividade.status_atividade != 'Concluída' %}
                 <form method="POST" action="/projeto/{{ projeto.id }}/atividade/{{ atividade.id }}/status" style="display: inline;">
                   <input type="hidden" name="status" value="Concluída">
@@ -484,7 +579,6 @@
                 </form>
                 {% endif %}
 
-                <!-- Botão deletar -->
                 <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal"
                         data-bs-target="#deletarAtividadeModal{{ atividade.id }}" title="Deletar">
                   <i class="bi bi-trash"></i>
@@ -496,71 +590,94 @@
           {% endfor %}
         </div>
         {% else %}
-        <div class="alert alert-info" role="alert">
-          <i class="bi bi-info-circle"></i> Nenhuma atividade registrada ainda.
+        <div class="text-center py-4" style="color:var(--muted);font-size:.88rem;">
+          <i class="bi bi-chat-dots d-block mb-1" style="font-size:1.4rem;"></i>
+          Nenhuma atividade registrada ainda.
         </div>
         {% endif %}
       </div>
     </div>
   </div>
 
-  <!-- Sidebar -->
-  <div class="col-lg-4">
-    <!-- Resumo -->
-    <div class="card mb-3">
-      <div class="card-header dark">
-        <i class="bi bi-card-checklist"></i> Resumo
-      </div>
-      <div class="card-body">
-        <div class="mb-3">
-          <small class="text-muted">Módulos em Progresso</small><br>
-          <strong>{{ projeto.modulos_em_progresso()|length }}</strong>
-        </div>
-        <div class="mb-3">
-          <small class="text-muted">Módulos Atrasados</small><br>
-          <strong class="text-danger">{{ projeto.modulos_atrasados()|length }}</strong>
-        </div>
-        <div class="mb-3">
-          <small class="text-muted">Unidades Iniciadas</small><br>
-          <strong>{{ projeto.unidades_iniciadas()|length }}</strong>
-        </div>
-        <div>
-          <small class="text-muted">Unidades Atrasadas</small><br>
-          <strong class="text-danger">{{ projeto.unidades_atrasadas()|length }}</strong>
-        </div>
-      </div>
-    </div>
-
-    <!-- Timeline -->
+  <!-- Aba: Repasses -->
+  <div class="tab-pane fade" id="tab-repasses" role="tabpanel">
     <div class="card">
-      <div class="card-header dark">
-        <i class="bi bi-calendar-event"></i> Timeline
+      <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div><i class="bi bi-arrow-left-right me-1"></i> Repasses entre Coordenadores ({{ repasses|length }})</div>
+        {% if tem_perm('editar_projeto') %}
+        <button type="button" class="btn btn-sm btn-light" data-bs-toggle="modal" data-bs-target="#registrarRepasseModal">
+          <i class="bi bi-plus-circle"></i> Registrar
+        </button>
+        {% endif %}
       </div>
       <div class="card-body">
-        <div class="mb-3">
-          <small class="text-muted">Inicio</small><br>
-          <strong>{{ projeto.data_aceite.strftime('%d/%m/%Y') }}</strong>
-        </div>
-        <div class="mb-3">
-          <small class="text-muted">Previsão Conclusão</small><br>
-          {% if projeto.data_conclusao %}
-          <strong>{{ projeto.data_conclusao.strftime('%d/%m/%Y') }}</strong>
-          {% else %}
-          <span class="text-muted">Não definida</span>
+        {% if repasses %}
+        {% for r in repasses %}
+        <div class="repasse-item">
+          <div class="repasse-dot"></div>
+          <div style="flex:1;min-width:0;">
+            <div class="repasse-data">
+              {{ r.data_repasse.strftime('%d/%m/%Y') }}
+              {% if r.criado_por %} · registrado por {{ r.criado_por }}{% endif %}
+            </div>
+            <div class="repasse-texto">{{ r.comentario }}</div>
+          </div>
+          {% if tem_perm('editar_projeto') %}
+          <form method="POST" action="/projeto/{{ projeto.id }}/repasse/{{ r.id }}/excluir" style="flex-shrink:0;"
+                onsubmit="return confirm('Excluir este registro de repasse?');">
+            <button type="submit" class="btn btn-sm btn-outline-danger" title="Excluir repasse">
+              <i class="bi bi-trash"></i>
+            </button>
+          </form>
           {% endif %}
         </div>
-        <div>
-          <small class="text-muted">Duração Total</small><br>
-          {% if projeto.data_conclusao %}
-          <strong>{{ (projeto.data_conclusao - projeto.data_aceite).days }} dias</strong>
-          {% else %}
-          <span class="text-muted">—</span>
+        {% endfor %}
+        {% else %}
+        <div class="text-center py-4" style="color:var(--muted);font-size:.88rem;">
+          <i class="bi bi-arrow-left-right d-block mb-1" style="font-size:1.4rem;"></i>
+          Nenhum repasse registrado ainda.
+          {% if tem_perm('editar_projeto') %}
+          <br>Use o botão <strong>Registrar</strong> para documentar transferências entre coordenadores.
           {% endif %}
         </div>
+        {% endif %}
       </div>
     </div>
   </div>
+
 </div>
+
+<!-- Modal: Registrar Repasse -->
+{% if tem_perm('editar_projeto') %}
+<div class="modal fade" id="registrarRepasseModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Registrar Repasse</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="POST" action="/projeto/{{ projeto.id }}/repasse">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label for="data_repasse" class="form-label">Data do Repasse</label>
+            <input type="date" class="form-control" id="data_repasse" name="data_repasse" required>
+          </div>
+          <div class="mb-3">
+            <label for="comentario" class="form-label">Descrição do Repasse <span class="text-danger">*</span></label>
+            <textarea class="form-control" id="comentario" name="comentario" rows="4" required
+                      placeholder="Ex: Repassado de João para Maria. Pendências: integração fiscal e treinamento do caixa."></textarea>
+            <small class="form-text text-muted">Documente de quem para quem e as pendências do projeto.</small>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Registrar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
 
 <!-- Modal: Adicionar Módulo -->
 {% if tem_perm('adicionar_modulo') %}
@@ -769,6 +886,28 @@
 
 {% block extra_js %}
 <script>
+// Abre a aba indicada no hash da URL (ex: /projeto/1#modulos)
+(function() {
+  const hash = window.location.hash.replace('#', '');
+  if (hash) {
+    const trigger = document.querySelector('[data-bs-target="#tab-' + hash + '"]');
+    if (trigger) new bootstrap.Tab(trigger).show();
+  }
+  document.querySelectorAll('#projetoTabs button[data-bs-toggle="tab"]').forEach(btn => {
+    btn.addEventListener('shown.bs.tab', e => {
+      const id = e.target.dataset.bsTarget.replace('#tab-', '');
+      history.replaceState(null, '', id === 'visao' ? window.location.pathname : '#' + id);
+    });
+  });
+})();
+
+// Data padrão do repasse = hoje
+const dataRepasse = document.getElementById('data_repasse');
+if (dataRepasse) {
+  const d = new Date();
+  dataRepasse.value = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
 // Toggle para ocultar/mostrar Módulos Concluídos
 document.getElementById('showConcluiModulos')?.addEventListener('change', function() {
   const rows = document.querySelectorAll('.modulo-row');

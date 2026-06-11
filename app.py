@@ -46,7 +46,7 @@ import io
 from io import BytesIO
 
 from models import Colaborador, Ferias
-from database import db, User, ColaboradorDB, FeriasDB, ERPProjetoDB, ERPModuloDB, ERPUnidadeDB, ERPAtividadeDB, ComissionamentoDB, PermissaoPerfil, VisitaDB, AppConfig, AgendaGestao
+from database import db, User, ColaboradorDB, FeriasDB, ERPProjetoDB, ERPModuloDB, ERPUnidadeDB, ERPAtividadeDB, ERPRepasseDB, ComissionamentoDB, PermissaoPerfil, VisitaDB, AppConfig, AgendaGestao
 from validators import FeriasValidator
 from analytics import FeriasAnalytics
 from erp_models import Projeto, Modulo, Unidade, Atividade
@@ -1916,7 +1916,6 @@ def novo_projeto():
         modelo_projeto = request.form.get('modelo_projeto', 'Tradicional')
         cidade = request.form.get('cidade', '').strip().upper() or None
         estado = request.form.get('estado', '').strip().upper() or None
-        comentarios_repasse = request.form.get('comentarios_repasse', '').strip() or None
 
         # Validação básica
         if not nome:
@@ -1947,7 +1946,6 @@ def novo_projeto():
             modelo_projeto=modelo_projeto,
             cidade=cidade,
             estado=estado,
-            comentarios_repasse=comentarios_repasse,
         )
         db.session.add(novo)
         db.session.commit()
@@ -1966,11 +1964,14 @@ def detalhe_projeto(pid):
     colaboradores = ColaboradorDB.query.filter_by(ativo=True).order_by(ColaboradorDB.nome).all()
     colabs_map = {c.id: c.nome for c in colaboradores}
     projeto = db_to_projeto(p_db, colabs_map=colabs_map)
+    repasses = ERPRepasseDB.query.filter_by(projeto_id=pid).order_by(
+        ERPRepasseDB.data_repasse.desc(), ERPRepasseDB.id.desc()).all()
 
     return render_template('projetos/detalhe_projeto.html',
                           projeto=projeto,
                           p_db=p_db,
-                          colaboradores=colaboradores)
+                          colaboradores=colaboradores,
+                          repasses=repasses)
 
 @app.route('/editar-projeto/<int:pid>', methods=['GET', 'POST'])
 @login_required
@@ -2030,7 +2031,6 @@ def editar_projeto(pid):
         ponto_atencao = bool(request.form.get('ponto_atencao'))
         cidade = request.form.get('cidade', '').strip().upper() or None
         estado = request.form.get('estado', '').strip().upper() or None
-        comentarios_repasse = request.form.get('comentarios_repasse', '').strip() or None
 
         # Validação
         if not responsavel_id:
@@ -2057,7 +2057,6 @@ def editar_projeto(pid):
         p_db.ponto_atencao = ponto_atencao
         p_db.cidade = cidade
         p_db.estado = estado
-        p_db.comentarios_repasse = comentarios_repasse
         db.session.commit()
 
         flash(f'Projeto "{nome}" atualizado!', 'success')
@@ -2130,6 +2129,7 @@ def excluir_projeto(pid):
     ERPAtividadeDB.query.filter_by(projeto_id=pid).delete()
     ERPUnidadeDB.query.filter_by(projeto_id=pid).delete()
     ERPModuloDB.query.filter_by(projeto_id=pid).delete()
+    ERPRepasseDB.query.filter_by(projeto_id=pid).delete()
     db.session.delete(p_db)
     db.session.commit()
 
@@ -2163,7 +2163,7 @@ def adicionar_modulo(pid):
     # Validação do nome
     if not nome:
         flash('Nome do módulo é obrigatório.', 'danger')
-        return redirect(url_for('detalhe_projeto', pid=pid))
+        return redirect(url_for('detalhe_projeto', pid=pid) + '#modulos')
 
     # Processar percentual
     try:
@@ -2184,7 +2184,7 @@ def adicionar_modulo(pid):
     db.session.commit()
 
     flash(f'Módulo "{nome}" adicionado!', 'success')
-    return redirect(url_for('detalhe_projeto', pid=pid))
+    return redirect(url_for('detalhe_projeto', pid=pid) + '#modulos')
 
 @app.route('/projeto/<int:pid>/modulos-lote', methods=['POST'])
 @login_required
@@ -2198,7 +2198,7 @@ def adicionar_modulos_lote(pid):
 
     if not nomes:
         flash('Informe ao menos um módulo.', 'danger')
-        return redirect(url_for('detalhe_projeto', pid=pid))
+        return redirect(url_for('detalhe_projeto', pid=pid) + '#modulos')
 
     for nome in nomes:
         db.session.add(ERPModuloDB(
@@ -2212,7 +2212,7 @@ def adicionar_modulos_lote(pid):
     db.session.commit()
 
     flash(f'{len(nomes)} módulo(s) adicionado(s)!', 'success')
-    return redirect(url_for('detalhe_projeto', pid=pid))
+    return redirect(url_for('detalhe_projeto', pid=pid) + '#modulos')
 
 @app.route('/projeto/<int:pid>/unidade', methods=['POST'])
 @login_required
@@ -2227,7 +2227,7 @@ def adicionar_unidade(pid):
     valido, erro = ProjetoValidator.validar_unidade(nome)
     if not valido:
         flash(f'Erro: {erro}', 'danger')
-        return redirect(url_for('detalhe_projeto', pid=pid))
+        return redirect(url_for('detalhe_projeto', pid=pid) + '#unidades')
 
     nova_unidade = ERPUnidadeDB(
         projeto_id=pid,
@@ -2240,7 +2240,7 @@ def adicionar_unidade(pid):
     db.session.commit()
 
     flash(f'Unidade "{nome}" adicionada!', 'success')
-    return redirect(url_for('detalhe_projeto', pid=pid))
+    return redirect(url_for('detalhe_projeto', pid=pid) + '#unidades')
 
 @app.route('/projeto/<int:mid>/editar-modulo/<int:mid_id>', methods=['POST'])
 @login_required
@@ -2271,7 +2271,7 @@ def editar_modulo(mid, mid_id):
     db.session.commit()
 
     flash('Módulo atualizado!', 'success')
-    return redirect(url_for('detalhe_projeto', pid=mid))
+    return redirect(url_for('detalhe_projeto', pid=mid) + '#modulos')
 
 @app.route('/projeto/<int:pid>/modulo/<int:mid>/status', methods=['POST'])
 @login_required
@@ -2287,7 +2287,7 @@ def atualizar_status_modulo(pid, mid):
         modulo_db.percentual_conclusao = 100
     db.session.commit()
     flash(f'Módulo "{modulo_db.modulo}" marcado como "{novo_status}"!', 'success')
-    return redirect(url_for('detalhe_projeto', pid=pid))
+    return redirect(url_for('detalhe_projeto', pid=pid) + '#modulos')
 
 
 @app.route('/projeto/<int:pid>/modulo/<int:mid>/excluir', methods=['POST'])
@@ -2300,7 +2300,7 @@ def excluir_modulo(pid, mid):
     db.session.delete(modulo_db)
     db.session.commit()
     flash(f'Módulo "{nome}" excluído.', 'success')
-    return redirect(url_for('detalhe_projeto', pid=pid))
+    return redirect(url_for('detalhe_projeto', pid=pid) + '#modulos')
 
 
 @app.route('/projeto/<int:pid>/editar-unidade/<int:uid>', methods=['POST'])
@@ -2316,7 +2316,7 @@ def editar_unidade(pid, uid):
     db.session.commit()
 
     flash('Unidade atualizada!', 'success')
-    return redirect(url_for('detalhe_projeto', pid=pid))
+    return redirect(url_for('detalhe_projeto', pid=pid) + '#unidades')
 
 @app.route('/projeto/<int:pid>/atividade', methods=['POST'])
 @login_required
@@ -2328,7 +2328,7 @@ def adicionar_atividade(pid):
     titulo = request.form.get('titulo', '').strip()
     if not titulo:
         flash('Título da atividade é obrigatório.', 'danger')
-        return redirect(url_for('detalhe_projeto', pid=pid))
+        return redirect(url_for('detalhe_projeto', pid=pid) + '#atividades')
 
     nova_atividade = ERPAtividadeDB(
         projeto_id=pid,
@@ -2341,7 +2341,7 @@ def adicionar_atividade(pid):
     db.session.commit()
 
     flash(f'Atividade "{titulo}" adicionada!', 'success')
-    return redirect(url_for('detalhe_projeto', pid=pid))
+    return redirect(url_for('detalhe_projeto', pid=pid) + '#atividades')
 
 @app.route('/projeto/<int:pid>/deletar-atividade/<int:aid>', methods=['POST'])
 @login_required
@@ -2355,7 +2355,7 @@ def deletar_atividade(pid, aid):
     db.session.commit()
 
     flash(f'Atividade "{titulo}" deletada!', 'success')
-    return redirect(url_for('detalhe_projeto', pid=pid))
+    return redirect(url_for('detalhe_projeto', pid=pid) + '#atividades')
 
 @app.route('/projeto/<int:pid>/atividade/<int:aid>/status', methods=['POST'])
 @login_required
@@ -2373,7 +2373,46 @@ def atualizar_status_atividade(pid, aid):
     db.session.commit()
 
     flash(f'Atividade marcada como "{novo_status}"!', 'success')
-    return redirect(url_for('detalhe_projeto', pid=pid))
+    return redirect(url_for('detalhe_projeto', pid=pid) + '#atividades')
+
+@app.route('/projeto/<int:pid>/repasse', methods=['POST'])
+@login_required
+@permission_required('editar_projeto')
+def adicionar_repasse(pid):
+    """Registra um repasse entre coordenadores na linha do tempo do projeto."""
+    ERPProjetoDB.query.get_or_404(pid)
+
+    comentario = request.form.get('comentario', '').strip()
+    if not comentario:
+        flash('Descreva o repasse para registrá-lo.', 'danger')
+        return redirect(url_for('detalhe_projeto', pid=pid) + '#repasses')
+
+    try:
+        data_repasse = datetime.strptime(request.form.get('data_repasse', ''), '%Y-%m-%d').date()
+    except ValueError:
+        data_repasse = date.today()
+
+    db.session.add(ERPRepasseDB(
+        projeto_id=pid,
+        data_repasse=data_repasse,
+        comentario=comentario,
+        criado_por=current_user.nome if current_user.is_authenticated else None
+    ))
+    db.session.commit()
+
+    flash('Repasse registrado!', 'success')
+    return redirect(url_for('detalhe_projeto', pid=pid) + '#repasses')
+
+@app.route('/projeto/<int:pid>/repasse/<int:rid>/excluir', methods=['POST'])
+@login_required
+@permission_required('editar_projeto')
+def excluir_repasse(pid, rid):
+    """Exclui um registro de repasse."""
+    repasse = ERPRepasseDB.query.get_or_404(rid)
+    db.session.delete(repasse)
+    db.session.commit()
+    flash('Repasse excluído.', 'success')
+    return redirect(url_for('detalhe_projeto', pid=pid) + '#repasses')
 
 # ─── API: saldo ───────────────────────────────────────────────────────────────
 

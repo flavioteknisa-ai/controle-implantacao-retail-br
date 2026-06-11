@@ -150,6 +150,17 @@ class ERPAtividadeDB(db.Model):
     atualizado_em       = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
 
 
+class ERPRepasseDB(db.Model):
+    __tablename__ = 'erp_repasses'
+
+    id              = db.Column(db.Integer, primary_key=True)
+    projeto_id      = db.Column(db.Integer, db.ForeignKey('erp_projetos.id'), nullable=False, index=True)
+    data_repasse    = db.Column(db.Date, nullable=False)
+    comentario      = db.Column(db.Text, nullable=False)
+    criado_por      = db.Column(db.String(120))
+    criado_em       = db.Column(db.DateTime, default=datetime.now)
+
+
 # ─────────────────────────────────────────────────────────────────
 # TABELA: Comissionamento Manual
 # ─────────────────────────────────────────────────────────────────
