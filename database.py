@@ -144,6 +144,8 @@ class ERPAtividadeDB(db.Model):
     descricao           = db.Column(db.Text)
     data_reuniao        = db.Column(db.Date, nullable=False)
     responsavel_nota    = db.Column(db.String(200))
+    responsavel_id      = db.Column(db.Integer, db.ForeignKey('colaboradores.id'), nullable=True, index=True)
+    responsavel         = db.relationship('ColaboradorDB', foreign_keys=[responsavel_id], lazy='joined')
     status_atividade    = db.Column(db.String(50), default='Aberta')  # Aberta, Em Progresso, Concluída
     concluida           = db.Column(db.Boolean, default=False)
     criado_em           = db.Column(db.DateTime, default=datetime.now)

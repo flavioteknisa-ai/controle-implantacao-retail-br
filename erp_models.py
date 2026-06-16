@@ -166,6 +166,10 @@ class Projeto:
     def percentual_geral(self) -> float:
         """Calcula percentual geral de conclusão do projeto.
         Falls back to DB-stored value when modules are not loaded (lite views)."""
+        # Projeto finalizado conta como 100% concluído, independentemente de
+        # módulos de acompanhamento/pós-entrega que fiquem em aberto.
+        if self.status == 'Finalizado':
+            return 100.0
         if self.modulos:
             return sum(m.percentual_conclusao for m in self.modulos) / len(self.modulos)
         return self._percentual_db

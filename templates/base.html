@@ -285,7 +285,11 @@
     <i class="bi bi-graph-up"></i><span>Resumo Projetos</span>
   </a>
   <a href="/projetos" class="nav-link {% if request.path == '/projetos' or request.path.startswith('/projeto') %}active{% endif %}">
-    <i class="bi bi-building"></i><span>Projetos</span>
+    <i class="bi bi-building"></i><span>Projetos
+      {% if atividades_pendentes_count and atividades_pendentes_count > 0 %}
+      <span class="badge bg-danger ms-1">{{ atividades_pendentes_count }}</span>
+      {% endif %}
+    </span>
   </a>
   {% if current_user.is_authenticated and tem_perm('criar_projeto') %}
   <a href="/novo-projeto" class="nav-link {% if request.path == '/novo-projeto' %}active{% endif %}">

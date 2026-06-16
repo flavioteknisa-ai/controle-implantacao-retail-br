@@ -224,6 +224,21 @@ def inject_integracao_badge():
     except Exception:
         return {'integracao_pendentes': 0}
 
+
+@app.context_processor
+def inject_atividades_pendentes():
+    """Conta atividades pendentes atribuídas ao usuário logado (badge no menu)."""
+    try:
+        if not current_user.is_authenticated or not current_user.colaborador_id:
+            return {'atividades_pendentes_count': 0}
+        n = ERPAtividadeDB.query.filter_by(
+            responsavel_id=current_user.colaborador_id,
+            status_atividade='Aberta'
+        ).count()
+        return {'atividades_pendentes_count': n}
+    except Exception:
+        return {'atividades_pendentes_count': 0}
+
 # ─── Constantes ───────────────────────────────────────────────────────────────
 
 CORES = [
@@ -2371,10 +2386,14 @@ def adicionar_atividade(pid):
     except ValueError:
         data_reuniao = date.today()
 
+    resp_id_str = request.form.get('responsavel_id', '').strip()
+    resp_id = int(resp_id_str) if resp_id_str.isdigit() else None
+
     nova_atividade = ERPAtividadeDB(
         projeto_id=pid,
         titulo=titulo,
         data_reuniao=data_reuniao,
+        responsavel_id=resp_id,
         status_atividade='Aberta',
         concluida=False
     )
@@ -2423,6 +2442,17 @@ def atualizar_data_atividade(pid, aid):
         flash('Data da atividade atualizada!', 'success')
     except ValueError:
         flash('Data inválida.', 'danger')
+    return redirect(url_for('detalhe_projeto', pid=pid) + '#atividades')
+
+@app.route('/projeto/<int:pid>/atividade/<int:aid>/responsavel', methods=['POST'])
+@login_required
+@permission_required('adicionar_atividade')
+def atualizar_responsavel_atividade(pid, aid):
+    """Atualiza o responsável da atividade direto da linha (select inline)."""
+    atividade_db = ERPAtividadeDB.query.get_or_404(aid)
+    resp_id_str = request.form.get('responsavel_id', '').strip()
+    atividade_db.responsavel_id = int(resp_id_str) if resp_id_str.isdigit() else None
+    db.session.commit()
     return redirect(url_for('detalhe_projeto', pid=pid) + '#atividades')
 
 @app.route('/projeto/<int:pid>/atividade/<int:aid>/status', methods=['POST'])
@@ -3207,6 +3237,7 @@ def init_database():
             # Migração de colunas novas em tabelas existentes
             for stmt in [
                 'ALTER TABLE erp_projetos ADD COLUMN ponto_atencao BOOLEAN DEFAULT FALSE',
+                'ALTER TABLE erp_atividades_projeto ADD COLUMN responsavel_id INTEGER REFERENCES users(id)',
             ]:
                 try:
                     db.session.execute(db.text(stmt))

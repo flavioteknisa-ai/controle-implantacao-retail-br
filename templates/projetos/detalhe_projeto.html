@@ -576,14 +576,23 @@
       </div>
       <div class="card-body">
         {% if tem_perm('adicionar_atividade') %}
-        <form method="POST" action="/projeto/{{ projeto.id }}/atividade" class="quick-add" style="margin:0 0 12px;">
+        <form method="POST" action="/projeto/{{ projeto.id }}/atividade" class="quick-add" style="margin:0 0 12px;position:relative;">
           <i class="bi bi-plus-circle" style="color:var(--muted);"></i>
-          <input type="text" name="titulo" placeholder="Nova atividade… pressione Enter para adicionar" required>
+          <input type="text" name="titulo" id="inputNovaAtividade" autocomplete="off"
+                 placeholder="Nova atividade… use @ para atribuir responsável" required>
+          <input type="hidden" name="responsavel_id" id="responsavelNovaAtividade">
+          <div id="mencaoDropdown" class="mencao-dropdown" style="display:none;"></div>
           <input type="date" name="data_reuniao" id="dataNovaAtividade"
                  class="form-control form-control-sm" style="width:auto;font-size:.78rem;">
           <span class="kbd">Enter</span>
           <button type="submit" class="d-none" aria-hidden="true"></button>
         </form>
+        <script>
+          window.USUARIOS_MENCAO = [
+            {% for u in colaboradores %}{ id: {{ u.id }}, nome: {{ u.nome|tojson }} }{% if not loop.last %},{% endif %}
+            {% endfor %}
+          ];
+        </script>
         {% endif %}
 
         {% if projeto.atividades %}
@@ -624,6 +633,21 @@
                     {% else %}pill-modelo{% endif %}">
                     {{ atividade.status_atividade }}
                   </span>
+                  {% endif %}
+                  {% if tem_perm('adicionar_atividade') %}
+                  <form method="POST" action="/projeto/{{ projeto.id }}/atividade/{{ atividade.id }}/responsavel"
+                        style="display:inline-flex;align-items:center;gap:4px;" title="Alterar responsável">
+                    <i class="bi bi-person"></i>
+                    <select name="responsavel_id" class="data-inline" onchange="this.form.submit()"
+                            style="max-width:130px;">
+                      <option value="">— responsável —</option>
+                      {% for u in colaboradores %}
+                      <option value="{{ u.id }}" {% if atividade.responsavel_id == u.id %}selected{% endif %}>{{ u.nome }}</option>
+                      {% endfor %}
+                    </select>
+                  </form>
+                  {% elif atividade.responsavel %}
+                  <span><i class="bi bi-person me-1"></i>{{ atividade.responsavel.nome }}</span>
                   {% endif %}
                 </div>
               </div>
@@ -898,6 +922,15 @@
             <input type="text" class="form-control" id="titulo" name="titulo" required
                    placeholder="Ex: Reunião de Status - RH">
           </div>
+          <div class="mb-3">
+            <label for="responsavel_id" class="form-label">Responsável</label>
+            <select class="form-select" id="responsavel_id" name="responsavel_id">
+              <option value="">— Sem responsável —</option>
+              {% for u in colaboradores %}
+              <option value="{{ u.id }}">{{ u.nome }}</option>
+              {% endfor %}
+            </select>
+          </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
@@ -935,6 +968,88 @@
 {% endblock %}
 
 {% block extra_js %}
+<style>
+.mencao-dropdown {
+  position: absolute; top: 100%; left: 28px; z-index: 1000;
+  min-width: 220px; max-height: 240px; overflow-y: auto;
+  background: #fff; border: 1px solid #E5E3DA; border-radius: 10px;
+  box-shadow: 0 12px 32px -8px rgba(0,0,0,.22); margin-top: 4px; padding: 4px;
+}
+.mencao-item {
+  padding: 7px 10px; border-radius: 7px; cursor: pointer;
+  font-size: .85rem; display: flex; align-items: center; gap: 8px;
+}
+.mencao-item:hover, .mencao-item.active { background: #F0EFE8; }
+.mencao-item i { color: var(--muted); }
+</style>
+<script>
+// Autocomplete de menção @responsável no campo de nova atividade
+(function() {
+  const input = document.getElementById('inputNovaAtividade');
+  const hidden = document.getElementById('responsavelNovaAtividade');
+  const drop = document.getElementById('mencaoDropdown');
+  if (!input || !drop) return;
+  const users = window.USUARIOS_MENCAO || [];
+  let active = -1, items = [], atPos = -1;
+
+  function fecha() { drop.style.display = 'none'; active = -1; items = []; atPos = -1; }
+
+  function abre(termo, pos) {
+    atPos = pos;
+    const t = termo.toLowerCase();
+    items = users.filter(u => u.nome.toLowerCase().includes(t)).slice(0, 8);
+    if (!items.length) { fecha(); return; }
+    active = 0;
+    drop.innerHTML = items.map((u, i) =>
+      '<div class="mencao-item' + (i === 0 ? ' active' : '') + '" data-i="' + i + '">' +
+      '<i class="bi bi-person-circle"></i>' + u.nome + '</div>').join('');
+    drop.style.display = 'block';
+  }
+
+  function escolhe(i) {
+    const u = items[i];
+    if (!u) return;
+    hidden.value = u.id;
+    // substitui o "@termo" pelo "@Nome " no texto
+    const val = input.value;
+    const before = val.slice(0, atPos);
+    const afterMatch = val.slice(atPos).match(/^@\S*/);
+    const after = val.slice(atPos + (afterMatch ? afterMatch[0].length : 0));
+    input.value = before + '@' + u.nome + ' ' + after;
+    fecha();
+    input.focus();
+  }
+
+  input.addEventListener('input', function() {
+    const pos = input.selectionStart;
+    const txt = input.value.slice(0, pos);
+    const m = txt.match(/@(\S*)$/);
+    if (m) abre(m[1], pos - m[0].length);
+    else fecha();
+  });
+
+  input.addEventListener('keydown', function(e) {
+    if (drop.style.display === 'none') return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); active = (active + 1) % items.length; render(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); active = (active - 1 + items.length) % items.length; render(); }
+    else if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); escolhe(active); }
+    else if (e.key === 'Escape') { fecha(); }
+  });
+
+  function render() {
+    [...drop.children].forEach((c, i) => c.classList.toggle('active', i === active));
+  }
+
+  drop.addEventListener('mousedown', function(e) {
+    const el = e.target.closest('.mencao-item');
+    if (el) { e.preventDefault(); escolhe(+el.dataset.i); }
+  });
+
+  document.addEventListener('click', function(e) {
+    if (!drop.contains(e.target) && e.target !== input) fecha();
+  });
+})();
+</script>
 <script>
 // Abre a aba indicada no hash da URL (ex: /projeto/1#modulos)
 (function() {
