@@ -48,9 +48,11 @@
 {% block content %}
 
 <div class="breadcrumb-sm d-flex align-items-center gap-2">
-  {% if current_user.is_authenticated and not current_user.is_gestor and current_user.colaborador_id %}
-  <a href="/projetos" class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size:.75rem;">
-    <i class="bi bi-arrow-left me-1"></i>Meus Projetos
+  {% if p_db.responsavel_id %}
+  <a href="/projetos?responsavel_id={{ p_db.responsavel_id }}"
+     class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size:.75rem;"
+     title="Ver todos os projetos de {{ projeto.responsavel or 'este coordenador' }}">
+    <i class="bi bi-arrow-left me-1"></i>Projetos de {{ projeto.responsavel or 'Coordenador' }}
   </a>
   {% else %}
   <a href="/projetos" class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size:.75rem;">
