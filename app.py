@@ -1693,6 +1693,36 @@ def exportar_comissionamentos_excel():
 
 # ─── Rotas: projetos ERP ──────────────────────────────────────────────────────
 
+@app.route('/minhas-atividades')
+@login_required
+def minhas_atividades():
+    """Atividades pendentes atribuídas ao colaborador logado, agrupadas por projeto."""
+    if not current_user.colaborador_id:
+        flash('Sua conta não está vinculada a um colaborador.', 'warning')
+        return redirect(url_for('listar_projetos'))
+
+    atividades = (ERPAtividadeDB.query
+                  .filter_by(responsavel_id=current_user.colaborador_id)
+                  .filter(ERPAtividadeDB.status_atividade != 'Concluída')
+                  .order_by(ERPAtividadeDB.data_reuniao.asc().nulls_last(),
+                            ERPAtividadeDB.criado_em.asc())
+                  .all())
+
+    # Agrupar por projeto
+    projetos_map = {}
+    for a in atividades:
+        pid = a.projeto_id
+        if pid not in projetos_map:
+            proj = ERPProjetoDB.query.get(pid)
+            projetos_map[pid] = {'projeto': proj, 'atividades': []}
+        projetos_map[pid]['atividades'].append(a)
+
+    grupos = list(projetos_map.values())
+    return render_template('projetos/minhas_atividades.html',
+                           grupos=grupos, total=len(atividades),
+                           today=date.today())
+
+
 @app.route('/projetos')
 @login_required
 @permission_required('ver_projetos')

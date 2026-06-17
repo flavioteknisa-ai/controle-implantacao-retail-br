@@ -285,12 +285,20 @@
     <i class="bi bi-graph-up"></i><span>Resumo Projetos</span>
   </a>
   <a href="/projetos" class="nav-link {% if request.path == '/projetos' or request.path.startswith('/projeto') %}active{% endif %}">
-    <i class="bi bi-building"></i><span>Projetos
+    <i class="bi bi-building"></i><span>Projetos</span>
+  </a>
+  {% if current_user.is_authenticated and current_user.colaborador_id %}
+  <a href="/minhas-atividades" class="nav-link {% if request.path == '/minhas-atividades' %}active{% endif %}"
+     style="{% if atividades_pendentes_count and atividades_pendentes_count > 0 %}color:#F5A623;{% endif %}">
+    <i class="bi bi-bell{% if atividades_pendentes_count and atividades_pendentes_count > 0 %}-fill{% endif %}"
+       {% if atividades_pendentes_count and atividades_pendentes_count > 0 %}style="color:#F5A623;"{% endif %}></i>
+    <span>Minhas Atividades
       {% if atividades_pendentes_count and atividades_pendentes_count > 0 %}
-      <span class="badge bg-danger ms-1">{{ atividades_pendentes_count }}</span>
+      <span class="badge ms-1" style="background:#F5A623;color:#fff;font-size:.68rem;">{{ atividades_pendentes_count }}</span>
       {% endif %}
     </span>
   </a>
+  {% endif %}
   {% if current_user.is_authenticated and tem_perm('criar_projeto') %}
   <a href="/novo-projeto" class="nav-link {% if request.path == '/novo-projeto' %}active{% endif %}">
     <i class="bi bi-plus-circle"></i><span>Novo Projeto</span>

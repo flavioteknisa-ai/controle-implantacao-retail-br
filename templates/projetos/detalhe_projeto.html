@@ -47,8 +47,17 @@
 
 {% block content %}
 
-<div class="breadcrumb-sm">
-  <a href="/projetos">Projetos</a> <span class="mx-1">/</span> <span style="color:#5F5E5A;">{{ projeto.nome }}</span>
+<div class="breadcrumb-sm d-flex align-items-center gap-2">
+  {% if current_user.is_authenticated and not current_user.is_gestor and current_user.colaborador_id %}
+  <a href="/projetos" class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size:.75rem;">
+    <i class="bi bi-arrow-left me-1"></i>Meus Projetos
+  </a>
+  {% else %}
+  <a href="/projetos" class="btn btn-sm btn-outline-secondary py-0 px-2" style="font-size:.75rem;">
+    <i class="bi bi-arrow-left me-1"></i>Projetos
+  </a>
+  {% endif %}
+  <span style="color:#C0BEB4;">/ {{ projeto.nome }}</span>
 </div>
 
 <!-- Header -->
