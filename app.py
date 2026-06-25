@@ -2771,9 +2771,16 @@ def listar_visitas():
 @login_required
 @permission_required('ver_visitas')
 def exportar_visitas_excel():
-    """Exporta para Excel as visitas do período/filtro atual: colaborador, cliente e data."""
+    """Exporta para Excel as visitas do período/filtro atual, agrupadas por
+    colaborador (com subtotal) e total geral: colaborador, cliente, data e status."""
     f = _filtros_visitas_da_querystring()
     visitas = _query_visitas_filtradas(f).order_by(VisitaDB.data_visita.asc()).all()
+
+    # Agrupar por colaborador
+    por_colaborador = {}
+    for v in visitas:
+        nome_colab = v.colaborador_nome or (v.colaborador.nome if v.colaborador else 'Não informado')
+        por_colaborador.setdefault(nome_colab, []).append(v)
 
     wb = Workbook()
     ws = wb.active
@@ -2781,6 +2788,10 @@ def exportar_visitas_excel():
 
     header_fill = PatternFill(start_color='1a237e', end_color='1a237e', fill_type='solid')
     header_font = Font(bold=True, color='FFFFFF', size=11)
+    subtot_fill = PatternFill(start_color='D9EAD3', end_color='D9EAD3', fill_type='solid')
+    subtot_font = Font(bold=True, size=10, color='1c4a1c')
+    total_fill  = PatternFill(start_color='1a237e', end_color='1a237e', fill_type='solid')
+    total_font  = Font(bold=True, size=11, color='FFFFFF')
     data_font   = Font(size=10)
     border = Border(
         left=Side(style='thin'), right=Side(style='thin'),
@@ -2808,21 +2819,39 @@ def exportar_visitas_excel():
         cell.alignment = center
 
     row = 3
-    for v in visitas:
-        nome_colab = v.colaborador_nome or (v.colaborador.nome if v.colaborador else 'Não informado')
-        ws.cell(row=row, column=1).value = nome_colab
-        ws.cell(row=row, column=2).value = v.cliente
-        data_cell = ws.cell(row=row, column=3)
-        data_cell.value = v.data_visita.strftime('%d/%m/%Y') if v.data_visita else ''
-        ws.cell(row=row, column=4).value = v.status.title() if v.status else ''
+    for nome_colab in sorted(por_colaborador.keys()):
+        registros = por_colaborador[nome_colab]
+        primeiro  = True
+
+        for v in registros:
+            ws.cell(row=row, column=1).value = nome_colab if primeiro else ''
+            ws.cell(row=row, column=2).value = v.cliente
+            ws.cell(row=row, column=3).value = v.data_visita.strftime('%d/%m/%Y') if v.data_visita else ''
+            ws.cell(row=row, column=4).value = v.status.title() if v.status else ''
+            for col in range(1, 5):
+                ws.cell(row=row, column=col).font   = data_font
+                ws.cell(row=row, column=col).border = border
+            primeiro = False
+            row += 1
+
+        # Subtotal por colaborador
+        ws.cell(row=row, column=1).value = f'Total — {nome_colab}'
+        ws.cell(row=row, column=2).value = f'{len(registros)} visita(s)'
         for col in range(1, 5):
-            ws.cell(row=row, column=col).font   = data_font
+            ws.cell(row=row, column=col).fill   = subtot_fill
+            ws.cell(row=row, column=col).font   = subtot_font
             ws.cell(row=row, column=col).border = border
-        row += 1
+        row += 2  # linha em branco entre colaboradores
 
     # Total geral
-    ws.cell(row=row, column=1).value = f'Total de visitas: {len(visitas)}'
-    ws.cell(row=row, column=1).font  = Font(bold=True, size=10, color='1a237e')
+    ws.merge_cells(f'A{row}:C{row}')
+    ws.cell(row=row, column=1).value = 'TOTAL GERAL DE VISITAS'
+    ws.cell(row=row, column=4).value = len(visitas)
+    for col in range(1, 5):
+        ws.cell(row=row, column=col).fill      = total_fill
+        ws.cell(row=row, column=col).font      = total_font
+        ws.cell(row=row, column=col).border    = border
+        ws.cell(row=row, column=col).alignment = center
 
     ws.column_dimensions['A'].width = 28
     ws.column_dimensions['B'].width = 30
