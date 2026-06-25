@@ -2773,14 +2773,27 @@ def listar_visitas():
 def exportar_visitas_excel():
     """Exporta para Excel as visitas do período/filtro atual, agrupadas por
     colaborador (com subtotal) e total geral: colaborador, cliente, data e status."""
+    import unicodedata
     f = _filtros_visitas_da_querystring()
     visitas = _query_visitas_filtradas(f).order_by(VisitaDB.data_visita.asc()).all()
 
-    # Agrupar por colaborador
-    por_colaborador = {}
+    # Agrupar por colaborador, normalizando nome (sem acento/maiúsculas) para juntar
+    # grafias diferentes da mesma pessoa (ex.: "ANTONIO NETO" e "Antonio Neto")
+    def _normaliza(s):
+        s = unicodedata.normalize('NFKD', s).encode('ascii', 'ignore').decode('ascii')
+        return s.strip().upper()
+
+    por_colaborador  = {}
+    nome_exibicao    = {}
     for v in visitas:
-        nome_colab = v.colaborador_nome or (v.colaborador.nome if v.colaborador else 'Não informado')
-        por_colaborador.setdefault(nome_colab, []).append(v)
+        raw = v.colaborador_nome or (v.colaborador.nome if v.colaborador else 'Não informado')
+        chave = _normaliza(raw)
+        por_colaborador.setdefault(chave, []).append(v)
+        # Prioriza o nome cadastrado do colaborador vinculado; senão, usa o texto livre em title case
+        if v.colaborador_id and v.colaborador:
+            nome_exibicao[chave] = v.colaborador.nome
+        elif chave not in nome_exibicao:
+            nome_exibicao[chave] = raw.title() if raw.isupper() else raw
 
     wb = Workbook()
     ws = wb.active
@@ -2819,9 +2832,10 @@ def exportar_visitas_excel():
         cell.alignment = center
 
     row = 3
-    for nome_colab in sorted(por_colaborador.keys()):
-        registros = por_colaborador[nome_colab]
-        primeiro  = True
+    for chave in sorted(por_colaborador.keys(), key=lambda k: nome_exibicao[k]):
+        nome_colab = nome_exibicao[chave]
+        registros  = por_colaborador[chave]
+        primeiro   = True
 
         for v in registros:
             ws.cell(row=row, column=1).value = nome_colab if primeiro else ''
