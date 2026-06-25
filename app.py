@@ -2674,63 +2674,75 @@ PROJETO_STATUS  = ['Em andamento', 'Paralisado', 'Finalizado', 'Cancelado']
 PROJETO_MODELOS = ['Tradicional', 'Rollout', 'Treinamento', 'Demanda Avulsa']
 
 
+def _filtros_visitas_da_querystring():
+    """Lê os filtros de visitas da querystring atual (usado pela lista e pela exportação)."""
+    return {
+        'status':      request.args.get('status', ''),
+        'regiao':      request.args.get('regiao', ''),
+        'colaborador': request.args.get('colaborador', ''),
+        'motivo':      request.args.get('motivo', ''),
+        'data_ini':    request.args.get('data_ini', ''),
+        'data_fim':    request.args.get('data_fim', ''),
+        'cda':         request.args.get('cda', ''),
+        'cliente':     request.args.get('cliente', ''),
+        'colab_nome':  request.args.get('colab_nome', ''),
+    }
+
+
+def _query_visitas_filtradas(f):
+    """Monta a query de VisitaDB aplicando o dict de filtros f (ver _filtros_visitas_da_querystring)."""
+    q = VisitaDB.query
+    if f['status']:  q = q.filter(VisitaDB.status == f['status'])
+    if f['regiao']:
+        if f['regiao'] == '__vazio__':
+            q = q.filter(db.or_(VisitaDB.regiao == None, VisitaDB.regiao == ''))
+        else:
+            q = q.filter(VisitaDB.regiao == f['regiao'])
+    if f['motivo']:
+        if f['motivo'] == '__vazio__':
+            q = q.filter(db.or_(VisitaDB.motivo == None, VisitaDB.motivo == ''))
+        else:
+            q = q.filter(VisitaDB.motivo == f['motivo'])
+    if f['cda']:
+        if f['cda'] == '__vazio__':
+            q = q.filter(db.or_(VisitaDB.cda == None, VisitaDB.cda == ''))
+        else:
+            q = q.filter(VisitaDB.cda == f['cda'])
+    if f['cliente']:
+        q = q.filter(VisitaDB.cliente.ilike(f"%{f['cliente']}%"))
+    if f['colaborador']:
+        try:
+            q = q.filter(VisitaDB.colaborador_id == int(f['colaborador']))
+        except ValueError:
+            pass
+    elif f['colab_nome']:
+        if f['colab_nome'] == '__vazio__':
+            q = q.filter(VisitaDB.colaborador_id == None,
+                         db.or_(VisitaDB.colaborador_nome == None, VisitaDB.colaborador_nome == ''))
+        else:
+            q = q.filter(VisitaDB.colaborador_nome == f['colab_nome'])
+    if f['data_ini']:
+        try:
+            q = q.filter(VisitaDB.data_visita >= datetime.strptime(f['data_ini'], '%Y-%m-%d').date())
+        except ValueError:
+            pass
+    if f['data_fim']:
+        try:
+            q = q.filter(VisitaDB.data_visita <= datetime.strptime(f['data_fim'], '%Y-%m-%d').date())
+        except ValueError:
+            pass
+    return q
+
+
 @app.route('/visitas')
 @login_required
 @permission_required('ver_visitas')
 def listar_visitas():
-    # Filtros
-    f_status  = request.args.get('status', '')
-    f_regiao  = request.args.get('regiao', '')
-    f_colab   = request.args.get('colaborador', '')
-    f_motivo  = request.args.get('motivo', '')
-    f_ini     = request.args.get('data_ini', '')
-    f_fim     = request.args.get('data_fim', '')
-    f_cda     = request.args.get('cda', '')
-    f_cliente = request.args.get('cliente', '')
-    f_colab_nome = request.args.get('colab_nome', '')
+    f = _filtros_visitas_da_querystring()
+    f_status, f_regiao, f_colab, f_motivo = f['status'], f['regiao'], f['colaborador'], f['motivo']
+    f_ini, f_fim, f_cda, f_cliente, f_colab_nome = f['data_ini'], f['data_fim'], f['cda'], f['cliente'], f['colab_nome']
 
-    q = VisitaDB.query
-    if f_status:  q = q.filter(VisitaDB.status   == f_status)
-    if f_regiao:
-        if f_regiao == '__vazio__':
-            q = q.filter(db.or_(VisitaDB.regiao == None, VisitaDB.regiao == ''))
-        else:
-            q = q.filter(VisitaDB.regiao == f_regiao)
-    if f_motivo:
-        if f_motivo == '__vazio__':
-            q = q.filter(db.or_(VisitaDB.motivo == None, VisitaDB.motivo == ''))
-        else:
-            q = q.filter(VisitaDB.motivo == f_motivo)
-    if f_cda:
-        if f_cda == '__vazio__':
-            q = q.filter(db.or_(VisitaDB.cda == None, VisitaDB.cda == ''))
-        else:
-            q = q.filter(VisitaDB.cda == f_cda)
-    if f_cliente:
-        q = q.filter(VisitaDB.cliente.ilike(f'%{f_cliente}%'))
-    if f_colab:
-        try:
-            q = q.filter(VisitaDB.colaborador_id == int(f_colab))
-        except ValueError:
-            pass
-    elif f_colab_nome:
-        if f_colab_nome == '__vazio__':
-            q = q.filter(VisitaDB.colaborador_id == None,
-                         db.or_(VisitaDB.colaborador_nome == None, VisitaDB.colaborador_nome == ''))
-        else:
-            q = q.filter(VisitaDB.colaborador_nome == f_colab_nome)
-    if f_ini:
-        try:
-            q = q.filter(VisitaDB.data_visita >= datetime.strptime(f_ini, '%Y-%m-%d').date())
-        except ValueError:
-            pass
-    if f_fim:
-        try:
-            q = q.filter(VisitaDB.data_visita <= datetime.strptime(f_fim, '%Y-%m-%d').date())
-        except ValueError:
-            pass
-
-    visitas = q.order_by(VisitaDB.data_visita.desc()).all()
+    visitas = _query_visitas_filtradas(f).order_by(VisitaDB.data_visita.desc()).all()
 
     # Resumo para cards
     todas = VisitaDB.query.all()
@@ -2753,6 +2765,87 @@ def listar_visitas():
                            f_colab=f_colab, f_motivo=f_motivo,
                            f_ini=f_ini, f_fim=f_fim, view=view,
                            f_cda=f_cda, f_cliente=f_cliente, f_colab_nome=f_colab_nome)
+
+
+@app.route('/visitas/exportar-excel')
+@login_required
+@permission_required('ver_visitas')
+def exportar_visitas_excel():
+    """Exporta para Excel as visitas do período/filtro atual: colaborador, cliente e data."""
+    f = _filtros_visitas_da_querystring()
+    visitas = _query_visitas_filtradas(f).order_by(VisitaDB.data_visita.asc()).all()
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'Visitas'
+
+    header_fill = PatternFill(start_color='1a237e', end_color='1a237e', fill_type='solid')
+    header_font = Font(bold=True, color='FFFFFF', size=11)
+    data_font   = Font(size=10)
+    border = Border(
+        left=Side(style='thin'), right=Side(style='thin'),
+        top=Side(style='thin'),  bottom=Side(style='thin')
+    )
+    center = Alignment(horizontal='center', vertical='center')
+
+    periodo_titulo = 'Controle de Visitas'
+    if f['data_ini'] or f['data_fim']:
+        periodo_titulo += f"  |  Período: {f['data_ini'] or '...'} a {f['data_fim'] or '...'}"
+
+    ws.merge_cells('A1:D1')
+    titulo_cell = ws['A1']
+    titulo_cell.value     = periodo_titulo
+    titulo_cell.font      = Font(bold=True, size=12, color='1a237e')
+    titulo_cell.alignment = center
+
+    headers = ['Colaborador', 'Cliente', 'Data', 'Status']
+    for col_num, header in enumerate(headers, 1):
+        cell = ws.cell(row=2, column=col_num)
+        cell.value     = header
+        cell.fill      = header_fill
+        cell.font      = header_font
+        cell.border    = border
+        cell.alignment = center
+
+    row = 3
+    for v in visitas:
+        nome_colab = v.colaborador_nome or (v.colaborador.nome if v.colaborador else 'Não informado')
+        ws.cell(row=row, column=1).value = nome_colab
+        ws.cell(row=row, column=2).value = v.cliente
+        data_cell = ws.cell(row=row, column=3)
+        data_cell.value = v.data_visita.strftime('%d/%m/%Y') if v.data_visita else ''
+        ws.cell(row=row, column=4).value = v.status.title() if v.status else ''
+        for col in range(1, 5):
+            ws.cell(row=row, column=col).font   = data_font
+            ws.cell(row=row, column=col).border = border
+        row += 1
+
+    # Total geral
+    ws.cell(row=row, column=1).value = f'Total de visitas: {len(visitas)}'
+    ws.cell(row=row, column=1).font  = Font(bold=True, size=10, color='1a237e')
+
+    ws.column_dimensions['A'].width = 28
+    ws.column_dimensions['B'].width = 30
+    ws.column_dimensions['C'].width = 14
+    ws.column_dimensions['D'].width = 16
+    ws.row_dimensions[1].height = 22
+
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    nome_arquivo = 'Visitas'
+    if f['data_ini'] or f['data_fim']:
+        nome_arquivo += f"_{f['data_ini'] or ''}_a_{f['data_fim'] or ''}"
+    else:
+        nome_arquivo += f"_{date.today().strftime('%Y%m%d')}"
+
+    return send_file(
+        output,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name=f'{nome_arquivo}.xlsx'
+    )
 
 
 @app.route('/visita/<int:vid>/status', methods=['POST'])
