@@ -171,7 +171,8 @@ class ComissionamentoDB(db.Model):
     __tablename__ = 'comissionamentos'
 
     id                      = db.Column(db.Integer, primary_key=True)
-    consultor_id            = db.Column(db.Integer, db.ForeignKey('colaboradores.id'), nullable=False, index=True)
+    consultor_id            = db.Column(db.Integer, db.ForeignKey('colaboradores.id'), nullable=True, index=True)
+    consultor_nome          = db.Column(db.String(200))
     cliente                 = db.Column(db.String(200), nullable=False)
     data_comissao           = db.Column(db.Date, nullable=False, index=True)
     horas_comissionadas     = db.Column(db.Float, nullable=False)

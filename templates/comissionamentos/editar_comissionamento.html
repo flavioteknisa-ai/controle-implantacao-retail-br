@@ -24,14 +24,20 @@
             <div class="col-md-6">
               <div class="mb-3">
                 <label for="consultor_id" class="form-label">Consultor <span class="text-danger">*</span></label>
-                <select class="form-select" id="consultor_id" name="consultor_id" required>
-                  <option value="">-- Selecione --</option>
+                <select class="form-select" id="consultor_id" name="consultor_id" onchange="toggleNomeLivre(this)">
+                  <option value="">-- Selecione ou digite abaixo --</option>
                   {% for colab in colaboradores %}
                   <option value="{{ colab.id }}" {% if colab.id == comissao.consultor_id %}selected{% endif %}>
                     {{ colab.nome }}
                   </option>
                   {% endfor %}
                 </select>
+                <input type="text" class="form-control mt-2" id="consultor_nome_livre"
+                       name="consultor_nome_livre"
+                       placeholder="Ou digite o nome do consultor"
+                       value="{{ comissao.consultor_nome or '' }}"
+                       {% if not comissao.consultor_id %}style="display:block;"{% else %}style="display:none;"{% endif %}>
+                <small class="text-muted">Selecione da lista <em>ou</em> deixe em branco e digite o nome abaixo.</small>
               </div>
             </div>
             <div class="col-md-6">
@@ -99,4 +105,20 @@
   </div>
 </div>
 
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function toggleNomeLivre(sel) {
+  const campo = document.getElementById('consultor_nome_livre');
+  if (sel.value === '') {
+    campo.style.display = 'block';
+    campo.required = true;
+  } else {
+    campo.style.display = 'none';
+    campo.required = false;
+    campo.value = '';
+  }
+}
+</script>
 {% endblock %}

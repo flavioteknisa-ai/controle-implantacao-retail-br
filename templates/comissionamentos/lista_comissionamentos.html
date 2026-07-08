@@ -64,7 +64,7 @@
         <tbody>
           {% for com in comissionamentos %}
           <tr>
-            <td><strong>{{ com.consultor.nome if com.consultor else '—' }}</strong></td>
+            <td><strong>{{ com.consultor.nome if com.consultor else (com.consultor_nome or '—') }}</strong></td>
             <td>{{ com.cliente }}</td>
             <td><small>{{ com.data_comissao.strftime('%d/%m/%Y') }}</small></td>
             <td>

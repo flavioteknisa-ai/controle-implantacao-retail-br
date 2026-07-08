@@ -1450,7 +1450,8 @@ def novo_comissionamento():
     periodos, _ = _gerar_periodos_comissao()
 
     if request.method == 'POST':
-        consultor_id     = request.form.get('consultor_id')
+        consultor_id     = request.form.get('consultor_id') or None
+        consultor_nome_livre = request.form.get('consultor_nome_livre', '').strip()
         cliente          = request.form.get('cliente', '').strip()
         data_str         = request.form.get('data_comissao', '')
         horas_str        = request.form.get('horas_comissionadas', '0')
@@ -1459,6 +1460,10 @@ def novo_comissionamento():
         periodo_ini_str  = request.form.get('periodo_ini', '')
         periodo_fim_str  = request.form.get('periodo_fim', '')
 
+        if not consultor_id and not consultor_nome_livre:
+            flash('Informe o consultor (selecione da lista ou digite o nome).', 'danger')
+            return render_template('comissionamentos/novo_comissionamento.html',
+                                   colaboradores=colaboradores, periodos=periodos)
         if not cliente:
             flash('Cliente é obrigatório.', 'danger')
             return render_template('comissionamentos/novo_comissionamento.html',
@@ -1474,8 +1479,13 @@ def novo_comissionamento():
 
         horas = _hhmm_to_float(horas_str)
 
+        # Se selecionou da lista, limpa nome livre (e vice-versa)
+        if consultor_id:
+            consultor_nome_livre = None
+
         novo = ComissionamentoDB(
             consultor_id=int(consultor_id) if consultor_id else None,
+            consultor_nome=consultor_nome_livre,
             cliente=cliente,
             data_comissao=data_comissao,
             horas_comissionadas=horas,
@@ -1502,13 +1512,17 @@ def editar_comissionamento(cid):
     colaboradores = ColaboradorDB.query.filter_by(ativo=True).order_by(ColaboradorDB.nome).all()
 
     if request.method == 'POST':
-        consultor_id = request.form.get('consultor_id')
+        consultor_id = request.form.get('consultor_id') or None
+        consultor_nome_livre = request.form.get('consultor_nome_livre', '').strip()
         cliente = request.form.get('cliente', '').strip()
         data_str = request.form.get('data_comissao', '')
         horas_str = request.form.get('horas_comissionadas', '0')
         hora_fora_estado = request.form.get('hora_fora_estado', '').strip()
         motivo = request.form.get('motivo', '').strip()
 
+        if not consultor_id and not consultor_nome_livre:
+            flash('Informe o consultor (selecione da lista ou digite o nome).', 'danger')
+            return redirect(url_for('editar_comissionamento', cid=cid))
         if not cliente:
             flash('Cliente é obrigatório.', 'danger')
             return redirect(url_for('editar_comissionamento', cid=cid))
@@ -1523,7 +1537,11 @@ def editar_comissionamento(cid):
 
         horas = _hhmm_to_float(horas_str)
 
+        if consultor_id:
+            consultor_nome_livre = None
+
         comissao_db.consultor_id = int(consultor_id) if consultor_id else None
+        comissao_db.consultor_nome = consultor_nome_livre
         comissao_db.cliente = cliente
         comissao_db.data_comissao = data_comissao
         comissao_db.horas_comissionadas = horas
@@ -1576,7 +1594,7 @@ def exportar_comissionamentos_excel():
     # Agrupar por colaborador
     por_colaborador = {}
     for com in comissions:
-        nome_colab = com.consultor.nome if com.consultor else 'Sem Atribuição'
+        nome_colab = (com.consultor.nome if com.consultor else None) or com.consultor_nome or 'Sem Atribuição'
         if nome_colab not in por_colaborador:
             por_colaborador[nome_colab] = {
                 'registros': [],
