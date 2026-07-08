@@ -2986,6 +2986,8 @@ def nova_visita():
 def editar_visita(vid):
     v = VisitaDB.query.get_or_404(vid)
     colaboradores = ColaboradorDB.query.filter_by(ativo=True).order_by(ColaboradorDB.nome).all()
+    projetos_nomes = [p.nome_projeto for p in
+                      ERPProjetoDB.query.order_by(ERPProjetoDB.nome_projeto).all()]
 
     if request.method == 'POST':
         v.cliente    = request.form.get('cliente', '').strip()
@@ -3021,7 +3023,8 @@ def editar_visita(vid):
                            visita=v, colaboradores=colaboradores,
                            regioes=VISITA_REGIOES, motivos=VISITA_MOTIVOS,
                            status_opts=VISITA_STATUS, cda_opts=VISITA_CDA,
-                           custo_opts=VISITA_CUSTO, contato_opts=VISITA_CONTATOS)
+                           custo_opts=VISITA_CUSTO, contato_opts=VISITA_CONTATOS,
+                           projetos_nomes=projetos_nomes)
 
 
 @app.route('/excluir-visita/<int:vid>', methods=['POST'])
