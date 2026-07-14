@@ -162,6 +162,17 @@
                         {% else %}bg-danger{% endif %}"
                         style="width:{{ pct }}%"></div>
                     </div>
+                    {% set bd = item.breakdown %}
+                    <span class="text-muted" style="font-size:.68rem;cursor:help;"
+                          data-bs-toggle="tooltip" data-bs-html="true"
+                          title="Direito: {{ bd.direito_total }}d&#10;Usados: {{ bd.dias_utilizados }}d&#10;Calculado: {{ bd.saldo_calculado }}d&#10;{% if bd.saldo_ajuste != 0 %}Ajuste: {{ '%+d'|format(bd.saldo_ajuste) }}d{% endif %}">
+                      <i class="bi bi-info-circle"></i>
+                    </span>
+                    {% if bd.saldo_ajuste != 0 %}
+                    <span class="badge" style="background:#fff3cd;color:#856404;font-size:.65rem;">
+                      {{ '%+d'|format(bd.saldo_ajuste) }}d ajuste
+                    </span>
+                    {% endif %}
                   </div>
                   {% endif %}
                 </td>
@@ -199,6 +210,13 @@
                        data-bs-toggle="tooltip" title="Editar dados">
                       <i class="bi bi-pencil"></i>
                     </a>
+                    {% if item.cargo != 'estagiario' %}
+                    <button class="btn btn-sm btn-outline-warning py-0 px-2"
+                            data-bs-toggle="tooltip" title="Ajustar saldo de férias"
+                            onclick="abrirAjuste({{ item.colaborador.id }}, '{{ item.colaborador.nome }}', {{ item.breakdown.saldo_ajuste }}, '{{ item.saldo_ajuste_motivo|e }}', {{ item.breakdown.direito_total }}, {{ item.breakdown.dias_utilizados }}, {{ item.breakdown.saldo_calculado }})">
+                      <i class="bi bi-sliders"></i>
+                    </button>
+                    {% endif %}
                     <form method="POST" action="/excluir-colaborador/{{ item.colaborador.id }}" style="display:inline;">
                       <button class="btn btn-sm btn-outline-danger py-0 px-2"
                               onclick="return confirm('Remover {{ item.colaborador.nome }} permanentemente?')"
@@ -225,6 +243,50 @@
   <button class="btn btn-sm btn-outline-secondary mt-1" onclick="limparFiltros()">
     <i class="bi bi-x-circle me-1"></i>Limpar filtros
   </button>
+</div>
+
+<!-- Modal: Ajuste de Saldo -->
+<div class="modal fade" id="modalAjusteSaldo" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <form method="POST" id="frmAjuste">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="bi bi-sliders me-2"></i>Ajuste de Saldo — <span id="ajusteNome"></span></h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <!-- Breakdown atual -->
+          <div class="card mb-3" style="background:#fafaf7;border:1px solid #F1EFE8;">
+            <div class="card-body py-2 px-3" style="font-size:.84rem;">
+              <div class="d-flex justify-content-between"><span class="text-muted">Direito proporcional</span><span id="bdDireito" class="fw-semibold"></span></div>
+              <div class="d-flex justify-content-between"><span class="text-muted">Dias já utilizados</span><span id="bdUsados" class="text-danger fw-semibold"></span></div>
+              <div class="d-flex justify-content-between border-top mt-1 pt-1"><span class="text-muted">Saldo calculado</span><span id="bdCalc" class="fw-semibold"></span></div>
+              <div class="d-flex justify-content-between" id="bdAjusteRow"><span class="text-muted">Ajuste manual</span><span id="bdAjuste" class="fw-semibold text-warning"></span></div>
+              <div class="d-flex justify-content-between border-top mt-1 pt-1"><span class="fw-bold">Saldo final</span><span id="bdFinal" class="fw-bold text-primary"></span></div>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Ajuste (dias)</label>
+            <input type="number" class="form-control" name="saldo_ajuste" id="inputAjuste"
+                   placeholder="Ex: +5 para adicionar, -10 para subtrair" oninput="recalcFinal()">
+            <div class="form-text">Positivo = adiciona dias. Negativo = subtrai dias. Zero = sem ajuste.</div>
+          </div>
+          <div class="mb-2">
+            <label class="form-label fw-semibold">Motivo do ajuste</label>
+            <input type="text" class="form-control" name="saldo_ajuste_motivo" id="inputMotivo"
+                   placeholder="Ex: Dias de banco de horas, correção histórico…">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-sm btn-warning">
+            <i class="bi bi-check-circle me-1"></i>Salvar ajuste
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
 </div>
 {% endblock %}
 
@@ -283,6 +345,28 @@ function limparFiltros() {
   document.getElementById('filtroNome').value = '';
   document.getElementById('filtroUF').value = '';
   setCargo(document.querySelector('[data-cargo="todos"]'));
+}
+
+// ── Ajuste de saldo ──────────────────────────────────────────────
+let _bdCalc = 0;
+function abrirAjuste(id, nome, ajuste, motivo, direito, usados, calc) {
+  _bdCalc = calc;
+  document.getElementById('ajusteNome').textContent = nome;
+  document.getElementById('frmAjuste').action = '/colaborador/' + id + '/ajuste-saldo';
+  document.getElementById('inputAjuste').value = ajuste;
+  document.getElementById('inputMotivo').value = motivo;
+  document.getElementById('bdDireito').textContent = direito + ' dias';
+  document.getElementById('bdUsados').textContent = '−' + usados + ' dias';
+  document.getElementById('bdCalc').textContent = calc + ' dias';
+  recalcFinal();
+  new bootstrap.Modal(document.getElementById('modalAjusteSaldo')).show();
+}
+function recalcFinal() {
+  const aj = parseInt(document.getElementById('inputAjuste').value) || 0;
+  const final = Math.max(0, _bdCalc + aj);
+  document.getElementById('bdAjuste').textContent = (aj >= 0 ? '+' : '') + aj + ' dias';
+  document.getElementById('bdAjusteRow').style.display = aj !== 0 ? '' : 'none';
+  document.getElementById('bdFinal').textContent = final + ' dias';
 }
 </script>
 {% endblock %}

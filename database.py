@@ -41,13 +41,15 @@ class User(UserMixin, db.Model):
 class ColaboradorDB(db.Model):
     __tablename__ = 'colaboradores'
 
-    id            = db.Column(db.Integer, primary_key=True)
-    nome          = db.Column(db.String(200), nullable=False)
-    data_admissao = db.Column(db.Date, nullable=False)
-    time          = db.Column(db.String(100), default='')
-    cidade        = db.Column(db.String(100), default='')
-    email         = db.Column(db.String(150), index=True)  # usado p/ vínculo na integração API
-    ativo         = db.Column(db.Boolean, default=True)
+    id                   = db.Column(db.Integer, primary_key=True)
+    nome                 = db.Column(db.String(200), nullable=False)
+    data_admissao        = db.Column(db.Date, nullable=False)
+    time                 = db.Column(db.String(100), default='')
+    cidade               = db.Column(db.String(100), default='')
+    email                = db.Column(db.String(150), index=True)
+    ativo                = db.Column(db.Boolean, default=True)
+    saldo_ajuste         = db.Column(db.Integer, default=0)
+    saldo_ajuste_motivo  = db.Column(db.Text)
 
 
 class FeriasDB(db.Model):

@@ -349,6 +349,7 @@ def db_to_colab(c: ColaboradorDB) -> Colaborador:
         ativo=c.ativo,
         cidade=c.cidade or '',
         email=c.email or '',
+        saldo_ajuste=c.saldo_ajuste or 0,
     )
 
 def db_to_ferias(f: FeriasDB) -> Ferias:
@@ -1019,11 +1020,15 @@ def listar_colaboradores():
             None,
         )
         data_lim = calcular_data_limite(c, s_raw) if cargo != 'estagiario' else None
+        breakdown = c.calcular_saldo_breakdown(ferias_real)
+        colab_db  = ColaboradorDB.query.get(c.id)
         itens_map[c.id] = {
             'colaborador': c, 'saldo': s_disp, 'saldo_raw': s_raw,
             'status_saldo': status_saldo(s_raw), 'cor': cor_colab(i),
             'tempo_casa': tempo_casa_str(c.data_admissao), 'proxima_ferias': proxima,
             'cargo': cargo, 'uf': uf, 'data_limite': data_lim,
+            'breakdown': breakdown,
+            'saldo_ajuste_motivo': (colab_db.saldo_ajuste_motivo or '') if colab_db else '',
         }
 
     grupos_raw = defaultdict(list)
@@ -1039,6 +1044,25 @@ def listar_colaboradores():
     filtro_label = {'ferias_hoje': 'Em férias hoje', 'proximos30': 'Saem em 30 dias'}.get(filtro, '')
     return render_template('colaboradores.html', grupos=grupos, filtro_ativo=filtro,
                            filtro_label=filtro_label, hoje=hoje)
+
+
+@app.route('/colaborador/<int:cid>/ajuste-saldo', methods=['POST'])
+@login_required
+@gestor_required
+def ajuste_saldo_colaborador(cid):
+    colab_db = ColaboradorDB.query.get_or_404(cid)
+    try:
+        ajuste = int(request.form.get('saldo_ajuste', 0))
+    except ValueError:
+        flash('Valor de ajuste inválido.', 'danger')
+        return redirect(url_for('listar_colaboradores'))
+    motivo = request.form.get('saldo_ajuste_motivo', '').strip()
+    colab_db.saldo_ajuste = ajuste
+    colab_db.saldo_ajuste_motivo = motivo
+    db.session.commit()
+    flash(f'Saldo de {colab_db.nome} ajustado em {ajuste:+d} dias.', 'success')
+    return redirect(url_for('listar_colaboradores'))
+
 
 # ─── Rota: Novo colaborador ───────────────────────────────────────────────────
 

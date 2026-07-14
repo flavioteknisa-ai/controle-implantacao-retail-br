@@ -6,7 +6,7 @@ from typing import List, Tuple, Dict, Optional
 class Colaborador:
     """Representa um colaborador da equipe"""
 
-    def __init__(self, id: int, nome: str, data_admissao: datetime, time: str, ativo: bool = True, cidade: str = '', email: str = ''):
+    def __init__(self, id: int, nome: str, data_admissao: datetime, time: str, ativo: bool = True, cidade: str = '', email: str = '', saldo_ajuste: int = 0):
         self.id = id
         self.nome = nome
         self.data_admissao = data_admissao if isinstance(data_admissao, datetime) else datetime.strptime(str(data_admissao), "%Y-%m-%d")
@@ -14,27 +14,39 @@ class Colaborador:
         self.ativo = ativo
         self.cidade = cidade or ''
         self.email = email or ''
+        self.saldo_ajuste = saldo_ajuste or 0
 
     def calcular_saldo_ferias(self, ferias_realizadas: List['Ferias'], data_referencia: Optional[datetime] = None) -> int:
-        """
-        Calcula o saldo de férias disponível.
-        Fórmula: (meses desde admissão / 12 * 30) - dias_já_tirados
-        """
+        """Saldo = direito proporcional - realizados + ajuste manual."""
         if data_referencia is None:
             data_referencia = datetime.now()
 
-        # Calcula quantos anos completos desde admissão
         delta = relativedelta(data_referencia, self.data_admissao)
         anos_completos = delta.years + (delta.months / 12)
-
-        # Direito total: 30 dias por ano
         direito_total = int(anos_completos * 30)
 
-        # Dias já utilizados (apenas férias realizadas)
         dias_utilizados = sum(f.dias for f in ferias_realizadas if f.status == 'Realizado' and f.colaborador_id == self.id)
 
-        saldo = direito_total - dias_utilizados
+        saldo = direito_total - dias_utilizados + self.saldo_ajuste
         return max(0, saldo)
+
+    def calcular_saldo_breakdown(self, ferias_realizadas: List['Ferias'], data_referencia: Optional[datetime] = None):
+        """Retorna dict com os componentes do saldo para exibição."""
+        if data_referencia is None:
+            data_referencia = datetime.now()
+
+        delta = relativedelta(data_referencia, self.data_admissao)
+        anos_completos = delta.years + (delta.months / 12)
+        direito_total = int(anos_completos * 30)
+        dias_utilizados = sum(f.dias for f in ferias_realizadas if f.status == 'Realizado' and f.colaborador_id == self.id)
+
+        return {
+            'direito_total': direito_total,
+            'dias_utilizados': dias_utilizados,
+            'saldo_calculado': direito_total - dias_utilizados,
+            'saldo_ajuste': self.saldo_ajuste,
+            'saldo_final': max(0, direito_total - dias_utilizados + self.saldo_ajuste),
+        }
 
     def pode_tirar_ferias(self, data_inicio: datetime, data_fim: datetime, ferias_realizadas: List['Ferias'], ferias_planejadas: List['Ferias']) -> Tuple[bool, str]:
         """
