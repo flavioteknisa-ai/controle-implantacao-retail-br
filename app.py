@@ -1284,10 +1284,12 @@ def deletar_ferias(fid):
     next_url = request.form.get('next', url_for('index'))
     return redirect(next_url)
 
-@app.route('/editar-ferias/<int:fid>', methods=['POST'])
+@app.route('/editar-ferias/<int:fid>', methods=['GET', 'POST'])
 @login_required
 @gestor_required
 def editar_ferias(fid):
+    if request.method == 'GET':
+        return redirect(url_for('timeline'))
     f_db = FeriasDB.query.get_or_404(fid)
     ini_str    = request.form.get('data_inicio', '')
     fim_str    = request.form.get('data_fim', '')

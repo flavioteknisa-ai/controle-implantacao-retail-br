@@ -27,7 +27,7 @@ class FeriasValidator:
 
         # 3. Validação de saldo
         if ferias.dias > saldo_disponivel:
-            return False, f"Saldo insuficiente. Disponível: {saldo_disponível} dias, solicitado: {ferias.dias} dias"
+            return False, f"Saldo insuficiente. Disponível: {saldo_disponivel} dias, solicitado: {ferias.dias} dias"
 
         # 4. Validação de sobreposição COMPLETA (mesmo período 2x)
         for outras in todas_ferias:
