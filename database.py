@@ -185,8 +185,8 @@ class ComissionamentoDB(db.Model):
     criado_em               = db.Column(db.DateTime, default=datetime.now)
     atualizado_em           = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
 
-    # Relacionamento com colaborador
-    consultor               = db.relationship('ColaboradorDB', backref='comissionamentos')
+    # Relacionamento com colaborador (joined → evita N+1 nas listagens)
+    consultor               = db.relationship('ColaboradorDB', backref='comissionamentos', lazy='joined')
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -212,7 +212,7 @@ class VisitaDB(db.Model):
     criado_em        = db.Column(db.DateTime, default=datetime.now)
     atualizado_em    = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
 
-    colaborador = db.relationship('ColaboradorDB', backref='visitas', foreign_keys=[colaborador_id])
+    colaborador = db.relationship('ColaboradorDB', backref='visitas', foreign_keys=[colaborador_id], lazy='joined')
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -303,8 +303,8 @@ class AgendaGestao(db.Model):
     criado_em            = db.Column(db.DateTime, default=datetime.now)
     atualizado_em        = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
 
-    consultor  = db.relationship('ColaboradorDB', backref='agendas_gestao', foreign_keys=[consultor_id])
-    projeto    = db.relationship('ERPProjetoDB',  backref='agendas_gestao', foreign_keys=[projeto_id])
+    consultor  = db.relationship('ColaboradorDB', backref='agendas_gestao', foreign_keys=[consultor_id], lazy='joined')
+    projeto    = db.relationship('ERPProjetoDB',  backref='agendas_gestao', foreign_keys=[projeto_id], lazy='joined')
 
 
 class IntegracaoSyncLog(db.Model):

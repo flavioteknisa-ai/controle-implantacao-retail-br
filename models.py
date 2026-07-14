@@ -6,7 +6,7 @@ from typing import List, Tuple, Dict, Optional
 class Colaborador:
     """Representa um colaborador da equipe"""
 
-    def __init__(self, id: int, nome: str, data_admissao: datetime, time: str, ativo: bool = True, cidade: str = '', email: str = '', saldo_ajuste: int = 0):
+    def __init__(self, id: int, nome: str, data_admissao: datetime, time: str, ativo: bool = True, cidade: str = '', email: str = '', saldo_ajuste: int = 0, saldo_ajuste_motivo: str = ''):
         self.id = id
         self.nome = nome
         self.data_admissao = data_admissao if isinstance(data_admissao, datetime) else datetime.strptime(str(data_admissao), "%Y-%m-%d")
@@ -15,6 +15,7 @@ class Colaborador:
         self.cidade = cidade or ''
         self.email = email or ''
         self.saldo_ajuste = saldo_ajuste or 0
+        self.saldo_ajuste_motivo = saldo_ajuste_motivo or ''
 
     def calcular_saldo_ferias(self, ferias_realizadas: List['Ferias'], data_referencia: Optional[datetime] = None) -> int:
         """Saldo = direito proporcional - realizados + ajuste manual."""

@@ -227,17 +227,29 @@ def inject_integracao_badge():
 
 @app.context_processor
 def inject_atividades_pendentes():
-    """Conta atividades pendentes atribuídas ao usuário logado (badge no menu)."""
+    """Conta atividades pendentes atribuídas ao usuário logado (badge no menu).
+    Cacheado 30s por colaborador — evita um COUNT no banco a cada página."""
     try:
         if not current_user.is_authenticated or not current_user.colaborador_id:
             return {'atividades_pendentes_count': 0}
-        n = ERPAtividadeDB.query.filter_by(
-            responsavel_id=current_user.colaborador_id,
-            status_atividade='Aberta'
-        ).count()
+        ck = f'atv_pend_{current_user.colaborador_id}'
+        n = cache.get(ck)
+        if n is None:
+            n = ERPAtividadeDB.query.filter_by(
+                responsavel_id=current_user.colaborador_id,
+                status_atividade='Aberta'
+            ).count()
+            cache.set(ck, n, timeout=30)
         return {'atividades_pendentes_count': n}
     except Exception:
         return {'atividades_pendentes_count': 0}
+
+
+def _invalida_badge_atividades(*colaborador_ids):
+    """Invalida o cache do badge de atividades dos colaboradores informados."""
+    for cid in colaborador_ids:
+        if cid:
+            cache.delete(f'atv_pend_{cid}')
 
 # ─── Constantes ───────────────────────────────────────────────────────────────
 
@@ -350,6 +362,7 @@ def db_to_colab(c: ColaboradorDB) -> Colaborador:
         cidade=c.cidade or '',
         email=c.email or '',
         saldo_ajuste=c.saldo_ajuste or 0,
+        saldo_ajuste_motivo=c.saldo_ajuste_motivo or '',
     )
 
 def db_to_ferias(f: FeriasDB) -> Ferias:
@@ -1021,14 +1034,13 @@ def listar_colaboradores():
         )
         data_lim = calcular_data_limite(c, s_raw) if cargo != 'estagiario' else None
         breakdown = c.calcular_saldo_breakdown(ferias_real)
-        colab_db  = ColaboradorDB.query.get(c.id)
         itens_map[c.id] = {
             'colaborador': c, 'saldo': s_disp, 'saldo_raw': s_raw,
             'status_saldo': status_saldo(s_raw), 'cor': cor_colab(i),
             'tempo_casa': tempo_casa_str(c.data_admissao), 'proxima_ferias': proxima,
             'cargo': cargo, 'uf': uf, 'data_limite': data_lim,
             'breakdown': breakdown,
-            'saldo_ajuste_motivo': (colab_db.saldo_ajuste_motivo or '') if colab_db else '',
+            'saldo_ajuste_motivo': getattr(c, 'saldo_ajuste_motivo', ''),
         }
 
     grupos_raw = defaultdict(list)
@@ -1060,6 +1072,7 @@ def ajuste_saldo_colaborador(cid):
     colab_db.saldo_ajuste = ajuste
     colab_db.saldo_ajuste_motivo = motivo
     db.session.commit()
+    cache.delete('carregar_tudo')
     flash(f'Saldo de {colab_db.nome} ajustado em {ajuste:+d} dias.', 'success')
     return redirect(url_for('listar_colaboradores'))
 
@@ -1132,6 +1145,8 @@ def editar_colaborador(cid):
         c_db.cidade        = cidade
         c_db.email         = email or None
         db.session.commit()
+        cache.delete('carregar_tudo')
+        cache.delete('coordenadores')
         flash(f'Dados de "{nome}" atualizados!', 'success')
         return redirect(url_for('listar_colaboradores'))
     colab = db_to_colab(c_db)
@@ -1150,6 +1165,8 @@ def excluir_colaborador(cid):
         FeriasDB.status.notin_(['Cancelado', 'Realizado'])
     ).update({'status': 'Cancelado'})
     db.session.commit()
+    cache.delete('carregar_tudo')
+    cache.delete('coordenadores')
     flash(f'"{c_db.nome}" removido da equipe.', 'warning')
     return redirect(url_for('listar_colaboradores'))
 
@@ -1752,13 +1769,14 @@ def minhas_atividades():
                             ERPAtividadeDB.criado_em.asc())
                   .all())
 
-    # Agrupar por projeto
+    # Agrupar por projeto — busca todos de uma vez (evita N+1)
+    pids = {a.projeto_id for a in atividades}
+    projs = {p.id: p for p in ERPProjetoDB.query.filter(ERPProjetoDB.id.in_(pids)).all()} if pids else {}
     projetos_map = {}
     for a in atividades:
         pid = a.projeto_id
         if pid not in projetos_map:
-            proj = ERPProjetoDB.query.get(pid)
-            projetos_map[pid] = {'projeto': proj, 'atividades': []}
+            projetos_map[pid] = {'projeto': projs.get(pid), 'atividades': []}
         projetos_map[pid]['atividades'].append(a)
 
     grupos = list(projetos_map.values())
@@ -2473,6 +2491,7 @@ def adicionar_atividade(pid):
     )
     db.session.add(nova_atividade)
     db.session.commit()
+    _invalida_badge_atividades(resp_id)
 
     flash(f'Atividade "{titulo}" adicionada!', 'success')
     return redirect(url_for('detalhe_projeto', pid=pid) + '#atividades')
@@ -2498,8 +2517,10 @@ def deletar_atividade(pid, aid):
             'concluida': bool(atividade_db.concluida),
         },
     }
+    resp_afetado = atividade_db.responsavel_id
     db.session.delete(atividade_db)
     db.session.commit()
+    _invalida_badge_atividades(resp_afetado)
 
     flash(f'Atividade "{titulo}" deletada!', 'undo')
     return redirect(url_for('detalhe_projeto', pid=pid) + '#atividades')
@@ -2524,9 +2545,11 @@ def atualizar_data_atividade(pid, aid):
 def atualizar_responsavel_atividade(pid, aid):
     """Atualiza o responsável da atividade direto da linha (select inline)."""
     atividade_db = ERPAtividadeDB.query.get_or_404(aid)
+    resp_anterior = atividade_db.responsavel_id
     resp_id_str = request.form.get('responsavel_id', '').strip()
     atividade_db.responsavel_id = int(resp_id_str) if resp_id_str.isdigit() else None
     db.session.commit()
+    _invalida_badge_atividades(resp_anterior, atividade_db.responsavel_id)
     return redirect(url_for('detalhe_projeto', pid=pid) + '#atividades')
 
 @app.route('/projeto/<int:pid>/atividade/<int:aid>/status', methods=['POST'])
@@ -2543,6 +2566,7 @@ def atualizar_status_atividade(pid, aid):
 
     atividade_db.status_atividade = novo_status
     db.session.commit()
+    _invalida_badge_atividades(atividade_db.responsavel_id)
 
     flash(f'Atividade marcada como "{novo_status}"!', 'success')
     return redirect(url_for('detalhe_projeto', pid=pid) + '#atividades')
@@ -2788,13 +2812,14 @@ def listar_visitas():
 
     visitas = _query_visitas_filtradas(f).order_by(VisitaDB.data_visita.desc()).all()
 
-    # Resumo para cards
-    todas = VisitaDB.query.all()
+    # Resumo para cards — agregação no banco (evita carregar a tabela inteira)
+    contagens = dict(db.session.query(VisitaDB.status, db.func.count(VisitaDB.id))
+                     .group_by(VisitaDB.status).all())
     resumo = {
-        'total':      len(todas),
-        'planejadas': sum(1 for v in todas if v.status == 'PLANEJADA'),
-        'concluidas': sum(1 for v in todas if v.status == 'CONCLUIDA'),
-        'canceladas': sum(1 for v in todas if v.status == 'CANCELADA'),
+        'total':      sum(contagens.values()),
+        'planejadas': contagens.get('PLANEJADA', 0),
+        'concluidas': contagens.get('CONCLUIDA', 0),
+        'canceladas': contagens.get('CANCELADA', 0),
     }
 
     colaboradores = ColaboradorDB.query.filter_by(ativo=True).order_by(ColaboradorDB.nome).all()
