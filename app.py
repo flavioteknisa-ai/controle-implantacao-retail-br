@@ -1794,18 +1794,32 @@ def listar_projetos():
     todos_projetos = db_to_projetos_batch_lite(projetos_db)  # already batches colabs
 
     # Filtro por responsável (coordenador)
-    # Se o usuário logado é coordenador (não gestor) e não escolheu filtro manualmente,
-    # pré-filtra pelos projetos dele usando o colaborador_id vinculado à conta.
-    responsavel_filtro = request.args.get('responsavel_id', '')
-    if not responsavel_filtro and not current_user.is_gestor and current_user.colaborador_id:
-        responsavel_filtro = str(current_user.colaborador_id)
-
-    if responsavel_filtro:
+    # Se o parâmetro não veio na URL (primeiro acesso), pré-filtra pelos projetos
+    # do coordenador logado. Se veio como 'todos' (opção "Coordenador: todos"
+    # selecionada explicitamente), mostra todos os projetos independente de quem
+    # está logado — distinguir isso de "não veio" é o que corrige o bug de o
+    # coordenador não conseguir ver todos os projetos.
+    responsavel_param = request.args.get('responsavel_id')
+    if responsavel_param is None:
+        if not current_user.is_gestor and current_user.colaborador_id:
+            responsavel_id = current_user.colaborador_id
+            responsavel_filtro = str(responsavel_id)
+        else:
+            responsavel_id = None
+            responsavel_filtro = ''
+    elif responsavel_param in ('', 'todos'):
+        responsavel_id = None
+        responsavel_filtro = 'todos'
+    else:
         try:
-            responsavel_id = int(responsavel_filtro)
-            todos_projetos = [p for p in todos_projetos if p.responsavel_id == responsavel_id]
+            responsavel_id = int(responsavel_param)
+            responsavel_filtro = str(responsavel_id)
         except (ValueError, TypeError):
-            pass
+            responsavel_id = None
+            responsavel_filtro = ''
+
+    if responsavel_id is not None:
+        todos_projetos = [p for p in todos_projetos if p.responsavel_id == responsavel_id]
 
     # Filtro por modelo de projeto
     modelo_filtro = request.args.get('modelo', '')
@@ -2588,15 +2602,59 @@ def adicionar_repasse(pid):
     except ValueError:
         data_repasse = date.today()
 
+    coord_temp_str = request.form.get('coordenador_temporario_id', '').strip()
+    coord_temp_id  = int(coord_temp_str) if coord_temp_str.isdigit() else None
+    cobertura_ate_str = request.form.get('cobertura_ate', '').strip()
+    try:
+        cobertura_ate = datetime.strptime(cobertura_ate_str, '%Y-%m-%d').date() if cobertura_ate_str else None
+    except ValueError:
+        cobertura_ate = None
+
     db.session.add(ERPRepasseDB(
         projeto_id=pid,
         data_repasse=data_repasse,
         comentario=comentario,
+        coordenador_temporario_id=coord_temp_id,
+        cobertura_ate=cobertura_ate,
         criado_por=current_user.nome if current_user.is_authenticated else None
     ))
     db.session.commit()
 
     flash('Repasse registrado!', 'success')
+    return redirect(url_for('detalhe_projeto', pid=pid) + '#repasses')
+
+@app.route('/projeto/<int:pid>/repasse/<int:rid>/editar', methods=['POST'])
+@login_required
+@permission_required('editar_projeto')
+def editar_repasse(pid, rid):
+    """Edita um registro de repasse, incluindo o coordenador temporário de cobertura."""
+    repasse = ERPRepasseDB.query.get_or_404(rid)
+
+    comentario = request.form.get('comentario', '').strip()
+    if not comentario:
+        flash('Descreva o repasse para salvá-lo.', 'danger')
+        return redirect(url_for('detalhe_projeto', pid=pid) + '#repasses')
+
+    try:
+        data_repasse = datetime.strptime(request.form.get('data_repasse', ''), '%Y-%m-%d').date()
+    except ValueError:
+        data_repasse = repasse.data_repasse
+
+    coord_temp_str = request.form.get('coordenador_temporario_id', '').strip()
+    coord_temp_id  = int(coord_temp_str) if coord_temp_str.isdigit() else None
+    cobertura_ate_str = request.form.get('cobertura_ate', '').strip()
+    try:
+        cobertura_ate = datetime.strptime(cobertura_ate_str, '%Y-%m-%d').date() if cobertura_ate_str else None
+    except ValueError:
+        cobertura_ate = None
+
+    repasse.comentario = comentario
+    repasse.data_repasse = data_repasse
+    repasse.coordenador_temporario_id = coord_temp_id
+    repasse.cobertura_ate = cobertura_ate
+    db.session.commit()
+
+    flash('Repasse atualizado!', 'success')
     return redirect(url_for('detalhe_projeto', pid=pid) + '#repasses')
 
 @app.route('/projeto/<int:pid>/repasse/<int:rid>/excluir', methods=['POST'])

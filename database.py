@@ -157,12 +157,16 @@ class ERPAtividadeDB(db.Model):
 class ERPRepasseDB(db.Model):
     __tablename__ = 'erp_repasses'
 
-    id              = db.Column(db.Integer, primary_key=True)
-    projeto_id      = db.Column(db.Integer, db.ForeignKey('erp_projetos.id'), nullable=False, index=True)
-    data_repasse    = db.Column(db.Date, nullable=False)
-    comentario      = db.Column(db.Text, nullable=False)
-    criado_por      = db.Column(db.String(120))
-    criado_em       = db.Column(db.DateTime, default=datetime.now)
+    id                          = db.Column(db.Integer, primary_key=True)
+    projeto_id                  = db.Column(db.Integer, db.ForeignKey('erp_projetos.id'), nullable=False, index=True)
+    data_repasse                = db.Column(db.Date, nullable=False)
+    comentario                  = db.Column(db.Text, nullable=False)
+    coordenador_temporario_id   = db.Column(db.Integer, db.ForeignKey('colaboradores.id'), nullable=True, index=True)
+    cobertura_ate               = db.Column(db.Date)  # até quando a cobertura temporária vale
+    criado_por                  = db.Column(db.String(120))
+    criado_em                   = db.Column(db.DateTime, default=datetime.now)
+
+    coordenador_temporario = db.relationship('ColaboradorDB', foreign_keys=[coordenador_temporario_id], lazy='joined')
 
 
 # ─────────────────────────────────────────────────────────────────

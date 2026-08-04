@@ -705,15 +705,29 @@
               {% if r.criado_por %} · registrado por {{ r.criado_por }}{% endif %}
             </div>
             <div class="repasse-texto">{{ r.comentario }}</div>
+            {% if r.coordenador_temporario %}
+            <div class="mt-1">
+              <span class="badge" style="background:#FFF3CD;color:#856404;font-size:.72rem;">
+                <i class="bi bi-person-badge me-1"></i>Cobertura temporária: {{ r.coordenador_temporario.nome }}
+                {% if r.cobertura_ate %} · até {{ r.cobertura_ate.strftime('%d/%m/%Y') }}{% endif %}
+              </span>
+            </div>
+            {% endif %}
           </div>
           {% if tem_perm('editar_projeto') %}
-          <form method="POST" action="/projeto/{{ projeto.id }}/repasse/{{ r.id }}/excluir" style="flex-shrink:0;"
-                data-confirm="Você poderá desfazer logo após excluir."
-                data-confirm-titulo="Excluir este registro de repasse?" data-confirm-botao="Excluir">
-            <button type="submit" class="btn btn-sm btn-outline-danger" title="Excluir repasse">
-              <i class="bi bi-trash"></i>
+          <div class="d-flex gap-1" style="flex-shrink:0;">
+            <button type="button" class="btn btn-sm btn-outline-secondary" title="Editar repasse"
+                    onclick="abrirEditarRepasse({{ r.id }}, '{{ r.data_repasse.strftime('%Y-%m-%d') }}', '{{ r.comentario|e }}', {{ r.coordenador_temporario_id or 'null' }}, '{{ r.cobertura_ate.strftime('%Y-%m-%d') if r.cobertura_ate else '' }}')">
+              <i class="bi bi-pencil"></i>
             </button>
-          </form>
+            <form method="POST" action="/projeto/{{ projeto.id }}/repasse/{{ r.id }}/excluir"
+                  data-confirm="Você poderá desfazer logo após excluir."
+                  data-confirm-titulo="Excluir este registro de repasse?" data-confirm-botao="Excluir">
+              <button type="submit" class="btn btn-sm btn-outline-danger" title="Excluir repasse">
+                <i class="bi bi-trash"></i>
+              </button>
+            </form>
+          </div>
           {% endif %}
         </div>
         {% endfor %}
@@ -732,16 +746,16 @@
 
 </div>
 
-<!-- Modal: Registrar Repasse -->
+<!-- Modal: Registrar / Editar Repasse -->
 {% if tem_perm('editar_projeto') %}
 <div class="modal fade" id="registrarRepasseModal" tabindex="-1">
   <div class="modal-dialog">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title">Registrar Repasse</h5>
+        <h5 class="modal-title" id="repasseModalTitulo">Registrar Repasse</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
-      <form method="POST" action="/projeto/{{ projeto.id }}/repasse">
+      <form method="POST" action="/projeto/{{ projeto.id }}/repasse" id="frmRepasse">
         <div class="modal-body">
           <div class="mb-3">
             <label for="data_repasse" class="form-label">Data do Repasse</label>
@@ -753,10 +767,27 @@
                       placeholder="Ex: Repassado de João para Maria. Pendências: integração fiscal e treinamento do caixa."></textarea>
             <small class="form-text text-muted">Documente de quem para quem e as pendências do projeto.</small>
           </div>
+          <hr>
+          <div class="mb-3">
+            <label for="coordenador_temporario_id" class="form-label">
+              <i class="bi bi-person-badge me-1"></i>Coordenador Temporário (cobertura de férias)
+            </label>
+            <select class="form-select" id="coordenador_temporario_id" name="coordenador_temporario_id">
+              <option value="">-- Nenhum --</option>
+              {% for c in colaboradores %}
+              <option value="{{ c.id }}">{{ c.nome }}</option>
+              {% endfor %}
+            </select>
+            <small class="form-text text-muted">Informe quem está cobrindo o coordenador principal durante suas férias, se aplicável.</small>
+          </div>
+          <div class="mb-3">
+            <label for="cobertura_ate" class="form-label">Cobertura até</label>
+            <input type="date" class="form-control" id="cobertura_ate" name="cobertura_ate">
+          </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-          <button type="submit" class="btn btn-primary">Registrar</button>
+          <button type="submit" class="btn btn-primary" id="repasseModalBotao">Registrar</button>
         </div>
       </form>
     </div>
@@ -1085,6 +1116,40 @@
   if (dataRepasse) dataRepasse.value = hoje;
   const dataAtividade = document.getElementById('dataNovaAtividade');
   if (dataAtividade) dataAtividade.value = hoje;
+})();
+
+// Modal de Repasse: alterna entre modo "Registrar" (novo) e "Editar"
+(function() {
+  const modalRepasse = document.getElementById('registrarRepasseModal');
+  if (!modalRepasse) return;
+  let repasseEditId = null;
+
+  window.abrirEditarRepasse = function(id, dataRepasse, comentario, coordTempId, coberturaAte) {
+    repasseEditId = id;
+    document.getElementById('repasseModalTitulo').textContent = 'Editar Repasse';
+    document.getElementById('repasseModalBotao').textContent = 'Salvar';
+    document.getElementById('frmRepasse').action = '/projeto/{{ projeto.id }}/repasse/' + id + '/editar';
+    document.getElementById('data_repasse').value = dataRepasse || '';
+    document.getElementById('comentario').value = comentario || '';
+    document.getElementById('coordenador_temporario_id').value = coordTempId || '';
+    document.getElementById('cobertura_ate').value = coberturaAte || '';
+    new bootstrap.Modal(modalRepasse).show();
+  };
+
+  modalRepasse.addEventListener('show.bs.modal', function() {
+    if (repasseEditId === null) {
+      document.getElementById('repasseModalTitulo').textContent = 'Registrar Repasse';
+      document.getElementById('repasseModalBotao').textContent = 'Registrar';
+      document.getElementById('frmRepasse').action = '/projeto/{{ projeto.id }}/repasse';
+      document.getElementById('frmRepasse').reset();
+      const d = new Date();
+      document.getElementById('data_repasse').value =
+        d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+    }
+  });
+  modalRepasse.addEventListener('hidden.bs.modal', function() {
+    repasseEditId = null;
+  });
 })();
 
 // Stepper de percentual dos módulos (salva via fetch, sem reload)

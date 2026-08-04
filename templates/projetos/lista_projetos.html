@@ -127,7 +127,7 @@
 
     <span class="ms-auto d-flex gap-2 align-items-center flex-wrap">
       <select name="responsavel_id" class="form-select form-select-sm" style="width:auto;font-size:.78rem;" onchange="this.form.submit()">
-        <option value="">Coordenador: todos</option>
+        <option value="todos" {% if not responsavel_filtro or responsavel_filtro == 'todos' %}selected{% endif %}>Coordenador: todos</option>
         {% for c in coordenadores %}
         <option value="{{ c.id }}" {% if responsavel_filtro == c.id|string %}selected{% endif %}>{{ c.nome }}</option>
         {% endfor %}
@@ -138,7 +138,7 @@
         <option value="Rollout"     {% if modelo_filtro == 'Rollout'     %}selected{% endif %}>Rollout</option>
         <option value="Treinamento" {% if modelo_filtro == 'Treinamento' %}selected{% endif %}>Treinamento</option>
       </select>
-      {% if responsavel_filtro or (modelo_filtro and modelo_filtro != '') %}
+      {% if (responsavel_filtro and responsavel_filtro != 'todos') or (modelo_filtro and modelo_filtro != '') %}
       <a href="/projetos?status={{ status_filtro }}" class="chip">
         <i class="bi bi-x-circle"></i>Limpar
       </a>
