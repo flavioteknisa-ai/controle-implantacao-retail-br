@@ -1187,8 +1187,8 @@ def nova_ferias():
         sel_colab    = current_user.colaborador_id
         colaboradores = [c for c in colaboradores if c.id == sel_colab]
     elif current_user.is_coordenador:
-        # Coordenador: pode selecionar apenas consultores (não coordenadores/gerentes)
-        colaboradores = [c for c in colaboradores if parse_cargo_uf(c.time)[0] == 'consultor']
+        # Coordenador: pode solicitar para qualquer colaborador cadastrado
+        # (inclusive ele mesmo) — a aprovação final continua com o gestor.
         sel_colab = request.args.get('colab', type=int)
     else:
         # Gestor/Master: acesso total
@@ -1201,11 +1201,6 @@ def nova_ferias():
         elif current_user.is_coordenador:
             colab_id   = int(request.form.get('colaborador_id', 0))
             status_sel = 'Solicitado'
-            # Segurança: validar que é realmente um consultor
-            colab_check = next((c for c in colaboradores_raw if c.id == colab_id), None)
-            if colab_check and parse_cargo_uf(colab_check.time or '')[0] != 'consultor':
-                flash('Coordenadores só podem solicitar férias para consultores.', 'danger')
-                return redirect(url_for('nova_ferias'))
         else:
             colab_id   = int(request.form.get('colaborador_id', 0))
             status_sel = request.form.get('status', 'Planejado')
