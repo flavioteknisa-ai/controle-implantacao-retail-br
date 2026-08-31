@@ -34,8 +34,10 @@ class FeriasValidator:
             if outras.id == ferias.id or outras.status == 'Cancelado':
                 continue
 
-            # Se é EXATAMENTE o mesmo período
-            if outras.data_inicio == ferias.data_inicio and outras.data_fim == ferias.data_fim:
+            # Se é EXATAMENTE o mesmo período (para o MESMO colaborador)
+            if (outras.colaborador_id == ferias.colaborador_id
+                    and outras.data_inicio == ferias.data_inicio
+                    and outras.data_fim == ferias.data_fim):
                 return False, f"Período {ferias.data_inicio.strftime('%d/%m/%Y')} a {ferias.data_fim.strftime('%d/%m/%Y')} já foi registrado"
 
             # Se sobrepõe parcialmente (mesmo que 1 dia)
