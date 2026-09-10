@@ -224,18 +224,13 @@
     </button>
   </li>
   <li class="nav-item" role="presentation">
-    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-modulos" type="button" role="tab">
-      Módulos <span class="text-muted">· {{ projeto.modulos|length }}</span>
+    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-entregas" type="button" role="tab">
+      Entregas <span class="text-muted">· {{ projeto.modulos|length + projeto.atividades|length }}</span>
     </button>
   </li>
   <li class="nav-item" role="presentation">
     <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-unidades" type="button" role="tab">
       Unidades <span class="text-muted">· {{ projeto.unidades|length }}</span>
-    </button>
-  </li>
-  <li class="nav-item" role="presentation">
-    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-atividades" type="button" role="tab">
-      Atividades <span class="text-muted">· {{ projeto.atividades|length }}</span>
     </button>
   </li>
   <li class="nav-item" role="presentation">
@@ -372,8 +367,8 @@
     </div>
   </div>
 
-  <!-- Aba: Módulos -->
-  <div class="tab-pane fade" id="tab-modulos" role="tabpanel">
+  <!-- Aba: Entregas (Módulos + Atividades) -->
+  <div class="tab-pane fade" id="tab-entregas" role="tabpanel">
     <div class="card">
       <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
         <div><i class="bi bi-puzzle me-1"></i> Módulos ({{ projeto.modulos|length }})</div>
@@ -502,85 +497,9 @@
         {% endif %}
       </div>
     </div>
-  </div>
 
-  <!-- Aba: Unidades -->
-  <div class="tab-pane fade" id="tab-unidades" role="tabpanel">
-    <div class="card">
-      <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
-        <div><i class="bi bi-geo-alt me-1"></i> Unidades/Lojas ({{ projeto.unidades|length }})</div>
-        <div class="d-flex gap-2 align-items-center flex-wrap">
-          <div class="form-check" style="margin: 0;">
-            <input class="form-check-input" type="checkbox" id="showConcluiUnidades" checked>
-            <label class="form-check-label" for="showConcluiUnidades" style="margin: 0; font-size: .8rem;">
-              Ocultar Concluídos
-            </label>
-          </div>
-          {% if tem_perm('adicionar_unidade') %}
-          <button type="button" class="btn btn-sm btn-light" data-bs-toggle="modal" data-bs-target="#adicionarUnidadeModal">
-            <i class="bi bi-plus-circle"></i> Adicionar
-          </button>
-          {% endif %}
-        </div>
-      </div>
-      <div class="card-body p-0">
-        {% if projeto.unidades %}
-        <table class="table table-hover mb-0">
-          <thead class="bg-light">
-            <tr>
-              <th>Unidade</th>
-              <th>Status</th>
-              <th>Período</th>
-              {% if tem_perm('adicionar_modulo') %}<th></th>{% endif %}
-            </tr>
-          </thead>
-          <tbody>
-            {% for unidade in projeto.unidades %}
-            <tr class="unidade-row" data-status="{{ unidade.status }}" style="{% if unidade.status == 'Finalizado' %}opacity: 0.55;{% endif %} display: {% if unidade.status == 'Finalizado' %}none{% endif %};">
-              <td><strong style="{% if unidade.status == 'Finalizado' %}text-decoration: line-through; color: #888780;{% endif %}">{{ unidade.nome }}</strong></td>
-              <td>
-                {% if unidade.status == 'Não iniciado' %}
-                <span class="pill pill-modelo">Não iniciado</span>
-                {% elif unidade.status == 'Em andamento' %}
-                <span class="pill pill-andamento">Em andamento</span>
-                {% elif unidade.status == 'Finalizado' %}
-                <span class="pill pill-finalizado">Finalizado</span>
-                {% elif unidade.status == 'Atrasado' %}
-                <span class="pill pill-cancelado">Atrasado</span>
-                {% endif %}
-              </td>
-              <td>
-                {% if unidade.data_inicio and unidade.data_conclusao %}
-                  {{ unidade.data_inicio.strftime('%d/%m') }} a {{ unidade.data_conclusao.strftime('%d/%m/%Y') }}
-                {% else %}
-                  <small class="text-muted">Não definido</small>
-                {% endif %}
-              </td>
-              {% if tem_perm('adicionar_unidade') %}
-              <td class="text-end">
-                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal"
-                        data-bs-target="#editarUnidadeModal{{ unidade.id }}" title="Editar">
-                  <i class="bi bi-pencil"></i>
-                </button>
-              </td>
-              {% endif %}
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-        {% else %}
-        <div class="text-center py-4" style="color:var(--muted);font-size:.88rem;">
-          <i class="bi bi-geo-alt d-block mb-1" style="font-size:1.4rem;"></i>
-          Nenhuma unidade adicionada ainda.
-        </div>
-        {% endif %}
-      </div>
-    </div>
-  </div>
-
-  <!-- Aba: Atividades -->
-  <div class="tab-pane fade" id="tab-atividades" role="tabpanel">
-    <div class="card">
+    <!-- Atividades (movido para dentro de Entregas) -->
+    <div class="card mt-3">
       <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
         <div><i class="bi bi-chat-dots me-1"></i> Atividades ({{ projeto.atividades|length }})</div>
         <div class="d-flex gap-2 align-items-center flex-wrap">
@@ -689,6 +608,80 @@
         <div class="text-center py-4" style="color:var(--muted);font-size:.88rem;">
           <i class="bi bi-chat-dots d-block mb-1" style="font-size:1.4rem;"></i>
           Nenhuma atividade registrada ainda.
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Aba: Unidades -->
+  <div class="tab-pane fade" id="tab-unidades" role="tabpanel">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div><i class="bi bi-geo-alt me-1"></i> Unidades/Lojas ({{ projeto.unidades|length }})</div>
+        <div class="d-flex gap-2 align-items-center flex-wrap">
+          <div class="form-check" style="margin: 0;">
+            <input class="form-check-input" type="checkbox" id="showConcluiUnidades" checked>
+            <label class="form-check-label" for="showConcluiUnidades" style="margin: 0; font-size: .8rem;">
+              Ocultar Concluídos
+            </label>
+          </div>
+          {% if tem_perm('adicionar_unidade') %}
+          <button type="button" class="btn btn-sm btn-light" data-bs-toggle="modal" data-bs-target="#adicionarUnidadeModal">
+            <i class="bi bi-plus-circle"></i> Adicionar
+          </button>
+          {% endif %}
+        </div>
+      </div>
+      <div class="card-body p-0">
+        {% if projeto.unidades %}
+        <table class="table table-hover mb-0">
+          <thead class="bg-light">
+            <tr>
+              <th>Unidade</th>
+              <th>Status</th>
+              <th>Período</th>
+              {% if tem_perm('adicionar_modulo') %}<th></th>{% endif %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for unidade in projeto.unidades %}
+            <tr class="unidade-row" data-status="{{ unidade.status }}" style="{% if unidade.status == 'Finalizado' %}opacity: 0.55;{% endif %} display: {% if unidade.status == 'Finalizado' %}none{% endif %};">
+              <td><strong style="{% if unidade.status == 'Finalizado' %}text-decoration: line-through; color: #888780;{% endif %}">{{ unidade.nome }}</strong></td>
+              <td>
+                {% if unidade.status == 'Não iniciado' %}
+                <span class="pill pill-modelo">Não iniciado</span>
+                {% elif unidade.status == 'Em andamento' %}
+                <span class="pill pill-andamento">Em andamento</span>
+                {% elif unidade.status == 'Finalizado' %}
+                <span class="pill pill-finalizado">Finalizado</span>
+                {% elif unidade.status == 'Atrasado' %}
+                <span class="pill pill-cancelado">Atrasado</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if unidade.data_inicio and unidade.data_conclusao %}
+                  {{ unidade.data_inicio.strftime('%d/%m') }} a {{ unidade.data_conclusao.strftime('%d/%m/%Y') }}
+                {% else %}
+                  <small class="text-muted">Não definido</small>
+                {% endif %}
+              </td>
+              {% if tem_perm('adicionar_unidade') %}
+              <td class="text-end">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal"
+                        data-bs-target="#editarUnidadeModal{{ unidade.id }}" title="Editar">
+                  <i class="bi bi-pencil"></i>
+                </button>
+              </td>
+              {% endif %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="text-center py-4" style="color:var(--muted);font-size:.88rem;">
+          <i class="bi bi-geo-alt d-block mb-1" style="font-size:1.4rem;"></i>
+          Nenhuma unidade adicionada ainda.
         </div>
         {% endif %}
       </div>
@@ -1105,9 +1098,11 @@
 })();
 </script>
 <script>
-// Abre a aba indicada no hash da URL (ex: /projeto/1#modulos)
+// Abre a aba indicada no hash da URL (ex: /projeto/1#entregas)
 (function() {
-  const hash = window.location.hash.replace('#', '');
+  let hash = window.location.hash.replace('#', '');
+  // Módulos e Atividades foram unificadas na aba "Entregas"
+  if (hash === 'modulos' || hash === 'atividades') hash = 'entregas';
   if (hash) {
     const trigger = document.querySelector('[data-bs-target="#tab-' + hash + '"]');
     if (trigger) new bootstrap.Tab(trigger).show();
