@@ -298,6 +298,18 @@
                 <div class="info-label">Potencial do Cliente</div>
                 <div class="info-valor">{{ projeto.potencial_cliente }}</div>
               </div>
+              <div class="col-md-6">
+                <div class="info-label">% Conclusão (manual)</div>
+                <div class="info-valor">
+                  {{ (p_db.percentual_conclusao or 0)|int }}%
+                  {% if projeto.modulos and (p_db.percentual_conclusao or 0)|round|int != projeto.percentual_geral()|round|int %}
+                  <span class="text-muted" style="font-size:.72rem;" data-bs-toggle="tooltip"
+                        title="O card 'Progresso Geral' no topo mostra {{ projeto.percentual_geral()|int }}%, calculado pela média dos módulos. Este valor manual é usado apenas quando o projeto não tem módulos cadastrados.">
+                    <i class="bi bi-info-circle"></i> difere da média dos módulos ({{ projeto.percentual_geral()|int }}%)
+                  </span>
+                  {% endif %}
+                </div>
+              </div>
             </div>
             {% if projeto.descricao %}
             <hr style="border-color:var(--border);">
