@@ -1316,6 +1316,7 @@ def deletar_ferias(fid):
     f_db = FeriasDB.query.get_or_404(fid)
     f_db.status = 'Cancelado'
     db.session.commit()
+    cache.delete('carregar_tudo')
     flash('Férias canceladas.', 'warning')
     next_url = request.form.get('next', url_for('index'))
     return redirect(next_url)
@@ -1324,6 +1325,7 @@ def deletar_ferias(fid):
 @login_required
 @gestor_required
 def editar_ferias(fid):
+    destino = request.form.get('next') or url_for('timeline')
     if request.method == 'GET':
         return redirect(url_for('timeline'))
     f_db = FeriasDB.query.get_or_404(fid)
@@ -1335,26 +1337,27 @@ def editar_ferias(fid):
         fim = datetime.strptime(fim_str, '%Y-%m-%d')
     except ValueError:
         flash('Datas inválidas.', 'danger')
-        return redirect(url_for('timeline'))
+        return redirect(destino)
     colaboradores_raw, ferias_plan, ferias_real = carregar_tudo()
     colab = next((c for c in colaboradores_raw if c.id == f_db.colaborador_id), None)
     if not colab:
         flash('Colaborador não encontrado.', 'danger')
-        return redirect(url_for('timeline'))
+        return redirect(destino)
     outras    = [x for x in ferias_plan if x.id != fid and x.status != 'Cancelado']
     nova_f    = Ferias(fid, f_db.colaborador_id, ini, fim, status_sel)
     saldo_base = saldo_colab(colab, ferias_real, [x for x in ferias_plan if x.id != fid])
     valido, erro = FeriasValidator.validar_ferias(nova_f, colab, outras, ferias_real, saldo_base or 0)
     if not valido:
         flash(f'Erro: {erro}', 'danger')
-        return redirect(url_for('timeline'))
+        return redirect(destino)
     f_db.data_inicio = ini.date()
     f_db.data_fim    = fim.date()
     f_db.dias        = nova_f.dias
     f_db.status      = status_sel
     db.session.commit()
+    cache.delete('carregar_tudo')
     flash(f'Férias de {colab.nome} atualizadas!', 'success')
-    return redirect(url_for('timeline'))
+    return redirect(destino)
 
 @app.route('/confirmar-ferias/<int:fid>', methods=['POST'])
 @login_required
@@ -2740,6 +2743,8 @@ def api_saldo(cid):
             'id': f.id,
             'inicio': f.data_inicio.strftime('%d/%m/%Y'),
             'fim': f.data_fim.strftime('%d/%m/%Y'),
+            'inicio_iso': f.data_inicio.strftime('%Y-%m-%d'),
+            'fim_iso': f.data_fim.strftime('%Y-%m-%d'),
             'dias': f.dias,
             'status': f.status,
         })
