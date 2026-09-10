@@ -2723,11 +2723,34 @@ def api_saldo(cid):
     c = next((x for x in colaboradores_raw if x.id == cid), None)
     if not c:
         return jsonify({'erro': 'não encontrado'}), 404
+
+    # Férias já registradas deste colaborador (exceto canceladas) — para o usuário
+    # VER o que existe antes de tentar registrar e não ser surpreendido por
+    # bloqueios de sobreposição "invisíveis". Deduplica períodos idênticos.
+    vistos = set()
+    ferias_existentes = []
+    for f in FeriasDB.query.filter_by(colaborador_id=cid).order_by(FeriasDB.data_inicio.asc()).all():
+        if f.status == 'Cancelado':
+            continue
+        chave = (f.data_inicio, f.data_fim)
+        if chave in vistos:
+            continue
+        vistos.add(chave)
+        ferias_existentes.append({
+            'id': f.id,
+            'inicio': f.data_inicio.strftime('%d/%m/%Y'),
+            'fim': f.data_fim.strftime('%d/%m/%Y'),
+            'dias': f.dias,
+            'status': f.status,
+        })
+
     s_raw = saldo_colab(c, ferias_real, ferias_plan)
     if s_raw is None:
-        return jsonify({'saldo': None, 'status': 'estagiario', 'colaborador': c.nome, 'estagiario': True})
+        return jsonify({'saldo': None, 'status': 'estagiario', 'colaborador': c.nome,
+                        'estagiario': True, 'ferias': ferias_existentes})
     s_disp = saldo_quantizado(s_raw)
-    return jsonify({'saldo': s_disp, 'saldo_raw': s_raw, 'status': status_saldo(s_raw), 'colaborador': c.nome})
+    return jsonify({'saldo': s_disp, 'saldo_raw': s_raw, 'status': status_saldo(s_raw),
+                    'colaborador': c.nome, 'ferias': ferias_existentes})
 
 @app.route('/api/busca')
 @login_required

@@ -90,6 +90,15 @@
             </div>
           </div>
 
+          <!-- Férias já registradas do colaborador -->
+          <div id="feriasExistentesBox" class="mb-3" style="display:none;">
+            <div class="d-flex align-items-center gap-2 mb-1">
+              <i class="bi bi-calendar-check text-primary"></i>
+              <span class="small fw-semibold text-muted">Férias já registradas deste colaborador</span>
+            </div>
+            <div id="feriasExistentesLista"></div>
+          </div>
+
           <!-- Data de Início -->
           <div class="mb-3">
             <label class="form-label fw-semibold small">Data de Início *</label>
@@ -186,7 +195,8 @@ let _dias = 0;
 /* ── Saldo ── */
 async function carregarSaldo(id) {
   const box = document.getElementById('saldoBox');
-  if (!id) { box.style.display = 'none'; return; }
+  const feBox = document.getElementById('feriasExistentesBox');
+  if (!id) { box.style.display = 'none'; if (feBox) feBox.style.display = 'none'; return; }
   try {
     const r = await fetch('/api/saldo/' + id);
     const d = await r.json();
@@ -203,7 +213,32 @@ async function carregarSaldo(id) {
       bar.className = 'progress-bar ' + (s >= 20 ? 'bg-success' : s >= 10 ? 'bg-warning' : 'bg-danger');
     }
     box.style.display = 'block';
+    renderFeriasExistentes(d.ferias || []);
   } catch(e) {}
+}
+
+/* ── Lista de férias já registradas do colaborador ── */
+function renderFeriasExistentes(lista) {
+  const box  = document.getElementById('feriasExistentesBox');
+  const cont = document.getElementById('feriasExistentesLista');
+  if (!box || !cont) return;
+  if (!lista.length) {
+    cont.innerHTML = '<div class="text-muted small fst-italic px-1">Nenhuma férias registrada.</div>';
+    box.style.display = 'block';
+    return;
+  }
+  const cor = st => st === 'Realizado' ? '#6c757d'
+                  : st === 'Confirmado' ? '#198754'
+                  : st === 'Solicitado' ? '#fd7e14' : '#0d6efd';
+  cont.innerHTML = lista.map(f => `
+    <div class="d-flex align-items-center gap-2 p-2 mb-1 rounded"
+         style="background:#fff;border:1px solid #e9ecef;font-size:.8rem;">
+      <i class="bi bi-calendar-event" style="color:${cor(f.status)};"></i>
+      <span class="fw-semibold">${f.inicio} → ${f.fim}</span>
+      <span class="text-muted">· ${f.dias}d</span>
+      <span class="badge ms-auto" style="background:${cor(f.status)};color:#fff;font-size:.68rem;">${f.status}</span>
+    </div>`).join('');
+  box.style.display = 'block';
 }
 
 /* ── Botões de dias ── */
