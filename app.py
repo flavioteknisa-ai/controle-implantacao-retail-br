@@ -251,6 +251,29 @@ def _invalida_badge_atividades(*colaborador_ids):
         if cid:
             cache.delete(f'atv_pend_{cid}')
 
+
+def _ressincronizar_sequences():
+    """Ressincroniza as sequences (auto-incremento) de todas as tabelas com o
+    MAX(id) atual. Necessário após importações/migrações que inserem linhas com
+    id explícito (via merge), o que deixa o contador para trás e causa
+    UniqueViolation na chave primária em novos inserts. Só roda em PostgreSQL."""
+    if not db.engine.url.get_backend_name().startswith('postgresql'):
+        return
+    from sqlalchemy import text
+    with db.engine.connect() as conn:
+        rows = conn.execute(text("""
+            SELECT table_name, column_name FROM information_schema.columns
+            WHERE table_schema = 'public' AND column_default LIKE 'nextval%'
+        """)).fetchall()
+        for tbl, col in rows:
+            seq = conn.execute(text("SELECT pg_get_serial_sequence(:t, :c)"),
+                               {'t': tbl, 'c': col}).scalar()
+            if not seq:
+                continue
+            maxid = conn.execute(text(f'SELECT COALESCE(MAX("{col}"), 0) FROM "{tbl}"')).scalar()
+            conn.execute(text('SELECT setval(:s, :v)'), {'s': seq, 'v': max(maxid, 1)})
+        conn.commit()
+
 # ─── Constantes ───────────────────────────────────────────────────────────────
 
 CORES = [
@@ -3804,6 +3827,10 @@ def migrate_data():
                     db.session.merge(comis)
                 db.session.commit()
                 summary['comissionamentos'] = len(data['comissionamentos'])
+
+        # Merge com id explícito não avança as sequences → ressincroniza para
+        # evitar UniqueViolation em inserts futuros (ex.: lançar nova férias).
+        _ressincronizar_sequences()
 
         return jsonify({
             'status': 'success',
