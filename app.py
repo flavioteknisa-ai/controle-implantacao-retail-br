@@ -1940,8 +1940,12 @@ def dashboard_projetos():
                 'valor_total': 0,
                 'projetos_lista': []
             }
-        coordenadores_resumo[resp]['projetos_total'] += 1
         coordenadores_resumo[resp]['projetos_lista'].append(p)
+        # Total e valor/mês contam apenas projetos ATIVOS (Em andamento ou
+        # Paralisado). Finalizados e Cancelados ficam de fora do somatório.
+        if p.status in ('Em andamento', 'Paralisado'):
+            coordenadores_resumo[resp]['projetos_total'] += 1
+            coordenadores_resumo[resp]['valor_total'] += p.valor_mensalidades
         if p.status == 'Em andamento':
             coordenadores_resumo[resp]['em_andamento'] += 1
         elif p.status == 'Paralisado':
@@ -1950,7 +1954,6 @@ def dashboard_projetos():
             coordenadores_resumo[resp]['finalizados'] += 1
         if p.esta_atrasado():
             coordenadores_resumo[resp]['atrasados'] += 1
-        coordenadores_resumo[resp]['valor_total'] += p.valor_mensalidades
 
     coordenadores_resumo = list(coordenadores_resumo.values())
     # Remove "Sem atribuição" se não tiver projetos ativos (em andamento ou atrasados)
