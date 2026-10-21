@@ -63,7 +63,7 @@
                 <label for="horas_comissionadas" class="form-label">Horas Comissionadas</label>
                 <input type="time" class="form-control" id="horas_comissionadas" name="horas_comissionadas"
                        placeholder="00:00"
-                       value="{{ comissao.horas_comissionadas|hhmm }}">
+                       value="{{ '%02d:%02d' % (comissao.horas_comissionadas|int, ((comissao.horas_comissionadas % 1) * 60)|int) if comissao.horas_comissionadas else '00:00' }}">
               </div>
             </div>
             <div class="col-md-4">

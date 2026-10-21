@@ -68,7 +68,7 @@
             <td>{{ com.cliente }}</td>
             <td><small>{{ com.data_comissao.strftime('%d/%m/%Y') }}</small></td>
             <td>
-              <span class="badge bg-info">{{ com.horas_comissionadas|hhmm }}</span>
+              <span class="badge bg-info">{{ "%.1f"|format(com.horas_comissionadas) }}h</span>
             </td>
             <td>
               {% if com.hora_fora_estado %}<small>{{ com.hora_fora_estado }}</small>{% else %}<small class="text-muted">—</small>{% endif %}
