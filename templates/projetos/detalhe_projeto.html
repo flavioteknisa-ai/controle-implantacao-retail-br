@@ -211,7 +211,7 @@
     <div class="stat-card">
       <div class="stat-label" style="margin:0 0 4px;">Mensalidade</div>
       <div class="stat-number" style="font-size:1.25rem;">R$ {{ "%.2f"|format(projeto.valor_mensalidades) }}</div>
-      <div class="stat-label">potencial {{ projeto.potencial_cliente|lower }}</div>
+      <div class="stat-label">porte {{ projeto.potencial_cliente or "não informado" }}</div>
     </div>
   </div>
 </div>
@@ -290,12 +290,8 @@
                 <div class="info-valor">R$ {{ "%.2f"|format(projeto.valor_mensalidades) }}</div>
               </div>
               <div class="col-md-6">
-                <div class="info-label">Potencial do Cliente</div>
-                <div class="info-valor">{{ projeto.potencial_cliente }}</div>
-              </div>
-              <div class="col-md-6">
                 <div class="info-label">Porte do Projeto</div>
-                <div class="info-valor">{{ p_db.porte or 'Não informado' }}</div>
+                <div class="info-valor">{{ projeto.potencial_cliente or 'Não informado' }}</div>
               </div>
               <div class="col-md-6">
                 <div class="info-label">% Conclusão (manual)</div>

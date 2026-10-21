@@ -88,7 +88,7 @@ class Projeto:
     def __init__(self, id: int, nome: str, data_aceite: date, data_conclusao: Optional[date] = None,
                  status: str = 'Em andamento', valor_mensalidades: float = 0,
                  responsavel: Optional[str] = None, responsavel_id: Optional[int] = None, descricao: str = '',
-                 numero_unidades: int = 1, potencial_cliente: str = 'Médio',
+                 numero_unidades: int = 1, potencial_cliente: str = 'Medium',
                  tipo_projeto: str = 'Novo', modelo_projeto: str = 'Tradicional',
                  ponto_atencao: bool = False, percentual_conclusao_db: float = 0,
                  cidade: Optional[str] = None, estado: Optional[str] = None,
@@ -106,7 +106,7 @@ class Projeto:
         self.responsavel_id = responsavel_id
         self.descricao = descricao
         self.numero_unidades = numero_unidades
-        self.potencial_cliente = potencial_cliente  # 'Pequeno', 'Médio', 'Grande', 'Estratégico'
+        self.potencial_cliente = potencial_cliente  # Porte: 'Estratégico', 'Premium', 'Medium', 'Standard'
         self.tipo_projeto = tipo_projeto  # 'Base', 'Novo'
         self.modelo_projeto = modelo_projeto  # 'Tradicional', 'Rollout', 'Treinamento'
         self.ponto_atencao = ponto_atencao

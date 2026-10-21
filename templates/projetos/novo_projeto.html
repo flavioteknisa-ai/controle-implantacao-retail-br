@@ -78,23 +78,13 @@
             </div>
             <div class="col-md-4">
               <div class="mb-3">
-                <label for="potencial_cliente" class="form-label">Potencial do Cliente</label>
+                <label for="potencial_cliente" class="form-label">Porte do Projeto</label>
                 <select class="form-control" id="potencial_cliente" name="potencial_cliente">
-                  <option value="Pequeno" {% if request.form.get('potencial_cliente') == 'Pequeno' %}selected{% endif %}>Pequeno</option>
-                  <option value="Médio" {% if request.form.get('potencial_cliente', 'Médio') == 'Médio' %}selected{% endif %}>Médio</option>
-                  <option value="Grande" {% if request.form.get('potencial_cliente') == 'Grande' %}selected{% endif %}>Grande</option>
-                  <option value="Estratégico" {% if request.form.get('potencial_cliente') == 'Estratégico' %}selected{% endif %}>Estratégico</option>
-                </select>
-                <small class="form-text text-muted">Classificação do cliente</small>
-              </div>
-              <div class="mb-3">
-                <label for="porte" class="form-label">Porte do Projeto</label>
-                <select class="form-control" id="porte" name="porte">
-                  <option value="">Não informado</option>
                   {% for opt in ['Estratégico', 'Premium', 'Medium', 'Standard'] %}
-                  <option value="{{ opt }}" {% if request.form.get('porte') == opt %}selected{% endif %}>{{ opt }}</option>
+                  <option value="{{ opt }}" {% if request.form.get('potencial_cliente', 'Medium') == opt %}selected{% endif %}>{{ opt }}</option>
                   {% endfor %}
                 </select>
+                <small class="form-text text-muted">Classificação do projeto</small>
               </div>
             </div>
             <div class="col-md-4">

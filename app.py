@@ -426,7 +426,7 @@ def db_to_projeto(p: ERPProjetoDB, colabs_map: dict = None) -> Projeto:
         responsavel_id=p.responsavel_id,
         descricao=p.descricao or '',
         numero_unidades=p.numero_unidades or 1,
-        potencial_cliente=p.potencial_cliente or 'Médio',
+        potencial_cliente=p.potencial_cliente or 'Medium',
         tipo_projeto=p.tipo_projeto or 'Novo',
         modelo_projeto=p.modelo_projeto or 'Tradicional',
         ponto_atencao=bool(p.ponto_atencao),
@@ -505,7 +505,7 @@ def db_to_projeto_lite(p: ERPProjetoDB, responsaveis_map: dict = None) -> Projet
         responsavel_id=p.responsavel_id,
         descricao=p.descricao or '',
         numero_unidades=p.numero_unidades or 1,
-        potencial_cliente=p.potencial_cliente or 'Médio',
+        potencial_cliente=p.potencial_cliente or 'Medium',
         tipo_projeto=p.tipo_projeto or 'Novo',
         modelo_projeto=p.modelo_projeto or 'Tradicional',
         ponto_atencao=bool(p.ponto_atencao),
@@ -1974,7 +1974,7 @@ def dashboard_projetos():
     for p in projetos_db:
         if p.status not in ('Em andamento', 'Paralisado'):
             continue
-        chave = p.porte if p.porte in portes_ordem else 'Não informado'
+        chave = p.potencial_cliente if p.potencial_cliente in portes_ordem else 'Não informado'
         resumo_porte[chave] += 1
 
     return render_template('projetos/dashboard_projetos.html',
@@ -2064,8 +2064,7 @@ def novo_projeto():
         except ValueError:
             numero_unidades = 1
 
-        potencial_cliente = request.form.get('potencial_cliente', 'Médio')
-        porte = request.form.get('porte', '').strip() or None
+        potencial_cliente = request.form.get('potencial_cliente', 'Medium')
         tipo_projeto = request.form.get('tipo_projeto', 'Novo')
         modelo_projeto = request.form.get('modelo_projeto', 'Tradicional')
         cidade = request.form.get('cidade', '').strip().upper() or None
@@ -2096,7 +2095,6 @@ def novo_projeto():
             percentual_conclusao=0,
             numero_unidades=numero_unidades,
             potencial_cliente=potencial_cliente,
-            porte=porte,
             tipo_projeto=tipo_projeto,
             modelo_projeto=modelo_projeto,
             cidade=cidade,
@@ -2180,8 +2178,7 @@ def editar_projeto(pid):
         except ValueError:
             numero_unidades = 1
 
-        potencial_cliente = request.form.get('potencial_cliente', 'Médio')
-        porte = request.form.get('porte', '').strip() or None
+        potencial_cliente = request.form.get('potencial_cliente', 'Medium')
         tipo_projeto = request.form.get('tipo_projeto', 'Novo')
         modelo_projeto = request.form.get('modelo_projeto', 'Tradicional')
         ponto_atencao = bool(request.form.get('ponto_atencao'))
@@ -2208,7 +2205,6 @@ def editar_projeto(pid):
         p_db.percentual_conclusao = percentual
         p_db.numero_unidades = numero_unidades
         p_db.potencial_cliente = potencial_cliente
-        p_db.porte = porte
         p_db.tipo_projeto = tipo_projeto
         p_db.modelo_projeto = modelo_projeto
         p_db.ponto_atencao = ponto_atencao
@@ -3762,7 +3758,7 @@ def migrate_data():
                         descricao=row.get('descricao', ''),
                         percentual_conclusao=row.get('percentual_conclusao', 0),
                         numero_unidades=row.get('numero_unidades', 1),
-                        potencial_cliente=row.get('potencial_cliente', 'Médio'),
+                        potencial_cliente=row.get('potencial_cliente', 'Medium'),
                         tipo_projeto=row.get('tipo_projeto', 'Novo'),
                         criado_em=row.get('criado_em'),
                         atualizado_em=row.get('atualizado_em')
@@ -5048,7 +5044,7 @@ def importar_clickup():
                     descricao=(dados.get('descricao','') or '')[:2000],
                     percentual_conclusao=min(100, max(0, float(str(dados.get('percentual_conclusao','0')).replace(',','.') or 0))),
                     numero_unidades=max(1, int(str(dados.get('numero_unidades','1')).strip() or 1)),
-                    potencial_cliente='Médio',
+                    potencial_cliente='Medium',
                     tipo_projeto='Novo',
                 )
                 db.session.add(novo)

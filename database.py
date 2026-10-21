@@ -84,8 +84,7 @@ class ERPProjetoDB(db.Model):
     descricao           = db.Column(db.Text)
     percentual_conclusao = db.Column(db.Float, default=0)
     numero_unidades     = db.Column(db.Integer, default=1)
-    potencial_cliente   = db.Column(db.String(50), default='Médio')
-    porte               = db.Column(db.String(20))  # Estratégico | Premium | Medium | Standard
+    potencial_cliente   = db.Column(db.String(50), default='Medium')  # Porte: Estratégico | Premium | Medium | Standard
     tipo_projeto        = db.Column(db.String(50), default='Novo')
     modelo_projeto      = db.Column(db.String(50), default='Tradicional')  # Tradicional | Rollout | Treinamento | Demanda Avulsa
     ponto_atencao       = db.Column(db.Boolean, default=False)
