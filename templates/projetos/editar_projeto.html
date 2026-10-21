@@ -109,6 +109,15 @@
                 </select>
                 <small class="form-text text-muted">Classificação do cliente</small>
               </div>
+              <div class="mb-3">
+                <label for="porte" class="form-label">Porte do Projeto</label>
+                <select class="form-control" id="porte" name="porte">
+                  <option value="">Não informado</option>
+                  {% for opt in ['Estratégico', 'Premium', 'Medium', 'Standard'] %}
+                  <option value="{{ opt }}" {% if p_db.porte == opt %}selected{% endif %}>{{ opt }}</option>
+                  {% endfor %}
+                </select>
+              </div>
             </div>
             <div class="col-md-4">
               <div class="mb-3">

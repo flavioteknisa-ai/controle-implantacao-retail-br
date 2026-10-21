@@ -294,6 +294,10 @@
                 <div class="info-valor">{{ projeto.potencial_cliente }}</div>
               </div>
               <div class="col-md-6">
+                <div class="info-label">Porte do Projeto</div>
+                <div class="info-valor">{{ p_db.porte or 'Não informado' }}</div>
+              </div>
+              <div class="col-md-6">
                 <div class="info-label">% Conclusão (manual)</div>
                 <div class="info-valor">
                   {{ (p_db.percentual_conclusao or 0)|int }}%

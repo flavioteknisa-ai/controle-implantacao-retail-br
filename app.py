@@ -1968,18 +1968,21 @@ def dashboard_projetos():
     ]
     coordenadores_resumo.sort(key=lambda x: x['projetos_total'], reverse=True)
 
-    # Resumo por potencial
-    resumo_potencial = {}
-    for p in projetos:
-        pot = p.potencial_cliente or 'Não especificado'
-        resumo_potencial[pot] = resumo_potencial.get(pot, 0) + 1
+    # Total por porte (somente projetos ativos: Em andamento e Paralisado)
+    portes_ordem = ['Estratégico', 'Premium', 'Medium', 'Standard', 'Não informado']
+    resumo_porte = {p: 0 for p in portes_ordem}
+    for p in projetos_db:
+        if p.status not in ('Em andamento', 'Paralisado'):
+            continue
+        chave = p.porte if p.porte in portes_ordem else 'Não informado'
+        resumo_porte[chave] += 1
 
     return render_template('projetos/dashboard_projetos.html',
                           stats=stats,
                           projetos_atrasados=projetos_atrasados,
                           projetos_vencimento_proximo=projetos_vencimento_proximo,
                           coordenadores_resumo=coordenadores_resumo,
-                          resumo_potencial=resumo_potencial)
+                          resumo_porte=resumo_porte)
 
 
 # ─── Validator para Projetos ─────────────────────────────────────────────────
@@ -2062,6 +2065,7 @@ def novo_projeto():
             numero_unidades = 1
 
         potencial_cliente = request.form.get('potencial_cliente', 'Médio')
+        porte = request.form.get('porte', '').strip() or None
         tipo_projeto = request.form.get('tipo_projeto', 'Novo')
         modelo_projeto = request.form.get('modelo_projeto', 'Tradicional')
         cidade = request.form.get('cidade', '').strip().upper() or None
@@ -2092,6 +2096,7 @@ def novo_projeto():
             percentual_conclusao=0,
             numero_unidades=numero_unidades,
             potencial_cliente=potencial_cliente,
+            porte=porte,
             tipo_projeto=tipo_projeto,
             modelo_projeto=modelo_projeto,
             cidade=cidade,
@@ -2176,6 +2181,7 @@ def editar_projeto(pid):
             numero_unidades = 1
 
         potencial_cliente = request.form.get('potencial_cliente', 'Médio')
+        porte = request.form.get('porte', '').strip() or None
         tipo_projeto = request.form.get('tipo_projeto', 'Novo')
         modelo_projeto = request.form.get('modelo_projeto', 'Tradicional')
         ponto_atencao = bool(request.form.get('ponto_atencao'))
@@ -2202,6 +2208,7 @@ def editar_projeto(pid):
         p_db.percentual_conclusao = percentual
         p_db.numero_unidades = numero_unidades
         p_db.potencial_cliente = potencial_cliente
+        p_db.porte = porte
         p_db.tipo_projeto = tipo_projeto
         p_db.modelo_projeto = modelo_projeto
         p_db.ponto_atencao = ponto_atencao

@@ -156,6 +156,40 @@
 </div>
 {% endif %}
 
+<!-- Projetos por Porte -->
+<h5 style="color:#808080; font-weight:700; margin-bottom:16px;">
+  <i class="bi bi-bar-chart-fill"></i> Projetos por Porte
+  <span style="font-size:.75rem; font-weight:400; color:#888;">(em andamento e paralisados)</span>
+</h5>
+<div class="card mb-4">
+  <div class="card-body">
+    <div style="position:relative; height:280px;">
+      <canvas id="chartPorte"></canvas>
+    </div>
+  </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+  new Chart(document.getElementById('chartPorte'), {
+    type: 'bar',
+    data: {
+      labels: {{ resumo_porte.keys()|list|tojson }},
+      datasets: [{
+        label: 'Projetos',
+        data: {{ resumo_porte.values()|list|tojson }},
+        backgroundColor: ['#6a1b9a', '#1e88e5', '#00897b', '#808080', '#cfcfcf'],
+        borderRadius: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+    }
+  });
+</script>
+
 <!-- Cards por Coordenador -->
 <h5 style="color:#808080; font-weight:700; margin-bottom:16px;">
   <i class="bi bi-people-fill"></i> Projetos por Coordenador
