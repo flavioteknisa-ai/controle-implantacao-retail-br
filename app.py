@@ -1968,11 +1968,14 @@ def dashboard_projetos():
     ]
     coordenadores_resumo.sort(key=lambda x: x['projetos_total'], reverse=True)
 
-    # Total por porte (somente projetos ativos: Em andamento e Paralisado)
+    # Total por porte: só projetos ativos (Em andamento/Paralisado — exclui
+    # Finalizado e Cancelado) da metodologia Tradicional.
     portes_ordem = ['Estratégico', 'Premium', 'Medium', 'Standard', 'Não informado']
     resumo_porte = {p: 0 for p in portes_ordem}
     for p in projetos_db:
         if p.status not in ('Em andamento', 'Paralisado'):
+            continue
+        if (p.modelo_projeto or 'Tradicional') != 'Tradicional':
             continue
         chave = p.potencial_cliente if p.potencial_cliente in portes_ordem else 'Não informado'
         resumo_porte[chave] += 1
