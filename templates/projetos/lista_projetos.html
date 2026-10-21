@@ -100,8 +100,13 @@
 
 <!-- Filtros -->
 <form method="GET" action="/projetos" id="formFiltros" class="mb-3">
-  {% set qs_base = ('&responsavel_id=' ~ responsavel_filtro if responsavel_filtro else '') ~ ('&modelo=' ~ modelo_filtro if modelo_filtro else '') %}
+  {% set qs_base = ('&responsavel_id=' ~ responsavel_filtro if responsavel_filtro else '') ~ ('&modelo=' ~ modelo_filtro if modelo_filtro else '') ~ ('&porte=' ~ porte_filtro|urlencode if porte_filtro else '') %}
   <div class="d-flex flex-wrap align-items-center gap-2">
+    {% if status_filtro == 'ativos' %}
+    <a href="/projetos?status=ativos{{ qs_base }}" class="chip active">
+      Ativos · {{ resumo.em_andamento + resumo.paralisados }}
+    </a>
+    {% endif %}
     <a href="/projetos?status=todos{{ qs_base }}" class="chip {% if status_filtro == 'todos' %}active{% endif %}">
       Todos · {{ resumo.total_projetos }}
     </a>
@@ -138,7 +143,7 @@
         <option value="Rollout"     {% if modelo_filtro == 'Rollout'     %}selected{% endif %}>Rollout</option>
         <option value="Treinamento" {% if modelo_filtro == 'Treinamento' %}selected{% endif %}>Treinamento</option>
       </select>
-      {% if (responsavel_filtro and responsavel_filtro != 'todos') or (modelo_filtro and modelo_filtro != '') %}
+      {% if (responsavel_filtro and responsavel_filtro != 'todos') or (modelo_filtro and modelo_filtro != '') or porte_filtro %}
       <a href="/projetos?status={{ status_filtro }}" class="chip">
         <i class="bi bi-x-circle"></i>Limpar
       </a>
@@ -146,7 +151,16 @@
     </span>
   </div>
   <input type="hidden" name="status" value="{{ status_filtro }}">
+  {% if porte_filtro %}<input type="hidden" name="porte" value="{{ porte_filtro }}">{% endif %}
 </form>
+
+{% if porte_filtro %}
+<div class="meta-sm mb-3">
+  <i class="bi bi-bar-chart-fill me-1"></i>
+  Exibindo projetos de porte: <strong>{{ porte_filtro }}</strong>
+  — <a href="/projetos?status={{ status_filtro }}{% if responsavel_filtro %}&responsavel_id={{ responsavel_filtro }}{% endif %}{% if modelo_filtro %}&modelo={{ modelo_filtro }}{% endif %}">remover filtro</a>
+</div>
+{% endif %}
 
 {% if responsavel_nome %}
 <div class="meta-sm mb-3">

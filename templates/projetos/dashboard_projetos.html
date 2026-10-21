@@ -185,7 +185,17 @@
       responsive: true,
       maintainAspectRatio: false,
       plugins: { legend: { display: false } },
-      scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+      scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+      // Clique na barra → lista de projetos com os mesmos critérios do gráfico
+      onClick: function(evt, els, chart) {
+        if (!els.length) return;
+        var porte = chart.data.labels[els[0].index];
+        window.location.href = '/projetos?responsavel_id=todos&modelo=Tradicional&status=ativos&porte='
+                               + encodeURIComponent(porte);
+      },
+      onHover: function(evt, els, chart) {
+        chart.canvas.style.cursor = els.length ? 'pointer' : 'default';
+      }
     }
   });
 </script>

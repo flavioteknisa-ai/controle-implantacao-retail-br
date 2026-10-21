@@ -1857,9 +1857,21 @@ def listar_projetos():
         todos_projetos = [p for p in todos_projetos
                           if getattr(p, 'modelo_projeto', 'Tradicional') == modelo_filtro]
 
+    # Filtro por porte (vindo do gráfico "Projetos por Porte" do resumo)
+    PORTES = ('Estratégico', 'Premium', 'Medium', 'Standard')
+    porte_filtro = request.args.get('porte', '')
+    if porte_filtro == 'Não informado':
+        todos_projetos = [p for p in todos_projetos if p.potencial_cliente not in PORTES]
+    elif porte_filtro in PORTES:
+        todos_projetos = [p for p in todos_projetos if p.potencial_cliente == porte_filtro]
+    else:
+        porte_filtro = ''
+
     # Filtros de status
     status_filtro = request.args.get('status', 'todos')
-    if status_filtro == 'atencao':
+    if status_filtro == 'ativos':
+        projetos = [p for p in todos_projetos if p.status in ('Em andamento', 'Paralisado')]
+    elif status_filtro == 'atencao':
         projetos = [p for p in todos_projetos if p.ponto_atencao]
     elif status_filtro == 'longa_execucao':
         projetos = [p for p in todos_projetos if p.alerta_longa_execucao]
@@ -1889,6 +1901,7 @@ def listar_projetos():
                           projetos=projetos,
                           status_filtro=status_filtro,
                           modelo_filtro=modelo_filtro,
+                          porte_filtro=porte_filtro,
                           responsavel_filtro=responsavel_filtro,
                           responsavel_nome=responsavel_nome,
                           coordenadores=coordenadores_filtro,
