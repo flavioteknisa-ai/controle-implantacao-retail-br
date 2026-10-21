@@ -77,6 +77,11 @@ if db_url:
         db_url += '?sslmode=require'
     # Converter Supabase direct → pooler (resolve problema IPv6 no Vercel)
     db_url = _supabase_pooler_url(db_url)
+    # Driver explícito: SQLAlchemy 2.1+ passou a usar 'psycopg' (v3) como padrão
+    # para postgresql://, mas o projeto instala psycopg2-binary. Sem isto, um build
+    # novo no Vercel falha no import com "No module named 'psycopg'".
+    if db_url.startswith('postgresql://'):
+        db_url = 'postgresql+psycopg2://' + db_url[len('postgresql://'):]
 else:
     # Usar SQLite (local ou /tmp no Vercel)
     is_vercel = os.environ.get('VERCEL') == '1'
