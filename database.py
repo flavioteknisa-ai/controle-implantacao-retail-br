@@ -324,3 +324,25 @@ class IntegracaoSyncLog(db.Model):
     inalterados  = db.Column(db.Integer, default=0)
     erros        = db.Column(db.Integer, default=0)
     mensagem     = db.Column(db.Text)
+
+
+# ─────────────────────────────────────────────────────────────────
+# TABELA: Log de Auditoria — registra todas as ALTERAÇÕES do sistema
+# (quem criou/editou/excluiu o quê e quando)
+# ─────────────────────────────────────────────────────────────────
+
+class LogAuditoria(db.Model):
+    __tablename__ = 'log_auditoria'
+
+    id           = db.Column(db.Integer, primary_key=True)
+    criado_em    = db.Column(db.DateTime, default=datetime.now, index=True)
+    usuario_id   = db.Column(db.Integer, index=True)
+    usuario_nome = db.Column(db.String(150))
+    perfil       = db.Column(db.String(20))
+    metodo       = db.Column(db.String(10))     # POST | PUT | PATCH | DELETE
+    endpoint     = db.Column(db.String(120), index=True)
+    rota         = db.Column(db.String(300))    # caminho da URL
+    descricao    = db.Column(db.String(200))    # ação em linguagem legível
+    dados        = db.Column(db.Text)           # JSON dos campos enviados (sem senhas)
+    ip           = db.Column(db.String(60))
+    status_code  = db.Column(db.Integer)

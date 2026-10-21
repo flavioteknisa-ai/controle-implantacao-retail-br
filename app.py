@@ -46,7 +46,7 @@ import io
 from io import BytesIO
 
 from models import Colaborador, Ferias
-from database import db, User, ColaboradorDB, FeriasDB, ERPProjetoDB, ERPModuloDB, ERPUnidadeDB, ERPAtividadeDB, ERPRepasseDB, ComissionamentoDB, PermissaoPerfil, VisitaDB, AppConfig, AgendaGestao
+from database import db, User, ColaboradorDB, FeriasDB, ERPProjetoDB, ERPModuloDB, ERPUnidadeDB, ERPAtividadeDB, ERPRepasseDB, ComissionamentoDB, PermissaoPerfil, VisitaDB, AppConfig, AgendaGestao, LogAuditoria
 from validators import FeriasValidator
 from analytics import FeriasAnalytics
 from erp_models import Projeto, Modulo, Unidade, Atividade
@@ -209,6 +209,15 @@ def inject_permissions():
 
 
 @app.context_processor
+def inject_pode_ver_logs():
+    """Flag para exibir o menu de Log de Auditoria só para quem tem acesso."""
+    try:
+        return {'pode_ver_logs': _pode_ver_logs()}
+    except Exception:
+        return {'pode_ver_logs': False}
+
+
+@app.context_processor
 def inject_integracao_badge():
     """Conta de projetos aguardando revisão (badge no menu). Cacheado 60s,
     só consulta para usuários gestores."""
@@ -250,6 +259,111 @@ def _invalida_badge_atividades(*colaborador_ids):
     for cid in colaborador_ids:
         if cid:
             cache.delete(f'atv_pend_{cid}')
+
+
+# ─── Auditoria: log de todas as alterações do sistema ─────────────────────────
+# Somente estes usuários podem consultar a tela de logs.
+LOG_USERS = {'flaviooliveira'}
+
+def _pode_ver_logs():
+    return current_user.is_authenticated and current_user.username in LOG_USERS
+
+# Métodos que alteram dados (GET/HEAD/OPTIONS não são auditados).
+_LOG_METODOS = {'POST', 'PUT', 'PATCH', 'DELETE'}
+# Campos que NUNCA entram no log (sensíveis).
+_LOG_CAMPOS_SENSIVEIS = ('senha', 'password', 'token', 'csrf', 'secret')
+# Descrições legíveis por endpoint (fallback: nome do endpoint humanizado).
+LOG_ACOES = {
+    'nova_ferias':                   'Férias — registro/solicitação',
+    'editar_ferias':                 'Férias — edição',
+    'deletar_ferias':                'Férias — cancelamento',
+    'confirmar_ferias':              'Férias — confirmação',
+    'reprovar_ferias':               'Férias — reprovação',
+    'aprovar_solicitacao':           'Férias — aprovação de solicitação',
+    'rejeitar_solicitacao':          'Férias — rejeição de solicitação',
+    'novo_colaborador':              'Colaborador — criação',
+    'editar_colaborador':            'Colaborador — edição',
+    'excluir_colaborador':           'Colaborador — inativação',
+    'ajuste_saldo_colaborador':      'Colaborador — ajuste de saldo',
+    'criar_projeto':                 'Projeto — criação',
+    'novo_projeto':                  'Projeto — criação',
+    'editar_projeto':                'Projeto — edição',
+    'deletar_projeto':               'Projeto — exclusão',
+    'excluir_projeto':               'Projeto — exclusão',
+    'toggle_atencao':                'Projeto — ponto de atenção',
+    'adicionar_modulo':              'Módulo — criação',
+    'adicionar_modulos_lote':        'Módulo — criação em lote',
+    'editar_modulo':                 'Módulo — edição',
+    'status_modulo':                 'Módulo — mudança de status',
+    'percentual_modulo':             'Módulo — atualização de progresso',
+    'excluir_modulo':                'Módulo — exclusão',
+    'adicionar_unidade':             'Unidade — criação',
+    'editar_unidade':                'Unidade — edição',
+    'adicionar_atividade':           'Atividade — criação',
+    'atualizar_data_atividade':      'Atividade — alteração de data',
+    'atualizar_responsavel_atividade':'Atividade — alteração de responsável',
+    'atualizar_status_atividade':    'Atividade — mudança de status',
+    'deletar_atividade':             'Atividade — exclusão',
+    'adicionar_repasse':             'Repasse — registro',
+    'editar_repasse':                'Repasse — edição',
+    'excluir_repasse':               'Repasse — exclusão',
+    'novo_comissionamento':          'Comissão — criação',
+    'editar_comissionamento':        'Comissão — edição',
+    'deletar_comissionamento':       'Comissão — exclusão',
+    'nova_visita':                   'Visita — criação',
+    'editar_visita':                 'Visita — edição',
+    'excluir_visita':                'Visita — exclusão',
+    'status_visita':                 'Visita — mudança de status',
+    'login':                         'Sessão — login',
+    'logout':                        'Sessão — logout',
+}
+
+def _descricao_log(endpoint, metodo):
+    if endpoint in LOG_ACOES:
+        return LOG_ACOES[endpoint]
+    base = (endpoint or 'ação').replace('_', ' ').strip().capitalize()
+    verbo = {'POST': 'criação/ação', 'PUT': 'edição', 'PATCH': 'edição', 'DELETE': 'exclusão'}.get(metodo, '')
+    return f'{base} — {verbo}' if verbo else base
+
+
+@app.after_request
+def _auditar_alteracoes(response):
+    """Registra no log de auditoria toda requisição que altera dados
+    (POST/PUT/PATCH/DELETE) feita por um usuário autenticado. Nunca deixa o
+    log quebrar a requisição original (tudo em try/except)."""
+    try:
+        if request.method not in _LOG_METODOS:
+            return response
+        endpoint = request.endpoint or ''
+        if endpoint in ('static',):
+            return response
+        if not current_user.is_authenticated:
+            return response
+        dados = {}
+        for k, v in request.form.items():
+            if any(s in k.lower() for s in _LOG_CAMPOS_SENSIVEIS):
+                continue
+            dados[k] = v[:200] if isinstance(v, str) else v
+        log = LogAuditoria(
+            usuario_id=getattr(current_user, 'id', None),
+            usuario_nome=getattr(current_user, 'nome', None),
+            perfil=getattr(current_user, 'perfil', None),
+            metodo=request.method,
+            endpoint=endpoint[:120],
+            rota=request.path[:300],
+            descricao=_descricao_log(endpoint, request.method)[:200],
+            dados=(json.dumps(dados, ensure_ascii=False, default=str)[:4000] if dados else None),
+            ip=(request.headers.get('X-Forwarded-For') or request.remote_addr or '')[:60],
+            status_code=response.status_code,
+        )
+        db.session.add(log)
+        db.session.commit()
+    except Exception:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+    return response
 
 
 def _ressincronizar_sequences():
@@ -1503,6 +1617,21 @@ def _hhmm_to_float(s: str) -> float:
         return 0.0
 
 
+def _float_to_hhmm(h) -> str:
+    """Converte horas decimais para 'HH:MM'. Ex: 11.2667 -> '11:16'.
+    Arredonda ao minuto mais próximo (evita 11:15 por truncamento)."""
+    try:
+        minutos = int(round(float(h or 0) * 60))
+    except (TypeError, ValueError):
+        minutos = 0
+    return f'{minutos // 60:02d}:{minutos % 60:02d}'
+
+
+@app.template_filter('hhmm')
+def _filtro_hhmm(h):
+    return _float_to_hhmm(h)
+
+
 @app.route('/novo-comissionamento', methods=['GET', 'POST'])
 @login_required
 @permission_required('criar_comissionamento')
@@ -1684,7 +1813,7 @@ def exportar_comissionamentos_excel():
         left=Side(style='thin'), right=Side(style='thin'),
         top=Side(style='thin'),  bottom=Side(style='thin')
     )
-    horas_fmt = '#,##0.00'          # formato numérico com 2 casas decimais
+    horas_fmt = '[h]:mm'            # horas em HH:MM (total pode passar de 24h)
     center    = Alignment(horizontal='center', vertical='center')
     right_al  = Alignment(horizontal='right',  vertical='center')
 
@@ -1718,9 +1847,9 @@ def exportar_comissionamentos_excel():
             ws.cell(row=row, column=2).value = com.cliente
             ws.cell(row=row, column=3).value = com.data_comissao.strftime('%d/%m/%Y')
 
-            # Horas: valor numérico com formato decimal
+            # Horas: fração de dia (minutos/1440) com formato [h]:mm → exibe 11:16
             hc = ws.cell(row=row, column=4)
-            hc.value           = com.horas_comissionadas or 0
+            hc.value           = round((com.horas_comissionadas or 0) * 60) / 1440
             hc.number_format   = horas_fmt
             hc.alignment       = right_al
 
@@ -2744,6 +2873,56 @@ def desfazer_acao():
     return redirect(acao.get('volta') or url_for('listar_projetos'))
 
 # ─── API: saldo ───────────────────────────────────────────────────────────────
+
+@app.route('/logs')
+@login_required
+def logs_auditoria():
+    """Tela de consulta do log de auditoria — acesso restrito (LOG_USERS)."""
+    if not _pode_ver_logs():
+        flash('Acesso restrito.', 'danger')
+        return redirect(url_for('index'))
+
+    f_usuario = request.args.get('usuario', '').strip()
+    f_acao    = request.args.get('acao', '').strip()
+    f_ini     = request.args.get('data_ini', '').strip()
+    f_fim     = request.args.get('data_fim', '').strip()
+    f_busca   = request.args.get('q', '').strip()
+    pagina    = max(request.args.get('pagina', 1, type=int), 1)
+    por_pag   = 50
+
+    q = LogAuditoria.query
+    if f_usuario:
+        q = q.filter(LogAuditoria.usuario_nome == f_usuario)
+    if f_acao:
+        q = q.filter(LogAuditoria.descricao.ilike(f'{f_acao}%'))
+    if f_ini:
+        try: q = q.filter(LogAuditoria.criado_em >= datetime.strptime(f_ini, '%Y-%m-%d'))
+        except ValueError: pass
+    if f_fim:
+        try: q = q.filter(LogAuditoria.criado_em < datetime.strptime(f_fim, '%Y-%m-%d') + timedelta(days=1))
+        except ValueError: pass
+    if f_busca:
+        like = f'%{f_busca}%'
+        q = q.filter(db.or_(LogAuditoria.dados.ilike(like), LogAuditoria.rota.ilike(like),
+                            LogAuditoria.descricao.ilike(like)))
+
+    total = q.count()
+    registros = (q.order_by(LogAuditoria.criado_em.desc(), LogAuditoria.id.desc())
+                   .offset((pagina - 1) * por_pag).limit(por_pag).all())
+
+    usuarios = [u for (u,) in db.session.query(LogAuditoria.usuario_nome)
+                .filter(LogAuditoria.usuario_nome.isnot(None)).distinct()
+                .order_by(LogAuditoria.usuario_nome).all()]
+    # Módulos para o filtro de ação (parte antes do " — ")
+    acoes = sorted({v.split(' — ')[0] for v in LOG_ACOES.values()})
+
+    return render_template('logs_auditoria.html',
+                           registros=registros, total=total, pagina=pagina,
+                           paginas=max((total + por_pag - 1) // por_pag, 1),
+                           usuarios=usuarios, acoes=acoes,
+                           f_usuario=f_usuario, f_acao=f_acao,
+                           f_ini=f_ini, f_fim=f_fim, f_busca=f_busca)
+
 
 @app.route('/api/saldo/<int:cid>')
 @login_required
