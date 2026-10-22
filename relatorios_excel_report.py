@@ -69,6 +69,49 @@ def _get_delivery_counts(row_data, delivery_cols):
     return counts
 
 
+_DELIVERY_ORDER = ['PP', 'FAP', 'RE', 'TE']
+
+
+def _find_limit_cols(df, doc_mes_col):
+    """Localiza o bloco 'LIMITES DE COMISSIONAMENTO' (vai da coluna do titulo ate
+    'DOCUMENTOS DO MES'). Dentro dele, a 1a ocorrencia de cada tipo (PP/FAP/RE/TE)
+    e o limite em quantidade e a 2a, o limite em R$. Como cada aba traz tipos
+    diferentes (ex.: Rollout so tem RE), tudo e detectado pelos sub-cabecalhos.
+    Retorna (limite_qtd, limite_valor): dicts {tipo: indice_da_coluna}."""
+    if doc_mes_col is None or df.shape[0] < 1:
+        return {}, {}
+    inicio = None
+    for idx, nome in enumerate(df.columns):
+        if 'LIMITE' in str(nome).upper():
+            inicio = idx
+            break
+    if inicio is None or inicio >= doc_mes_col:
+        return {}, {}
+    qtd, valor = {}, {}
+    for col_idx in range(inicio, doc_mes_col):
+        sub = str(df.iloc[0, col_idx]).strip().upper()
+        if sub not in _DELIVERY_ORDER:
+            continue
+        if sub not in qtd:
+            qtd[sub] = col_idx
+        elif sub not in valor:
+            valor[sub] = col_idx
+    return qtd, valor
+
+
+def _num_or_none(row_data, col_idx):
+    """Valor numerico da celula, ou None se vazia/nao numerica."""
+    if col_idx >= len(row_data):
+        return None
+    val = row_data.iloc[col_idx]
+    if pd.isna(val) or val is False:
+        return None
+    try:
+        return float(val)
+    except (TypeError, ValueError):
+        return None
+
+
 def create_final_report(filtered_data, coordinator_name, period, output_path, commission_columns=None):
     """Cria relatório com colunas de entregas (PP/FAP/RE/TE) e comissão do mês."""
 
@@ -133,6 +176,7 @@ def create_final_report(filtered_data, coordinator_name, period, output_path, co
     row_num += 2
 
     sheet_order = [period, 'Tradicionais', 'Rollout', 'Treinamento']
+    max_cols = 6
 
     default_col_mapping = {
         'Tradicionais': 187,
@@ -151,6 +195,7 @@ def create_final_report(filtered_data, coordinator_name, period, output_path, co
         comissao_col  = commission_columns.get(sheet_name, default_col_mapping.get(sheet_name, 187))
         doc_mes_col   = _find_doc_mes_col(df)
         delivery_cols = _find_delivery_cols(df, doc_mes_col)
+        lim_qtd_cols, lim_val_cols = _find_limit_cols(df, doc_mes_col)
 
         # Ordem fixa dos tipos de entrega presentes nesta aba
         delivery_names = [n for n in ['PP', 'FAP', 'RE', 'TE'] if n in delivery_cols]
@@ -170,15 +215,21 @@ def create_final_report(filtered_data, coordinator_name, period, output_path, co
                 valor = raw if pd.notna(raw) and raw is not False else 0
 
             counts = _get_delivery_counts(row_data, delivery_cols)
-            valid_rows.append((projeto, counts, valor))
+            lim_q = {n: _num_or_none(row_data, c) for n, c in lim_qtd_cols.items()}
+            lim_v = {n: _num_or_none(row_data, c) for n, c in lim_val_cols.items()}
+            valid_rows.append((projeto, counts, valor, lim_q, lim_v))
 
         # Omite a seção inteira se não houver linhas válidas
         if not valid_rows:
             continue
 
-        # Número de colunas: Projeto + entregas + Comissão
-        total_cols = 1 + len(delivery_names) + 1
+        lim_q_names = [n for n in _DELIVERY_ORDER if n in lim_qtd_cols]
+        lim_v_names = [n for n in _DELIVERY_ORDER if n in lim_val_cols]
+
+        # Colunas: Projeto + limites (qtd) + limites (R$) + entregas + Comissão
+        total_cols = 1 + len(lim_q_names) + len(lim_v_names) + len(delivery_names) + 1
         comissao_col_out = total_cols  # última coluna (1-based)
+        max_cols = max(max_cols, total_cols)
 
         # Cabeçalho da seção
         ws.cell(row_num, 1).value = sheet_name
@@ -186,8 +237,26 @@ def create_final_report(filtered_data, coordinator_name, period, output_path, co
         ws.cell(row_num, 1).fill  = section_fill
         row_num += 1
 
+        # Linha de grupos (so quando a aba tem limites)
+        if lim_q_names or lim_v_names:
+            pos = 2
+            for rotulo, qtd_cols in (("LIMITE (QTD)", len(lim_q_names)),
+                                     ("LIMITE (R$)", len(lim_v_names)),
+                                     ("ENTREGAS DO MÊS", len(delivery_names))):
+                if not qtd_cols:
+                    continue
+                if qtd_cols > 1:
+                    ws.merge_cells(start_row=row_num, start_column=pos,
+                                   end_row=row_num, end_column=pos + qtd_cols - 1)
+                g = ws.cell(row_num, pos)
+                g.value, g.font, g.fill = rotulo, section_font, section_fill
+                g.alignment = Alignment(horizontal='center', vertical='center')
+                pos += qtd_cols
+            row_num += 1
+
         # Cabeçalho das colunas
-        headers = ['Projeto'] + delivery_names + ['Comissao do Mes']
+        headers = (['Projeto'] + lim_q_names + lim_v_names + delivery_names
+                   + ['Comissao do Mes'])
         for col_idx, header in enumerate(headers, 1):
             cell = ws.cell(row_num, col_idx)
             cell.value     = header
@@ -198,22 +267,38 @@ def create_final_report(filtered_data, coordinator_name, period, output_path, co
                 cell.fill = header_fill
                 cell.font = header_font
             else:
-                # Colunas de entrega: verde
+                # Colunas de limite e de entrega: verde
                 cell.fill = delivery_fill
                 cell.font = delivery_font
         row_num += 1
 
         # Linhas de dados
-        for projeto, counts, valor in valid_rows:
+        for projeto, counts, valor, lim_q, lim_v in valid_rows:
             ws.cell(row_num, 1).value = projeto
             ws.cell(row_num, 1).border    = thin_border
             ws.cell(row_num, 1).alignment = Alignment(horizontal='left', vertical='top', wrap_text=True)
 
-            for i, name in enumerate(delivery_names, 2):
-                cell = ws.cell(row_num, i)
+            col = 2
+            for name in lim_q_names:                       # limite em quantidade
+                cell = ws.cell(row_num, col)
+                v = lim_q.get(name)
+                cell.value     = (int(v) if v is not None and v == int(v) else v)
+                cell.border    = thin_border
+                cell.alignment = Alignment(horizontal='center', vertical='top')
+                col += 1
+            for name in lim_v_names:                       # limite em R$
+                cell = ws.cell(row_num, col)
+                cell.value         = lim_v.get(name)
+                cell.number_format = '#,##0.00'
+                cell.border        = thin_border
+                cell.alignment     = Alignment(horizontal='right', vertical='top')
+                col += 1
+            for name in delivery_names:                    # entregas do mes
+                cell = ws.cell(row_num, col)
                 cell.value     = counts.get(name, 0)
                 cell.border    = thin_border
                 cell.alignment = Alignment(horizontal='center', vertical='top')
+                col += 1
 
             cell_com = ws.cell(row_num, comissao_col_out)
             cell_com.value         = valor
@@ -230,7 +315,7 @@ def create_final_report(filtered_data, coordinator_name, period, output_path, co
             left=Side(style='medium'), right=Side(style='medium'),
             top=Side(style='medium'),  bottom=Side(style='medium')
         )
-        total_valor = sum(v for _, _, v in valid_rows if isinstance(v, (int, float)))
+        total_valor = sum(r[2] for r in valid_rows if isinstance(r[2], (int, float)))
 
         # Células do total (Projeto até penúltima coluna): label "TOTAL"
         ws.merge_cells(start_row=row_num, start_column=1,
@@ -254,11 +339,9 @@ def create_final_report(filtered_data, coordinator_name, period, output_path, co
 
     # Larguras de coluna
     ws.column_dimensions['A'].width = 50
-    ws.column_dimensions['B'].width = 9
-    ws.column_dimensions['C'].width = 9
-    ws.column_dimensions['D'].width = 9
-    ws.column_dimensions['E'].width = 9
-    ws.column_dimensions['F'].width = 18
+    for ci in range(2, max_cols + 1):
+        ws.column_dimensions[get_column_letter(ci)].width = 11
+    ws.column_dimensions[get_column_letter(max_cols)].width = 18
 
     try:
         wb.save(filepath)
