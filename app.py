@@ -426,7 +426,7 @@ def db_to_projeto(p: ERPProjetoDB, colabs_map: dict = None) -> Projeto:
         responsavel_id=p.responsavel_id,
         descricao=p.descricao or '',
         numero_unidades=p.numero_unidades or 1,
-        potencial_cliente=p.potencial_cliente or 'Medium',
+        potencial_cliente=p.potencial_cliente or '',
         tipo_projeto=p.tipo_projeto or 'Novo',
         modelo_projeto=p.modelo_projeto or 'Tradicional',
         ponto_atencao=bool(p.ponto_atencao),
@@ -505,7 +505,7 @@ def db_to_projeto_lite(p: ERPProjetoDB, responsaveis_map: dict = None) -> Projet
         responsavel_id=p.responsavel_id,
         descricao=p.descricao or '',
         numero_unidades=p.numero_unidades or 1,
-        potencial_cliente=p.potencial_cliente or 'Medium',
+        potencial_cliente=p.potencial_cliente or '',
         tipo_projeto=p.tipo_projeto or 'Novo',
         modelo_projeto=p.modelo_projeto or 'Tradicional',
         ponto_atencao=bool(p.ponto_atencao),
@@ -1983,22 +1983,26 @@ def dashboard_projetos():
 
     # Total por porte: só projetos ativos (Em andamento/Paralisado — exclui
     # Finalizado e Cancelado) da metodologia Tradicional.
-    portes_ordem = ['Estratégico', 'Premium', 'Medium', 'Standard', 'Não informado']
+    portes_ordem = ['Estratégico', 'Premium', 'Medium', 'Standard']
     resumo_porte = {p: 0 for p in portes_ordem}
+    porte_sem_info = 0
     for p in projetos_db:
         if p.status not in ('Em andamento', 'Paralisado'):
             continue
         if (p.modelo_projeto or 'Tradicional') != 'Tradicional':
             continue
-        chave = p.potencial_cliente if p.potencial_cliente in portes_ordem else 'Não informado'
-        resumo_porte[chave] += 1
+        if p.potencial_cliente in portes_ordem:
+            resumo_porte[p.potencial_cliente] += 1
+        else:
+            porte_sem_info += 1
 
     return render_template('projetos/dashboard_projetos.html',
                           stats=stats,
                           projetos_atrasados=projetos_atrasados,
                           projetos_vencimento_proximo=projetos_vencimento_proximo,
                           coordenadores_resumo=coordenadores_resumo,
-                          resumo_porte=resumo_porte)
+                          resumo_porte=resumo_porte,
+                          porte_sem_info=porte_sem_info)
 
 
 # ─── Validator para Projetos ─────────────────────────────────────────────────
