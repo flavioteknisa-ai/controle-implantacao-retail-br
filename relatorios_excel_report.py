@@ -99,6 +99,19 @@ def _find_limit_cols(df, doc_mes_col):
     return qtd, valor
 
 
+def _find_valor_servico_col(df):
+    """Localiza a coluna 'Valor do Servico' pelo titulo do sub-cabecalho (linha 0);
+    assim acompanha mudancas de posicao entre abas/meses. None se a aba nao tem."""
+    if df.shape[0] < 1:
+        return None
+    for col_idx in range(df.shape[1]):
+        sub = str(df.iloc[0, col_idx]).upper().replace('\n', ' ')
+        sub = sub.replace('Ç', 'C').replace('É', 'E').replace('Í', 'I').strip()
+        if 'VALOR' in sub and 'SERVICO' in sub:
+            return col_idx
+    return None
+
+
 def _num_or_none(row_data, col_idx):
     """Valor numerico da celula, ou None se vazia/nao numerica."""
     if col_idx >= len(row_data):
@@ -196,6 +209,7 @@ def create_final_report(filtered_data, coordinator_name, period, output_path, co
         doc_mes_col   = _find_doc_mes_col(df)
         delivery_cols = _find_delivery_cols(df, doc_mes_col)
         lim_qtd_cols, lim_val_cols = _find_limit_cols(df, doc_mes_col)
+        serv_col = _find_valor_servico_col(df)
 
         # Ordem fixa dos tipos de entrega presentes nesta aba
         delivery_names = [n for n in ['PP', 'FAP', 'RE', 'TE'] if n in delivery_cols]
@@ -217,7 +231,8 @@ def create_final_report(filtered_data, coordinator_name, period, output_path, co
             counts = _get_delivery_counts(row_data, delivery_cols)
             lim_q = {n: _num_or_none(row_data, c) for n, c in lim_qtd_cols.items()}
             lim_v = {n: _num_or_none(row_data, c) for n, c in lim_val_cols.items()}
-            valid_rows.append((projeto, counts, valor, lim_q, lim_v))
+            valor_serv = _num_or_none(row_data, serv_col) if serv_col is not None else None
+            valid_rows.append((projeto, counts, valor, lim_q, lim_v, valor_serv))
 
         # Omite a seção inteira se não houver linhas válidas
         if not valid_rows:
@@ -227,7 +242,9 @@ def create_final_report(filtered_data, coordinator_name, period, output_path, co
         lim_v_names = [n for n in _DELIVERY_ORDER if n in lim_val_cols]
 
         # Colunas: Projeto + limites (qtd) + limites (R$) + entregas + Comissão
-        total_cols = 1 + len(lim_q_names) + len(lim_v_names) + len(delivery_names) + 1
+        tem_serv = serv_col is not None
+        total_cols = (1 + (1 if tem_serv else 0) + len(lim_q_names) + len(lim_v_names)
+                      + len(delivery_names) + 1)
         comissao_col_out = total_cols  # última coluna (1-based)
         max_cols = max(max_cols, total_cols)
 
@@ -239,7 +256,7 @@ def create_final_report(filtered_data, coordinator_name, period, output_path, co
 
         # Linha de grupos (so quando a aba tem limites)
         if lim_q_names or lim_v_names:
-            pos = 2
+            pos = 3 if tem_serv else 2
             for rotulo, qtd_cols in (("LIMITE (QTD)", len(lim_q_names)),
                                      ("LIMITE (R$)", len(lim_v_names)),
                                      ("ENTREGAS DO MÊS", len(delivery_names))):
@@ -255,8 +272,8 @@ def create_final_report(filtered_data, coordinator_name, period, output_path, co
             row_num += 1
 
         # Cabeçalho das colunas
-        headers = (['Projeto'] + lim_q_names + lim_v_names + delivery_names
-                   + ['Comissao do Mes'])
+        headers = (['Projeto'] + (['Valor do Servico'] if tem_serv else [])
+                   + lim_q_names + lim_v_names + delivery_names + ['Comissao do Mes'])
         for col_idx, header in enumerate(headers, 1):
             cell = ws.cell(row_num, col_idx)
             cell.value     = header
@@ -273,12 +290,19 @@ def create_final_report(filtered_data, coordinator_name, period, output_path, co
         row_num += 1
 
         # Linhas de dados
-        for projeto, counts, valor, lim_q, lim_v in valid_rows:
+        for projeto, counts, valor, lim_q, lim_v, valor_serv in valid_rows:
             ws.cell(row_num, 1).value = projeto
             ws.cell(row_num, 1).border    = thin_border
             ws.cell(row_num, 1).alignment = Alignment(horizontal='left', vertical='top', wrap_text=True)
 
             col = 2
+            if tem_serv:                                   # valor do servico (R$)
+                cell = ws.cell(row_num, col)
+                cell.value         = valor_serv
+                cell.number_format = '"R$" #,##0.00'
+                cell.border        = thin_border
+                cell.alignment     = Alignment(horizontal='right', vertical='top')
+                col += 1
             for name in lim_q_names:                       # limite em quantidade
                 cell = ws.cell(row_num, col)
                 v = lim_q.get(name)
@@ -341,6 +365,7 @@ def create_final_report(filtered_data, coordinator_name, period, output_path, co
     ws.column_dimensions['A'].width = 50
     for ci in range(2, max_cols + 1):
         ws.column_dimensions[get_column_letter(ci)].width = 11
+    ws.column_dimensions['B'].width = 16
     ws.column_dimensions[get_column_letter(max_cols)].width = 18
 
     try:
