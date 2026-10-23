@@ -95,26 +95,6 @@
     </div>
   </div>
 
-  {% if proj_criticos %}
-  <div class="alert alert-warning fade-in mb-3" role="alert">
-    <i class="bi bi-exclamation-triangle-fill me-2"></i>
-    <strong>{{ proj_criticos|length }} Projeto{{ 's' if proj_criticos|length != 1 }} em Situação Crítica</strong>
-    <ul class="mb-0 mt-2 small">
-      {% for critico in proj_criticos[:3] %}
-      <li>
-        <strong>{{ critico.projeto.nome }}</strong>
-        {% for motivo in critico.motivos %}
-        <br><small class="text-muted">• {{ motivo }}</small>
-        {% endfor %}
-      </li>
-      {% endfor %}
-      {% if proj_criticos|length > 3 %}
-      <li><a href="/projetos" class="alert-link">+ {{ proj_criticos|length - 3 }} projeto{{ 's' if proj_criticos|length - 3 != 1 }} crítico{{ 's' if proj_criticos|length - 3 != 1 }}</a></li>
-      {% endif %}
-    </ul>
-  </div>
-  {% endif %}
-
   <hr style="margin: 28px 0; opacity: 0.2;">
 </div>
 {% endif %}
