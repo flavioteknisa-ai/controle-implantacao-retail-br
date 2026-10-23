@@ -1927,15 +1927,19 @@ def dashboard_projetos():
 
     # Stats gerais
     stats = {
-        'total_projetos': len(projetos),
+        # Total/Tradicionais/Treino-Rollout: so projetos ativos (Em andamento e
+        # Paralisado), igual ao Dashboard.
+        'total_projetos': sum(1 for p in projetos if p.status in ('Em andamento', 'Paralisado')),
         'em_andamento': sum(1 for p in projetos if p.status == 'Em andamento'),
         'paralisados': sum(1 for p in projetos if p.status == 'Paralisado'),
         'finalizados': sum(1 for p in projetos if p.status == 'Finalizado'),
         'atrasados': sum(1 for p in projetos if p.esta_atrasado()),
         'progresso_medio': analytics.percentual_conclusao_geral(),
         'valor_total_em_andamento': sum(p.valor_mensalidades for p in projetos if p.status == 'Em andamento'),
-        'tradicionais': sum(1 for p in projetos_db if (p.modelo_projeto or 'Tradicional') == 'Tradicional'),
-        'treino_rollout': sum(1 for p in projetos_db if (p.modelo_projeto or '') in ('Treinamento', 'Rollout')),
+        'tradicionais': sum(1 for p in projetos_db if p.status in ('Em andamento', 'Paralisado')
+                            and (p.modelo_projeto or 'Tradicional') == 'Tradicional'),
+        'treino_rollout': sum(1 for p in projetos_db if p.status in ('Em andamento', 'Paralisado')
+                              and (p.modelo_projeto or '') in ('Treinamento', 'Rollout')),
     }
 
     # Projetos atrasados

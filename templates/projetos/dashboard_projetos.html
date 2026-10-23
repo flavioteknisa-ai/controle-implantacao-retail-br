@@ -98,7 +98,7 @@
 <!-- Barra de Resumo Geral -->
 <div class="summary-bar">
   <div class="summary-item">
-    <a href="/projetos?responsavel_id=todos&status=todos" class="summary-link">
+    <a href="/projetos?responsavel_id=todos&status=ativos" class="summary-link">
       <div class="summary-num" style="color:#808080;">{{ stats.total_projetos }}</div>
     <div class="summary-label">Total de Projetos</div>
     </a>
@@ -128,13 +128,13 @@
     </a>
   </div>
   <div class="summary-item">
-    <a href="/projetos?responsavel_id=todos&modelo=Tradicional&status=todos" class="summary-link">
+    <a href="/projetos?responsavel_id=todos&modelo=Tradicional&status=ativos" class="summary-link">
       <div class="summary-num" style="color:#0277BD;">{{ stats.tradicionais or 0 }}</div>
       <div class="summary-label">Tradicionais</div>
     </a>
   </div>
   <div class="summary-item">
-    <a href="/projetos?responsavel_id=todos&modelo=Treinamento&status=todos" class="summary-link">
+    <a href="/projetos?responsavel_id=todos&modelo=Treinamento&status=ativos" class="summary-link">
       <div class="summary-num" style="color:#00897B;">{{ stats.treino_rollout or 0 }}</div>
       <div class="summary-label">Treino / Rollout</div>
     </a>
