@@ -77,6 +77,8 @@
     padding: 14px 18px;
     margin-bottom: 20px;
   }
+  .summary-link { display:block; text-decoration:none; color:inherit; border-radius:8px; transition:background .15s, transform .15s; }
+  .summary-link:hover { background:rgba(0,0,0,.045); transform:translateY(-1px); color:inherit; }
 </style>
 {% endblock %}
 
@@ -96,46 +98,60 @@
 <!-- Barra de Resumo Geral -->
 <div class="summary-bar">
   <div class="summary-item">
-    <div class="summary-num" style="color:#808080;">{{ stats.total_projetos }}</div>
+    <a href="/projetos?responsavel_id=todos&status=todos" class="summary-link">
+      <div class="summary-num" style="color:#808080;">{{ stats.total_projetos }}</div>
     <div class="summary-label">Total de Projetos</div>
+    </a>
   </div>
   <div class="summary-item">
-    <div class="summary-num" style="color:#FF9800;">{{ stats.em_andamento }}</div>
+    <a href="/projetos?responsavel_id=todos&status=Em andamento" class="summary-link">
+      <div class="summary-num" style="color:#FF9800;">{{ stats.em_andamento }}</div>
     <div class="summary-label">Em Andamento</div>
+    </a>
   </div>
   <div class="summary-item">
-    <div class="summary-num" style="color:#7B1FA2;">{{ stats.paralisados or 0 }}</div>
+    <a href="/projetos?responsavel_id=todos&status=Paralisado" class="summary-link">
+      <div class="summary-num" style="color:#7B1FA2;">{{ stats.paralisados or 0 }}</div>
     <div class="summary-label">Paralisados</div>
+    </a>
   </div>
   <div class="summary-item">
-    <div class="summary-num" style="color:#4CAF50;">{{ stats.finalizados }}</div>
+    <a href="/projetos?responsavel_id=todos&status=Finalizado" class="summary-link">
+      <div class="summary-num" style="color:#4CAF50;">{{ stats.finalizados }}</div>
     <div class="summary-label">Finalizados</div>
+    </a>
   </div>
   <div class="summary-item">
-    <div class="summary-num" style="color:#F44336;">{{ stats.atrasados }}</div>
+    <a href="/projetos?responsavel_id=todos&status=atrasados" class="summary-link">
+      <div class="summary-num" style="color:#F44336;">{{ stats.atrasados }}</div>
     <div class="summary-label">Atrasados</div>
+    </a>
   </div>
   <div class="summary-item">
-    <a href="/projetos?modelo=Tradicional" style="text-decoration:none;color:inherit;">
+    <a href="/projetos?responsavel_id=todos&modelo=Tradicional&status=todos" class="summary-link">
       <div class="summary-num" style="color:#0277BD;">{{ stats.tradicionais or 0 }}</div>
       <div class="summary-label">Tradicionais</div>
     </a>
   </div>
   <div class="summary-item">
-    <a href="/projetos?modelo=Treinamento" style="text-decoration:none;color:inherit;">
+    <a href="/projetos?responsavel_id=todos&modelo=Treinamento&status=todos" class="summary-link">
       <div class="summary-num" style="color:#00897B;">{{ stats.treino_rollout or 0 }}</div>
       <div class="summary-label">Treino / Rollout</div>
     </a>
   </div>
   <div class="summary-item">
-    <div class="summary-num" style="color:#2196F3; font-size:1.4rem;">{{ stats.progresso_medio|int }}%</div>
+    <a href="/projetos?responsavel_id=todos&status=todos" class="summary-link">
+      <div class="summary-num" style="color:#2196F3; font-size:1.4rem;">{{ stats.progresso_medio|int }}%</div>
     <div class="summary-label">Progresso Médio</div>
+    </a>
   </div>
   <div class="summary-item">
-    <div class="summary-num" style="color:#9C27B0; font-size:1.3rem;">
+    <a href="/projetos?responsavel_id=todos&status=Em andamento" class="summary-link">
+      <div class="summary-num" style="color:#9C27B0; font-size:1.3rem;">
       R$ {{ "%.0f"|format(stats.valor_total_em_andamento / 1000) }}k
     </div>
     <div class="summary-label">Valor Mensal</div>
+    </a>
   </div>
 </div>
 

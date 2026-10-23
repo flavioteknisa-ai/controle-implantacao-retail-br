@@ -107,6 +107,11 @@
       Ativos · {{ resumo.em_andamento + resumo.paralisados }}
     </a>
     {% endif %}
+    {% if status_filtro == 'atrasados' %}
+    <a href="/projetos?status=atrasados{{ qs_base }}" class="chip chip-danger active">
+      <i class="bi bi-exclamation-triangle"></i>Atrasados · {{ resumo.atrasados }}
+    </a>
+    {% endif %}
     <a href="/projetos?status=todos{{ qs_base }}" class="chip {% if status_filtro == 'todos' %}active{% endif %}">
       Todos · {{ resumo.total_projetos }}
     </a>

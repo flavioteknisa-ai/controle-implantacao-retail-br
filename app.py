@@ -1869,7 +1869,9 @@ def listar_projetos():
 
     # Filtros de status
     status_filtro = request.args.get('status', 'todos')
-    if status_filtro == 'ativos':
+    if status_filtro == 'atrasados':
+        projetos = [p for p in todos_projetos if p.esta_atrasado()]
+    elif status_filtro == 'ativos':
         projetos = [p for p in todos_projetos if p.status in ('Em andamento', 'Paralisado')]
     elif status_filtro == 'atencao':
         projetos = [p for p in todos_projetos if p.ponto_atencao]
@@ -1884,6 +1886,7 @@ def listar_projetos():
     resumo = analytics.resumo_geral()
     # Contadores extras
     resumo['paralisados']     = sum(1 for p in todos_projetos if p.status == 'Paralisado')
+    resumo['atrasados']       = sum(1 for p in todos_projetos if p.esta_atrasado())
     resumo['em_atencao']      = sum(1 for p in todos_projetos if p.ponto_atencao)
     resumo['longa_execucao']  = sum(1 for p in todos_projetos if p.alerta_longa_execucao)
 
