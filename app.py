@@ -906,6 +906,8 @@ def index():
     projetos = db_to_projetos_batch_lite(projetos_db, resp_map=_resp_map_dash)
     proj_analytics = ProjetoAnalytics(projetos)
     proj_resumo = proj_analytics.resumo_geral()
+    # Total do Dashboard: so projetos ativos (exclui Finalizados e Cancelados)
+    proj_resumo['total_projetos'] = proj_resumo['em_andamento'] + proj_resumo['paralisados']
     proj_criticos = proj_analytics.projetos_criticos()
 
     # Contagem por modelo (apenas ativos: Em andamento + Paralisado)
