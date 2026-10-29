@@ -1813,11 +1813,11 @@ def minhas_atividades():
                            today=date.today())
 
 
-@app.route('/projetos')
-@login_required
-@permission_required('ver_projetos')
-def listar_projetos():
-    """Lista todos os projetos ERP com filtros opcionais"""
+def _projetos_filtrados_da_querystring():
+    """Aplica os filtros da lista de projetos (coordenador, modelo, porte e status)
+    lidos da querystring. Compartilhada entre a lista e a exportacao para Excel.
+    Retorna (projetos, todos_projetos, responsavel_filtro, modelo_filtro,
+    porte_filtro, status_filtro)."""
     projetos_db = ERPProjetoDB.query.order_by(ERPProjetoDB.criado_em.desc()).all()
     todos_projetos = db_to_projetos_batch_lite(projetos_db)  # already batches colabs
 
@@ -1884,6 +1884,19 @@ def listar_projetos():
     else:
         projetos = todos_projetos
 
+
+    return (projetos, todos_projetos, responsavel_filtro, modelo_filtro,
+            porte_filtro, status_filtro)
+
+
+@app.route('/projetos')
+@login_required
+@permission_required('ver_projetos')
+def listar_projetos():
+    """Lista todos os projetos ERP com filtros opcionais"""
+    (projetos, todos_projetos, responsavel_filtro, modelo_filtro,
+     porte_filtro, status_filtro) = _projetos_filtrados_da_querystring()
+
     analytics = ProjetoAnalytics(todos_projetos)
     resumo = analytics.resumo_geral()
     # Contadores extras
@@ -1911,6 +1924,48 @@ def listar_projetos():
                           responsavel_nome=responsavel_nome,
                           coordenadores=coordenadores_filtro,
                           resumo=resumo)
+
+@app.route('/projetos/exportar-excel')
+@login_required
+@permission_required('ver_projetos')
+def exportar_projetos_excel():
+    """Exporta para Excel a lista de projetos com os filtros atuais da tela:
+    nome do projeto, coordenador responsavel e status."""
+    projetos, _, _, _, _, status_filtro = _projetos_filtrados_da_querystring()
+    projetos = sorted(projetos, key=lambda p: (p.nome or '').upper())
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'Projetos'
+    cab_fill = PatternFill(start_color='1F3864', end_color='1F3864', fill_type='solid')
+    cab_font = Font(name='Arial', size=11, bold=True, color='FFFFFF')
+    borda = Border(left=Side(style='thin'), right=Side(style='thin'),
+                   top=Side(style='thin'), bottom=Side(style='thin'))
+    for ci, titulo in enumerate(['Projeto', 'Coordenador Responsável', 'Status'], 1):
+        c = ws.cell(row=1, column=ci, value=titulo)
+        c.fill, c.font, c.border = cab_fill, cab_font, borda
+        c.alignment = Alignment(horizontal='center', vertical='center')
+    for ri, p in enumerate(projetos, 2):
+        for ci, valor in enumerate([p.nome, p.responsavel or 'Sem coordenador', p.status], 1):
+            c = ws.cell(row=ri, column=ci, value=valor)
+            c.font, c.border = Font(name='Arial', size=10), borda
+    ws.column_dimensions['A'].width = 55
+    ws.column_dimensions['B'].width = 30
+    ws.column_dimensions['C'].width = 16
+    ws.freeze_panes = 'A2'
+    if projetos:
+        ws.auto_filter.ref = f'A1:C{len(projetos) + 1}'
+
+    saida = BytesIO()
+    wb.save(saida)
+    saida.seek(0)
+    rotulo = {'todos': 'Todos', 'ativos': 'Ativos', 'atrasados': 'Atrasados', 'atencao': 'Atencao',
+              'longa_execucao': 'Longa_execucao'}.get(status_filtro, status_filtro.replace(' ', '_'))
+    return send_file(saida,
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                     as_attachment=True,
+                     download_name=f"Projetos_{rotulo}_{date.today().strftime('%Y%m%d')}.xlsx")
+
 
 @app.route('/dashboard-projetos')
 @login_required

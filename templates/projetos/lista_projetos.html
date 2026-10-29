@@ -62,11 +62,17 @@
       <h2><i class="bi bi-building me-2"></i>Projetos Retail</h2>
       <p>Acompanhamento de implantações Retail</p>
     </div>
-    {% if tem_perm('criar_projeto') %}
-    <a href="/novo-projeto" class="btn btn-primary btn-sm">
-      <i class="bi bi-plus-circle me-1"></i>Novo Projeto
-    </a>
-    {% endif %}
+    <div class="d-flex gap-2">
+      <a href="/projetos/exportar-excel?status={{ status_filtro|urlencode }}&responsavel_id={{ (responsavel_filtro or 'todos')|urlencode }}{% if modelo_filtro %}&modelo={{ modelo_filtro|urlencode }}{% endif %}{% if porte_filtro %}&porte={{ porte_filtro|urlencode }}{% endif %}"
+         class="btn btn-outline-success btn-sm" title="Exporta a lista exatamente como está filtrada na tela">
+        <i class="bi bi-file-earmark-excel me-1"></i>Exportar Excel
+      </a>
+      {% if tem_perm('criar_projeto') %}
+      <a href="/novo-projeto" class="btn btn-primary btn-sm">
+        <i class="bi bi-plus-circle me-1"></i>Novo Projeto
+      </a>
+      {% endif %}
+    </div>
   </div>
 </div>
 
