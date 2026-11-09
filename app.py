@@ -2195,6 +2195,15 @@ def novo_projeto():
         modelo_projeto = request.form.get('modelo_projeto', 'Tradicional')
         cidade = request.form.get('cidade', '').strip().upper() or None
         estado = request.form.get('estado', '').strip().upper() or None
+        consultores_envolvidos = request.form.get('consultores_envolvidos', '').strip() or None
+        try:
+            despesas_projeto    = _parse_valor_brl(request.form.get('despesas_projeto'))
+            horas_contratadas   = _parse_horas(request.form.get('horas_contratadas'))
+            horas_faturadas     = _parse_horas(request.form.get('horas_faturadas'))
+            horas_nao_faturadas = _parse_horas(request.form.get('horas_nao_faturadas'))
+        except ValueError:
+            flash('Valor inválido em Despesas ou Horas. Use números, ex.: 1.500,00 ou 120:30.', 'danger')
+            return render_template('projetos/novo_projeto.html', colaboradores=colaboradores, modelos=PROJETO_MODELOS)
 
         # Validação básica
         if not nome:
@@ -2202,6 +2211,9 @@ def novo_projeto():
             return render_template('projetos/novo_projeto.html', colaboradores=colaboradores, modelos=PROJETO_MODELOS)
         if not responsavel_id:
             flash('Responsável (Coordenador) é obrigatório.', 'danger')
+            return render_template('projetos/novo_projeto.html', colaboradores=colaboradores, modelos=PROJETO_MODELOS)
+        if horas_contratadas is None:
+            flash('Horas de Serviço Contratadas é obrigatório.', 'danger')
             return render_template('projetos/novo_projeto.html', colaboradores=colaboradores, modelos=PROJETO_MODELOS)
 
         # Verificar duplicata
@@ -2225,6 +2237,11 @@ def novo_projeto():
             modelo_projeto=modelo_projeto,
             cidade=cidade,
             estado=estado,
+            despesas_projeto=despesas_projeto,
+            consultores_envolvidos=consultores_envolvidos,
+            horas_contratadas=horas_contratadas,
+            horas_faturadas=horas_faturadas,
+            horas_nao_faturadas=horas_nao_faturadas,
         )
         db.session.add(novo)
         db.session.commit()
@@ -2323,6 +2340,9 @@ def editar_projeto(pid):
         # Validação
         if not responsavel_id:
             flash('Responsável (Coordenador) é obrigatório.', 'danger')
+            return redirect(url_for('editar_projeto', pid=pid))
+        if horas_contratadas is None:
+            flash('Horas de Serviço Contratadas é obrigatório.', 'danger')
             return redirect(url_for('editar_projeto', pid=pid))
         valido, erro = ProjetoValidator.validar_projeto(nome, data_aceite, data_conclusao)
         if not valido:

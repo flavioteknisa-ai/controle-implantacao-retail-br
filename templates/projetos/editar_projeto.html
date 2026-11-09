@@ -179,8 +179,8 @@
           <div class="row">
             <div class="col-md-4">
               <div class="mb-3">
-                <label for="horas_contratadas" class="form-label">Horas de Serviço Contratadas</label>
-                <input type="text" class="form-control" id="horas_contratadas" name="horas_contratadas"
+                <label for="horas_contratadas" class="form-label">Horas de Serviço Contratadas <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" id="horas_contratadas" name="horas_contratadas" required
                        placeholder="Ex: 120 ou 120:30" value="{{ p_db.horas_contratadas|horas }}">
               </div>
             </div>
