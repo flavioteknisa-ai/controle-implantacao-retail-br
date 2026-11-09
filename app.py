@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
+import re
 import sys
 import json
 import socket
@@ -1889,6 +1890,45 @@ def _projetos_filtrados_da_querystring():
             porte_filtro, status_filtro)
 
 
+def _parse_valor_brl(s):
+    """Converte '1.234,56', '1234,56', '1234.56' ou 'R$ 1.234' em float. Vazio -> None."""
+    s = (s or '').replace('R$', '').replace(' ', '').strip()
+    if not s:
+        return None
+    if ',' in s:
+        s = s.replace('.', '').replace(',', '.')
+    elif re.fullmatch(r'\d{1,3}(\.\d{3})+', s):
+        s = s.replace('.', '')
+    return float(s)
+
+
+def _parse_horas(s):
+    """Converte '120', '120,5' ou '120:30' em horas decimais. Vazio -> None."""
+    s = (s or '').strip().lower().replace('h', '')
+    if not s:
+        return None
+    if ':' in s:
+        h, m = s.split(':', 1)
+        return int(h or 0) + int(m or 0) / 60
+    return float(s.replace(',', '.'))
+
+
+@app.template_filter('brl')
+def _filtro_brl(v):
+    if v is None:
+        return ''
+    return 'R$ ' + f'{float(v):,.2f}'.replace(',', 'X').replace('.', ',').replace('X', '.')
+
+
+@app.template_filter('horas')
+def _filtro_horas(v):
+    """Horas decimais -> 'HH:MM' (ex.: 120.5 -> '120:30')."""
+    if v is None:
+        return ''
+    minutos = int(round(float(v) * 60))
+    return f'{minutos // 60}:{minutos % 60:02d}'
+
+
 @app.route('/projetos')
 @login_required
 @permission_required('ver_projetos')
@@ -2270,6 +2310,15 @@ def editar_projeto(pid):
         ponto_atencao = bool(request.form.get('ponto_atencao'))
         cidade = request.form.get('cidade', '').strip().upper() or None
         estado = request.form.get('estado', '').strip().upper() or None
+        consultores_envolvidos = request.form.get('consultores_envolvidos', '').strip() or None
+        try:
+            despesas_projeto    = _parse_valor_brl(request.form.get('despesas_projeto'))
+            horas_contratadas   = _parse_horas(request.form.get('horas_contratadas'))
+            horas_faturadas     = _parse_horas(request.form.get('horas_faturadas'))
+            horas_nao_faturadas = _parse_horas(request.form.get('horas_nao_faturadas'))
+        except ValueError:
+            flash('Valor inválido em Despesas ou Horas. Use números, ex.: 1.500,00 ou 120:30.', 'danger')
+            return redirect(url_for('editar_projeto', pid=pid))
 
         # Validação
         if not responsavel_id:
@@ -2296,6 +2345,11 @@ def editar_projeto(pid):
         p_db.ponto_atencao = ponto_atencao
         p_db.cidade = cidade
         p_db.estado = estado
+        p_db.despesas_projeto = despesas_projeto
+        p_db.consultores_envolvidos = consultores_envolvidos
+        p_db.horas_contratadas = horas_contratadas
+        p_db.horas_faturadas = horas_faturadas
+        p_db.horas_nao_faturadas = horas_nao_faturadas
         db.session.commit()
 
         flash(f'Projeto "{nome}" atualizado!', 'success')

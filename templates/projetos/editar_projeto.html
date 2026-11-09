@@ -156,6 +156,50 @@
             </div>
           </div>
 
+          <div class="row">
+            <div class="col-md-4">
+              <div class="mb-3">
+                <label for="despesas_projeto" class="form-label">Despesas do Projeto (R$)</label>
+                <input type="text" class="form-control" id="despesas_projeto" name="despesas_projeto"
+                       inputmode="decimal" placeholder="Ex: 1.500,00"
+                       value="{{ (p_db.despesas_projeto|brl)[3:] if p_db.despesas_projeto is not none else '' }}">
+              </div>
+            </div>
+            <div class="col-md-8">
+              <div class="mb-3">
+                <label for="consultores_envolvidos" class="form-label">Consultores Envolvidos</label>
+                <input type="text" class="form-control" id="consultores_envolvidos" name="consultores_envolvidos"
+                       placeholder="Ex: Lucas Santos, Douglas Silva"
+                       value="{{ p_db.consultores_envolvidos or '' }}">
+              </div>
+            </div>
+          </div>
+
+          <div class="mb-1 fw-semibold small text-muted text-uppercase">Horas do Projeto</div>
+          <div class="row">
+            <div class="col-md-4">
+              <div class="mb-3">
+                <label for="horas_contratadas" class="form-label">Horas de Serviço Contratadas</label>
+                <input type="text" class="form-control" id="horas_contratadas" name="horas_contratadas"
+                       placeholder="Ex: 120 ou 120:30" value="{{ p_db.horas_contratadas|horas }}">
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="mb-3">
+                <label for="horas_faturadas" class="form-label">Faturadas</label>
+                <input type="text" class="form-control" id="horas_faturadas" name="horas_faturadas"
+                       placeholder="Ex: 80" value="{{ p_db.horas_faturadas|horas }}">
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="mb-3">
+                <label for="horas_nao_faturadas" class="form-label">Não Faturadas</label>
+                <input type="text" class="form-control" id="horas_nao_faturadas" name="horas_nao_faturadas"
+                       placeholder="Ex: 12" value="{{ p_db.horas_nao_faturadas|horas }}">
+              </div>
+            </div>
+          </div>
+
           <div class="mb-3">
             <label for="descricao" class="form-label">Descrição</label>
             <textarea class="form-control" id="descricao" name="descricao" rows="4"
