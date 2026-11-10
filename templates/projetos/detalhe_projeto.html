@@ -308,7 +308,9 @@
                     <i class="bi bi-info-circle"></i> difere da média dos módulos ({{ projeto.percentual_geral()|int }}%)
                   </span>
                   {% endif %}
-                  <div class="col-md-6">
+                </div>
+              </div>
+              <div class="col-md-6">
                 <div class="info-label">Despesas do Projeto</div>
                 <div class="info-valor">
                   {{ total_despesas|brl if despesas else '—' }}
@@ -333,8 +335,6 @@
               <div class="col-md-4">
                 <div class="info-label">Não Faturadas</div>
                 <div class="info-valor">{{ (p_db.horas_nao_faturadas|horas ~ 'h') if p_db.horas_nao_faturadas is not none else '—' }}</div>
-              </div>
-            </div>
               </div>
             </div>
             {% if projeto.descricao %}
