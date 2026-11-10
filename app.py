@@ -1970,7 +1970,7 @@ def listar_projetos():
 @permission_required('ver_projetos')
 def exportar_projetos_excel():
     """Exporta para Excel a lista de projetos com os filtros atuais da tela:
-    nome do projeto, coordenador responsavel e status."""
+    nome do projeto, coordenador responsavel, status, tipo e porte."""
     projetos, _, _, _, _, status_filtro = _projetos_filtrados_da_querystring()
     projetos = sorted(projetos, key=lambda p: (p.nome or '').upper())
 
@@ -1981,22 +1981,24 @@ def exportar_projetos_excel():
     cab_font = Font(name='Arial', size=11, bold=True, color='FFFFFF')
     borda = Border(left=Side(style='thin'), right=Side(style='thin'),
                    top=Side(style='thin'), bottom=Side(style='thin'))
-    for ci, titulo in enumerate(['Projeto', 'Coordenador Responsável', 'Status', 'Tipo do Projeto'], 1):
+    for ci, titulo in enumerate(['Projeto', 'Coordenador Responsável', 'Status', 'Tipo do Projeto', 'Porte do Projeto'], 1):
         c = ws.cell(row=1, column=ci, value=titulo)
         c.fill, c.font, c.border = cab_fill, cab_font, borda
         c.alignment = Alignment(horizontal='center', vertical='center')
     for ri, p in enumerate(projetos, 2):
         for ci, valor in enumerate([p.nome, p.responsavel or 'Sem coordenador', p.status,
-                                 p.modelo_projeto or 'Tradicional'], 1):
+                                 p.modelo_projeto or 'Tradicional',
+                                 p.potencial_cliente or 'Não informado'], 1):
             c = ws.cell(row=ri, column=ci, value=valor)
             c.font, c.border = Font(name='Arial', size=10), borda
     ws.column_dimensions['A'].width = 55
     ws.column_dimensions['B'].width = 30
     ws.column_dimensions['C'].width = 16
     ws.column_dimensions['D'].width = 18
+    ws.column_dimensions['E'].width = 18
     ws.freeze_panes = 'A2'
     if projetos:
-        ws.auto_filter.ref = f'A1:D{len(projetos) + 1}'
+        ws.auto_filter.ref = f'A1:E{len(projetos) + 1}'
 
     saida = BytesIO()
     wb.save(saida)
