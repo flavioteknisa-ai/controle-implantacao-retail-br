@@ -159,10 +159,10 @@
           <div class="row">
             <div class="col-md-4">
               <div class="mb-3">
-                <label for="despesas_projeto" class="form-label">Despesas do Projeto (R$)</label>
-                <input type="text" class="form-control" id="despesas_projeto" name="despesas_projeto"
-                       inputmode="decimal" placeholder="Ex: 1.500,00"
-                       value="{{ (p_db.despesas_projeto|brl)[3:] if p_db.despesas_projeto is not none else '' }}">
+                <label class="form-label">Despesas do Projeto (R$)</label>
+                <input type="text" class="form-control" readonly tabindex="-1"
+                       value="{{ p_db.despesas_projeto|brl if p_db.despesas_projeto is not none else 'R$ 0,00' }}">
+                <small class="form-text text-muted">Total calculado na aba <a href="/projeto/{{ p_db.id }}#despesas">Despesas</a></small>
               </div>
             </div>
             <div class="col-md-8">

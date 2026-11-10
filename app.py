@@ -47,7 +47,7 @@ import io
 from io import BytesIO
 
 from models import Colaborador, Ferias
-from database import db, User, ColaboradorDB, FeriasDB, ERPProjetoDB, ERPModuloDB, ERPUnidadeDB, ERPAtividadeDB, ERPRepasseDB, ComissionamentoDB, PermissaoPerfil, VisitaDB, AppConfig, AgendaGestao
+from database import db, User, ColaboradorDB, FeriasDB, ERPProjetoDB, ERPModuloDB, ERPUnidadeDB, ERPAtividadeDB, ERPRepasseDB, ERPDespesaDB, ComissionamentoDB, PermissaoPerfil, VisitaDB, AppConfig, AgendaGestao
 from validators import FeriasValidator
 from analytics import FeriasAnalytics
 from erp_models import Projeto, Modulo, Unidade, Atividade
@@ -2197,12 +2197,11 @@ def novo_projeto():
         estado = request.form.get('estado', '').strip().upper() or None
         consultores_envolvidos = request.form.get('consultores_envolvidos', '').strip() or None
         try:
-            despesas_projeto    = _parse_valor_brl(request.form.get('despesas_projeto'))
             horas_contratadas   = _parse_horas(request.form.get('horas_contratadas'))
             horas_faturadas     = _parse_horas(request.form.get('horas_faturadas'))
             horas_nao_faturadas = _parse_horas(request.form.get('horas_nao_faturadas'))
         except ValueError:
-            flash('Valor inválido em Despesas ou Horas. Use números, ex.: 1.500,00 ou 120:30.', 'danger')
+            flash('Valor inválido em Horas. Use números, ex.: 120 ou 120:30.', 'danger')
             return render_template('projetos/novo_projeto.html', colaboradores=colaboradores, modelos=PROJETO_MODELOS)
 
         # Validação básica
@@ -2237,7 +2236,6 @@ def novo_projeto():
             modelo_projeto=modelo_projeto,
             cidade=cidade,
             estado=estado,
-            despesas_projeto=despesas_projeto,
             consultores_envolvidos=consultores_envolvidos,
             horas_contratadas=horas_contratadas,
             horas_faturadas=horas_faturadas,
@@ -2262,12 +2260,19 @@ def detalhe_projeto(pid):
     projeto = db_to_projeto(p_db, colabs_map=colabs_map)
     repasses = ERPRepasseDB.query.filter_by(projeto_id=pid).order_by(
         ERPRepasseDB.data_repasse.desc(), ERPRepasseDB.id.desc()).all()
+    despesas = ERPDespesaDB.query.filter_by(projeto_id=pid).order_by(ERPDespesaDB.id.asc()).all()
+    # Sugestoes de tipo: lista padrao + tipos ja usados em qualquer projeto
+    usados = [t for (t,) in db.session.query(ERPDespesaDB.tipo).distinct().all() if t]
+    tipos_despesa = sorted(set(TIPOS_DESPESA_SUGERIDOS) | set(usados), key=str.lower)
 
     return render_template('projetos/detalhe_projeto.html',
                           projeto=projeto,
                           p_db=p_db,
                           colaboradores=colaboradores,
-                          repasses=repasses)
+                          repasses=repasses,
+                          despesas=despesas,
+                          total_despesas=sum(d.valor for d in despesas),
+                          tipos_despesa=tipos_despesa)
 
 @app.route('/editar-projeto/<int:pid>', methods=['GET', 'POST'])
 @login_required
@@ -2329,12 +2334,11 @@ def editar_projeto(pid):
         estado = request.form.get('estado', '').strip().upper() or None
         consultores_envolvidos = request.form.get('consultores_envolvidos', '').strip() or None
         try:
-            despesas_projeto    = _parse_valor_brl(request.form.get('despesas_projeto'))
             horas_contratadas   = _parse_horas(request.form.get('horas_contratadas'))
             horas_faturadas     = _parse_horas(request.form.get('horas_faturadas'))
             horas_nao_faturadas = _parse_horas(request.form.get('horas_nao_faturadas'))
         except ValueError:
-            flash('Valor inválido em Despesas ou Horas. Use números, ex.: 1.500,00 ou 120:30.', 'danger')
+            flash('Valor inválido em Horas. Use números, ex.: 120 ou 120:30.', 'danger')
             return redirect(url_for('editar_projeto', pid=pid))
 
         # Validação
@@ -2365,7 +2369,6 @@ def editar_projeto(pid):
         p_db.ponto_atencao = ponto_atencao
         p_db.cidade = cidade
         p_db.estado = estado
-        p_db.despesas_projeto = despesas_projeto
         p_db.consultores_envolvidos = consultores_envolvidos
         p_db.horas_contratadas = horas_contratadas
         p_db.horas_faturadas = horas_faturadas
@@ -2443,6 +2446,7 @@ def excluir_projeto(pid):
     ERPUnidadeDB.query.filter_by(projeto_id=pid).delete()
     ERPModuloDB.query.filter_by(projeto_id=pid).delete()
     ERPRepasseDB.query.filter_by(projeto_id=pid).delete()
+    ERPDespesaDB.query.filter_by(projeto_id=pid).delete()
     db.session.delete(p_db)
     db.session.commit()
 
@@ -2848,6 +2852,54 @@ def editar_repasse(pid, rid):
 
     flash('Repasse atualizado!', 'success')
     return redirect(url_for('detalhe_projeto', pid=pid) + '#repasses')
+
+TIPOS_DESPESA_SUGERIDOS = ['Passagem aérea', 'Hospedagem', 'Alimentação', 'Transporte / Uber',
+                           'Combustível', 'Locação de veículo', 'Estacionamento / Pedágio', 'Outros']
+
+
+def _recalcular_despesas_projeto(pid):
+    """Atualiza ERPProjetoDB.despesas_projeto com a soma dos lancamentos da aba
+    Despesas (None quando nao ha lancamentos). Nao faz commit."""
+    total = db.session.query(db.func.sum(ERPDespesaDB.valor)).filter_by(projeto_id=pid).scalar()
+    db.session.get(ERPProjetoDB, pid).despesas_projeto = total
+
+
+@app.route('/projeto/<int:pid>/despesa', methods=['POST'])
+@login_required
+@permission_required('editar_projeto')
+def adicionar_despesa(pid):
+    """Lanca uma despesa (tipo + valor) e atualiza o total do projeto."""
+    ERPProjetoDB.query.get_or_404(pid)
+    tipo = request.form.get('tipo', '').strip()
+    try:
+        valor = _parse_valor_brl(request.form.get('valor'))
+    except ValueError:
+        valor = None
+    if not tipo or valor is None or valor <= 0:
+        flash('Informe o tipo e um valor maior que zero (ex.: 350,00).', 'danger')
+        return redirect(url_for('detalhe_projeto', pid=pid) + '#despesas')
+    db.session.add(ERPDespesaDB(projeto_id=pid, tipo=tipo[:100], valor=valor,
+                                criado_por=getattr(current_user, 'nome', None)))
+    db.session.flush()
+    _recalcular_despesas_projeto(pid)
+    db.session.commit()
+    flash(f'Despesa "{tipo}" lançada.', 'success')
+    return redirect(url_for('detalhe_projeto', pid=pid) + '#despesas')
+
+
+@app.route('/projeto/<int:pid>/despesa/<int:did>/excluir', methods=['POST'])
+@login_required
+@permission_required('editar_projeto')
+def excluir_despesa(pid, did):
+    """Exclui uma despesa e atualiza o total do projeto."""
+    despesa = ERPDespesaDB.query.filter_by(id=did, projeto_id=pid).first_or_404()
+    db.session.delete(despesa)
+    db.session.flush()
+    _recalcular_despesas_projeto(pid)
+    db.session.commit()
+    flash('Despesa excluída.', 'warning')
+    return redirect(url_for('detalhe_projeto', pid=pid) + '#despesas')
+
 
 @app.route('/projeto/<int:pid>/repasse/<int:rid>/excluir', methods=['POST'])
 @login_required

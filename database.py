@@ -160,6 +160,19 @@ class ERPAtividadeDB(db.Model):
     atualizado_em       = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
 
 
+class ERPDespesaDB(db.Model):
+    """Despesas lancadas na aba Despesas do projeto (tipo + valor).
+    A soma alimenta ERPProjetoDB.despesas_projeto."""
+    __tablename__ = 'erp_despesas_projeto'
+
+    id          = db.Column(db.Integer, primary_key=True)
+    projeto_id  = db.Column(db.Integer, db.ForeignKey('erp_projetos.id'), nullable=False, index=True)
+    tipo        = db.Column(db.String(100), nullable=False)
+    valor       = db.Column(db.Float, nullable=False)
+    criado_por  = db.Column(db.String(120))
+    criado_em   = db.Column(db.DateTime, default=datetime.now)
+
+
 class ERPRepasseDB(db.Model):
     __tablename__ = 'erp_repasses'
 

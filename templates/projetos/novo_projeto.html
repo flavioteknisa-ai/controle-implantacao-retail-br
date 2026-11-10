@@ -140,10 +140,9 @@
           <div class="row">
             <div class="col-md-4">
               <div class="mb-3">
-                <label for="despesas_projeto" class="form-label">Despesas do Projeto (R$)</label>
-                <input type="text" class="form-control" id="despesas_projeto" name="despesas_projeto"
-                       inputmode="decimal" placeholder="Ex: 1.500,00"
-                       value="{{ request.form.get('despesas_projeto', '') }}">
+                <label class="form-label">Despesas do Projeto (R$)</label>
+                <input type="text" class="form-control" readonly tabindex="-1" value="R$ 0,00">
+                <small class="form-text text-muted">Lançadas na aba Despesas, depois de criar o projeto</small>
               </div>
             </div>
             <div class="col-md-8">

@@ -238,6 +238,11 @@
       Repasses <span class="text-muted">· {{ repasses|length }}</span>
     </button>
   </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-despesas" type="button" role="tab">
+      Despesas <span class="text-muted">· {{ despesas|length }}</span>
+    </button>
+  </li>
 </ul>
 
 <div class="tab-content">
@@ -305,7 +310,10 @@
                   {% endif %}
                   <div class="col-md-6">
                 <div class="info-label">Despesas do Projeto</div>
-                <div class="info-valor">{{ p_db.despesas_projeto|brl if p_db.despesas_projeto is not none else '—' }}</div>
+                <div class="info-valor">
+                  {{ total_despesas|brl if despesas else '—' }}
+                  {% if despesas %}<a href="#despesas" class="small ms-1" onclick="document.querySelector('[data-bs-target=&quot;#tab-despesas&quot;]').click();return false;">ver lançamentos</a>{% endif %}
+                </div>
               </div>
               <div class="col-12">
                 <div class="info-label">Consultores Envolvidos</div>
@@ -766,6 +774,75 @@
           {% if tem_perm('editar_projeto') %}
           <br>Use o botão <strong>Registrar</strong> para documentar transferências entre coordenadores.
           {% endif %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Aba: Despesas -->
+  <div class="tab-pane fade" id="tab-despesas" role="tabpanel">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div><i class="bi bi-cash-coin me-1"></i> Despesas do Projeto ({{ despesas|length }})</div>
+        <div class="fw-semibold">Total: {{ total_despesas|brl }}</div>
+      </div>
+      <div class="card-body">
+        {% if tem_perm('editar_projeto') %}
+        <form method="POST" action="/projeto/{{ projeto.id }}/despesa" class="row g-2 align-items-end mb-3">
+          <div class="col-md-6">
+            <label class="form-label small mb-1">Tipo de despesa *</label>
+            <input type="text" name="tipo" class="form-control form-control-sm" list="tiposDespesa"
+                   maxlength="100" required placeholder="Ex: Hospedagem">
+            <datalist id="tiposDespesa">
+              {% for t in tipos_despesa %}<option value="{{ t }}">{% endfor %}
+            </datalist>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small mb-1">Valor (R$) *</label>
+            <input type="text" name="valor" class="form-control form-control-sm" inputmode="decimal"
+                   required placeholder="Ex: 350,00">
+          </div>
+          <div class="col-md-2 d-grid">
+            <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-plus-circle me-1"></i>Lançar</button>
+          </div>
+        </form>
+        {% endif %}
+
+        {% if despesas %}
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead class="bg-light">
+              <tr><th>Tipo de despesa</th><th class="text-end">Valor</th>
+                  <th class="text-muted small">Lançado por</th>{% if tem_perm('editar_projeto') %}<th></th>{% endif %}</tr>
+            </thead>
+            <tbody>
+              {% for d in despesas %}
+              <tr>
+                <td>{{ d.tipo }}</td>
+                <td class="text-end">{{ d.valor|brl }}</td>
+                <td class="text-muted small">{{ d.criado_por or '' }}{% if d.criado_em %} · {{ d.criado_em.strftime('%d/%m/%Y') }}{% endif %}</td>
+                {% if tem_perm('editar_projeto') %}
+                <td class="text-end">
+                  <form method="POST" action="/projeto/{{ projeto.id }}/despesa/{{ d.id }}/excluir" style="display:inline;"
+                        data-confirm="O total de despesas do projeto será recalculado."
+                        data-confirm-titulo="Excluir a despesa {{ d.tipo }} ({{ d.valor|brl }})?" data-confirm-botao="Excluir">
+                    <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-1" title="Excluir"><i class="bi bi-trash"></i></button>
+                  </form>
+                </td>
+                {% endif %}
+              </tr>
+              {% endfor %}
+            </tbody>
+            <tfoot>
+              <tr class="fw-bold"><td>Total</td><td class="text-end">{{ total_despesas|brl }}</td><td></td>{% if tem_perm('editar_projeto') %}<td></td>{% endif %}</tr>
+            </tfoot>
+          </table>
+        </div>
+        {% else %}
+        <div class="text-center py-4" style="color:var(--muted);font-size:.88rem;">
+          <i class="bi bi-cash-coin d-block mb-1" style="font-size:1.4rem;"></i>
+          Nenhuma despesa lançada ainda.
         </div>
         {% endif %}
       </div>
